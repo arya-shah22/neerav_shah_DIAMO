@@ -3,8 +3,8 @@
 // Pre-populate reference data: State Codes, HSN Codes, Super Admin
 // ═══════════════════════════════════════════════════════════════
 
-import { PrismaClient } from '@prisma/client';
-import * as bcrypt from 'bcryptjs';
+import { PrismaClient, UserStatus } from '@prisma/client';
+import bcrypt from 'bcryptjs';
 
 const prisma = new PrismaClient();
 
@@ -51,16 +51,16 @@ const STATE_CODES = [
 
 // ─── Common Diamond HSN Codes ─────────────────────────────────
 const HSN_CODES = [
-  { code: '71023910', description: 'Non-industrial diamonds — Sorted, uncut', gstRate: 0.25 },
-  { code: '71023920', description: 'Non-industrial diamonds — Cut and polished', gstRate: 0.25 },
-  { code: '71023930', description: 'Non-industrial diamonds — Others', gstRate: 0.25 },
-  { code: '71042000', description: 'Synthetic or reconstructed diamonds — Worked', gstRate: 0.25 },
-  { code: '71042010', description: 'Lab-grown diamonds — Cut and polished', gstRate: 0.25 },
-  { code: '71031000', description: 'Precious stones — Unworked or simply sawn', gstRate: 0.25 },
-  { code: '71039100', description: 'Rubies, sapphires, emeralds — Worked', gstRate: 0.25 },
-  { code: '71131110', description: 'Gold jewellery — Studded with diamonds', gstRate: 3.00 },
-  { code: '71131120', description: 'Gold jewellery — Plain', gstRate: 3.00 },
-  { code: '71131910', description: 'Silver jewellery — Studded', gstRate: 3.00 },
+  { code: '71023910', description: 'Non-industrial diamonds — Sorted, uncut', gstPct: 0.25 },
+  { code: '71023920', description: 'Non-industrial diamonds — Cut and polished', gstPct: 0.25 },
+  { code: '71023930', description: 'Non-industrial diamonds — Others', gstPct: 0.25 },
+  { code: '71042000', description: 'Synthetic or reconstructed diamonds — Worked', gstPct: 0.25 },
+  { code: '71042010', description: 'Lab-grown diamonds — Cut and polished', gstPct: 0.25 },
+  { code: '71031000', description: 'Precious stones — Unworked or simply sawn', gstPct: 0.25 },
+  { code: '71039100', description: 'Rubies, sapphires, emeralds — Worked', gstPct: 0.25 },
+  { code: '71131110', description: 'Gold jewellery — Studded with diamonds', gstPct: 3.00 },
+  { code: '71131120', description: 'Gold jewellery — Plain', gstPct: 3.00 },
+  { code: '71131910', description: 'Silver jewellery — Studded', gstPct: 3.00 },
 ];
 
 async function main() {
@@ -70,9 +70,9 @@ async function main() {
   console.log('📍 Seeding state codes...');
   for (const state of STATE_CODES) {
     await prisma.stateCode.upsert({
-      where: { code: state.code },
-      update: { name: state.name },
-      create: { code: state.code, name: state.name },
+      where: { stateCode: state.code },
+      update: { stateName: state.name },
+      create: { stateCode: state.code, stateName: state.name },
     });
   }
   console.log(`   ✅ ${STATE_CODES.length} state codes loaded`);
@@ -81,9 +81,9 @@ async function main() {
   console.log('📋 Seeding HSN codes...');
   for (const hsn of HSN_CODES) {
     await prisma.hsnCode.upsert({
-      where: { code: hsn.code },
-      update: { description: hsn.description, gstRate: hsn.gstRate },
-      create: { code: hsn.code, description: hsn.description, gstRate: hsn.gstRate },
+      where: { hsnCode: hsn.code },
+      update: { description: hsn.description, gstPct: hsn.gstPct },
+      create: { hsnCode: hsn.code, description: hsn.description, gstPct: hsn.gstPct },
     });
   }
   console.log(`   ✅ ${HSN_CODES.length} HSN codes loaded`);
@@ -92,16 +92,15 @@ async function main() {
   console.log('👤 Seeding Super Admin user...');
   const passwordHash = await bcrypt.hash('Admin@123', 12);
   await prisma.user.upsert({
-    where: { username: 'superadmin' },
+    where: { userIdHandle: 'superadmin' },
     update: {},
     create: {
-      username: 'superadmin',
+      userIdHandle: 'superadmin',
       passwordHash: passwordHash,
       fullName: 'Super Administrator',
-      role: 'SUPER_ADMIN',
       email: 'admin@diamo.local',
       isSuperAdmin: true,
-      isActive: true,
+      status: UserStatus.ACTIVE,
     },
   });
   console.log('   ✅ Super Admin created (username: superadmin, password: Admin@123)');

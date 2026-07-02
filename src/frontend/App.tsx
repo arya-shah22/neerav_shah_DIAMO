@@ -3,13 +3,25 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ErrorBoundary } from './components/feedback/ErrorBoundary';
 import { ToastProvider } from './components/ui/Toast';
+import { LoginPage } from './features/auth';
+import { useAuthStore } from './state/auth-store';
 
-// ─── Placeholder pages (replaced in Stage 1+) ─────────────
+// ─── Route Guards ─────────────────────────────────────────────
+const ProtectedRoutes = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
+};
 
+const GuestRoutes = () => {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
+};
+
+// ─── Placeholder pages ────────────────────────────────────────
 const DashboardPage: React.FC = () => (
   <div style={{ padding: 'var(--spacing-lg)' }}>
     <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
@@ -34,15 +46,21 @@ const App: React.FC = () => {
       <ToastProvider>
         <BrowserRouter>
           <Routes>
-            {/* Application shell wraps all authenticated routes */}
-            <Route element={<AppShell />}>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<DashboardPage />} />
-
-              {/* Stage 1+ routes will be added here */}
-              {/* <Route path="/masters/accounts" element={<AccountListPage />} /> */}
-              {/* <Route path="/transactions/sales" element={<SaleListPage />} /> */}
+            {/* Guest/Unauthenticated Routes */}
+            <Route element={<GuestRoutes />}>
+              <Route path="/login" element={<LoginPage />} />
             </Route>
+
+            {/* Authenticated Application Wrapper */}
+            <Route element={<ProtectedRoutes />}>
+              <Route element={<AppShell />}>
+                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/dashboard" element={<DashboardPage />} />
+              </Route>
+            </Route>
+
+            {/* Fallback */}
+            <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>
       </ToastProvider>

@@ -48,11 +48,17 @@ function createWindow(): void {
   });
 }
 
-// ─── App Lifecycle ───────────────────────────────────────────
+import { bootstrapNestApp } from '../backend/main';
+import { INestApplicationContext } from '@nestjs/common';
+
+export let nestApp: INestApplicationContext | null = null;
 
 app.whenReady().then(async () => {
+  // Initialize NestJS backend modules context
+  nestApp = await bootstrapNestApp();
+
   // Register all IPC handlers before creating window
-  registerIpcHandlers(ipcMain);
+  registerIpcHandlers(ipcMain, nestApp);
 
   createWindow();
 

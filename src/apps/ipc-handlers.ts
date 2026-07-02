@@ -5,15 +5,17 @@
 // Each module registers its handlers here.
 
 import { IpcMain } from 'electron';
+import { INestApplicationContext } from '@nestjs/common';
+import { AuthController } from '../backend/modules/auth/auth.controller';
 
 /**
  * Register all IPC handlers.
  * Called once from main.ts on app ready.
- *
- * As modules are built (Stage 1+), their handlers will be
- * imported and registered here.
  */
-export function registerIpcHandlers(ipcMain: IpcMain): void {
+export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationContext): void {
+  // Resolve controllers once at registration time
+  const authController = nestApp.get(AuthController);
+
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => {
     return { success: true, message: 'DIAMO ERP is running', timestamp: new Date().toISOString() };
@@ -28,8 +30,14 @@ export function registerIpcHandlers(ipcMain: IpcMain): void {
     };
   });
 
-  // ─── Stage 1: Auth handlers will be registered here ──────
-  // registerAuthHandlers(ipcMain);
+  // ─── Stage 1: Auth handlers ──────────────────────────────
+  ipcMain.handle('auth:login', async (_, payload) => {
+    return authController.handleLogin(payload);
+  });
+
+  ipcMain.handle('auth:logout', async (_, payload) => {
+    return authController.handleLogout(payload);
+  });
 
   // ─── Stage 1: Company handlers will be registered here ───
   // registerCompanyHandlers(ipcMain);
