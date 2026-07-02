@@ -2,17 +2,19 @@
 // DIAMO ERP — Auth Service Backend
 // ═══════════════════════════════════════════════════════════════
 
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
-import * as bcrypt from 'bcryptjs';
+import bcrypt from 'bcryptjs';
 
 @Injectable()
 export class AuthService {
-  constructor(private prisma: PrismaService) {}
+  @Inject(PrismaService)
+  private readonly prisma!: PrismaService;
 
   async validateUser(loginDto: LoginDto) {
     const { userIdHandle, password } = loginDto;
+    console.log(`[AuthService] Attempting login for user: "${userIdHandle}"`);
 
     // Fetch user from DB
     const user = await this.prisma.user.findFirst({
@@ -23,15 +25,21 @@ export class AuthService {
     });
 
     if (!user) {
+      console.log(`[AuthService] User not found or deleted: "${userIdHandle}"`);
       throw new UnauthorizedException('Invalid username or password');
     }
 
+    console.log(`[AuthService] User found. ID: ${user.id}, Status: ${user.status}`);
+
     if (user.status !== 'ACTIVE') {
+      console.log(`[AuthService] User account is not active. Status: ${user.status}`);
       throw new UnauthorizedException('User account is inactive or blocked');
     }
 
     // Compare bcrypt hashes
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
+    console.log(`[AuthService] Bcrypt comparison result: ${isPasswordValid}`);
+    
     if (!isPasswordValid) {
       // Increment failed login count
       await this.prisma.user.update({
@@ -49,6 +57,8 @@ export class AuthService {
         lastLoginAt: new Date(),
       },
     });
+
+    console.log(`[AuthService] Login successful for user: "${userIdHandle}"`);
 
     // Return safe user data without password hash
     return {

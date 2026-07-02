@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
-    "dev:electron": "wait-on http://localhost:5173 && electron .",
+    "dev:electron": "wait-on tcp:127.0.0.1:5173 && electron .",
     "build": "tsc && vite build && electron-builder",
     "build:vite": "vite build",
     "lint": "eslint src --ext .ts,.tsx --fix",

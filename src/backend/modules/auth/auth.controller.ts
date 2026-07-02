@@ -2,7 +2,7 @@
 // DIAMO ERP — Auth Controller (IPC Bridge handler)
 // ═══════════════════════════════════════════════════════════════
 
-import { Controller, Injectable } from '@nestjs/common';
+import { Controller, Injectable, Inject } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { LoginDto } from './dto/login.dto';
 import { IApiResponse } from '../../../shared/types/common.types';
@@ -10,7 +10,8 @@ import { IApiResponse } from '../../../shared/types/common.types';
 @Injectable()
 @Controller()
 export class AuthController {
-  constructor(private authService: AuthService) {}
+  @Inject(AuthService)
+  private readonly authService!: AuthService;
 
   async handleLogin(payload: LoginDto): Promise<IApiResponse> {
     try {
@@ -18,6 +19,7 @@ export class AuthController {
       await this.authService.logActivity(user.id, 'LOGIN', `User ${user.userIdHandle} logged in successfully.`);
       return { success: true, data: user };
     } catch (error) {
+      console.error('[AuthController] handleLogin error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Authentication failed',
