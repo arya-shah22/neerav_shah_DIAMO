@@ -1,0 +1,30 @@
+appId: com.diamo.erp
+productName: DIAMO ERP
+copyright: Copyright © 2025 Neerav Shah
+
+directories:
+  output: release
+  buildResources: resources
+
+files:
+  - dist/**/*
+  - node_modules/**/*
+  - package.json
+
+mac:
+  category: public.app-category.business
+  icon: resources/icons/icon.icns
+  target:
+    - dmg
+    - zip
+
+win:
+  icon: resources/icons/icon.ico
+  target:
+    - nsis
+    - portable
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true

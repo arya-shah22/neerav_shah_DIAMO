@@ -1,0 +1,1791 @@
+// ═══════════════════════════════════════════════════════════════════════════════
+// DIAMO ERP – ENTERPRISE DATABASE SCHEMA (Prisma ORM)
+// ═══════════════════════════════════════════════════════════════════════════════
+//
+// Version:      1.0
+// Tables:       48
+// Database:     MySQL 8.0+
+// ORM:          Prisma 5.x
+// Architecture: Offline-first Desktop ERP (Electron + NestJS)
+//
+// ───────────────────────────────────────────────────────────────────────────────
+// This schema implements the approved Enterprise Database Architecture Blueprint.
+// All naming conventions, data types, precision levels, indexes, and
+// relationships follow the blueprint specification exactly.
+// ═══════════════════════════════════════════════════════════════════════════════
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 1: ENUMS
+// ═══════════════════════════════════════════════════════════════════════════════
+
+enum AccountStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  SUSPENDED
+}
+
+enum CompanyStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SAVED
+  APPROVED
+  CANCELLED
+  DELETED
+}
+
+enum InvoiceType {
+  SALE_INVOICE
+  SALE_RETURN
+  SALE_DEBIT_NOTE
+  PURCHASE_INVOICE
+  PURCHASE_RETURN
+  PURCHASE_DEBIT_NOTE
+}
+
+enum PaymentStatus {
+  UNPAID
+  PARTIAL
+  PAID
+  OVERDUE
+}
+
+enum ChallanPurpose {
+  TRADING_JHANGHAD
+  JOB_WORK
+  INTERNAL_TRANSFER
+  CERTIFICATION
+  SALE_ORDER
+  PURCHASE_ORDER
+}
+
+enum ChallanStatus {
+  DRAFT
+  ISSUED
+  DISPATCHED
+  PENDING
+  PARTIAL_RETURN
+  RETURNED
+  CONVERTED
+  CLOSED
+  CANCELLED
+  OVERDUE
+}
+
+enum JournalType {
+  GENERAL
+  ADJUSTMENT
+  OPENING
+  CLOSING
+  RECTIFICATION
+  GST_ADJUSTMENT
+  TDS_ADJUSTMENT
+  DEPRECIATION
+  SALARY_PROVISION
+  INTEREST_ACCRUAL
+  BROKERAGE_ALLOCATION
+}
+
+enum VoucherStatus {
+  DRAFT
+  PENDING_APPROVAL
+  POSTED
+  CANCELLED
+  REVERSED
+  DELETED
+}
+
+enum CashBankType {
+  CASH_PAYMENT
+  CASH_RECEIPT
+  BANK_PAYMENT
+  BANK_RECEIPT
+}
+
+enum PaymentMode {
+  CASH
+  CHEQUE
+  NEFT
+  RTGS
+  IMPS
+  UPI
+  BANK_TRANSFER
+  DEMAND_DRAFT
+  CASH_DEPOSIT
+}
+
+enum JobType {
+  JOB_INCOME
+  JOB_EXPENSE
+}
+
+enum StockStatus {
+  CREATED
+  PURCHASED
+  AVAILABLE
+  HOLD
+  JOB_WORK
+  SOLD
+  RETURNED
+  DAMAGED
+  ARCHIVED
+}
+
+enum StockOwnership {
+  COMPANY
+  SUPPLIER_MEMO
+  CUSTOMER_MEMO
+}
+
+enum StockCategory {
+  CERTIFIED
+  NON_CERTIFIED
+}
+
+enum MovementType {
+  STOCK_CREATION
+  PURCHASE
+  PURCHASE_RETURN
+  SALES
+  SALES_RETURN
+  JOB_WORK_ISSUE
+  JOB_WORK_RECEIVE
+  TRADING_CHALLAN
+  MANUAL_ADJUSTMENT
+  CORRECTION
+  ARCHIVE
+}
+
+enum VoucherType {
+  SALE_INVOICE
+  SALE_RETURN
+  SALE_DEBIT_NOTE
+  PURCHASE_INVOICE
+  PURCHASE_RETURN
+  PURCHASE_DEBIT_NOTE
+  CASH_PAYMENT
+  CASH_RECEIPT
+  BANK_PAYMENT
+  BANK_RECEIPT
+  JOURNAL_VOUCHER
+  JOB_INCOME
+  JOB_EXPENSE
+  CHALLAN_TRADING
+  CHALLAN_JOB_WORK
+  CHALLAN_SALE_ORDER
+  CHALLAN_PURCHASE_ORDER
+  CHALLAN_CERTIFICATION
+  CHALLAN_INTERNAL
+  STOCK_ENTRY
+  STOCK_ADJUSTMENT
+  OPENING
+}
+
+enum NumberingMethod {
+  AUTOMATIC
+  MANUAL
+  OVERRIDE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  LOCKED
+  DISABLED
+}
+
+enum GstRegType {
+  REGISTERED
+  COMPOSITION
+  UNREGISTERED
+  SEZ_DEVELOPER
+  SEZ_UNIT
+}
+
+enum UqcType {
+  CTS
+  PCS
+}
+
+enum AddLessType {
+  ADD
+  LESS
+}
+
+enum DebitCreditType {
+  DEBIT
+  CREDIT
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  CANCEL
+  REVERSE
+  APPROVE
+  LOGIN
+  LOGOUT
+  EXPORT
+  IMPORT
+  OVERRIDE
+}
+
+enum BrsMatchStatus {
+  MATCHED
+  AUTO_MATCHED
+  POSSIBLE_MATCH
+  UNMATCHED
+}
+
+enum NotificationType {
+  SYSTEM
+  ALERT
+  REMINDER
+  DUE_DATE
+  STOCK_LEVEL
+  APPROVAL
+  WARNING
+}
+
+enum NotificationPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum WidgetType {
+  KPI_CARD
+  CHART_BAR
+  CHART_LINE
+  CHART_PIE
+  CHART_DONUT
+  TABLE
+  LIST
+  CALENDAR
+  PROGRESS
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 2: CORE INFRASTRUCTURE TABLES (4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Legal entity: Stores company-level identity, tax credentials,
+/// bank details, and portal API keys.
+model Company {
+  id                 Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyName        String        @unique @map("company_name") @db.VarChar(150)
+  companyCode        String        @unique @map("company_code") @db.VarChar(3)
+  panNumber          String        @map("pan_number") @db.VarChar(10)
+  gstinNumber        String?       @map("gstin_number") @db.VarChar(15)
+  tanNumber          String?       @map("tan_number") @db.VarChar(10)
+  udyamMsme          String?       @map("udyam_msme") @db.VarChar(30)
+  iecCode            String?       @map("iec_code") @db.VarChar(15)
+  gstEnabled         Boolean       @default(true) @map("gst_enabled")
+  gstRegistrationDate DateTime?   @map("gst_registration_date") @db.Date
+  businessType       String?       @map("business_type") @db.VarChar(50)
+  status             CompanyStatus @default(ACTIVE)
+  isDefault          Boolean       @default(false) @map("is_default")
+
+  // Address
+  addressLine1       String?       @map("address_line_1") @db.VarChar(255)
+  addressLine2       String?       @map("address_line_2") @db.VarChar(255)
+  city               String?       @db.VarChar(100)
+  stateCode          String?       @map("state_code") @db.VarChar(2)
+  pincode            String?       @db.VarChar(10)
+  country            String?       @default("India") @db.VarChar(100)
+  distanceKm         Decimal?      @map("distance_km") @db.Decimal(8, 2)
+
+  // Contact
+  mobile             String?       @db.VarChar(20)
+  phone              String?       @db.VarChar(20)
+  email              String?       @db.VarChar(255)
+  website            String?       @db.VarChar(255)
+
+  // Bank Details
+  bankAccountNumber  String?       @map("bank_account_number") @db.VarChar(30)
+  bankName           String?       @map("bank_name") @db.VarChar(150)
+  bankBranch         String?       @map("bank_branch") @db.VarChar(150)
+  bankIfsc           String?       @map("bank_ifsc") @db.VarChar(11)
+  bankSwift          String?       @map("bank_swift") @db.VarChar(11)
+
+  // Portal Credentials (encrypted at application level)
+  ewayPortalUser     String?       @map("eway_portal_user") @db.VarChar(255)
+  ewayPortalPass     String?       @map("eway_portal_pass") @db.VarChar(500)
+  gstrPortalUser     String?       @map("gstr_portal_user") @db.VarChar(255)
+  gstrPortalPass     String?       @map("gstr_portal_pass") @db.VarChar(500)
+
+  // Audit
+  createdBy          Int?          @map("created_by") @db.UnsignedInt
+  createdAt          DateTime      @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy          Int?          @map("updated_by") @db.UnsignedInt
+  updatedAt          DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted          Boolean       @default(false) @map("is_deleted")
+  deletedBy          Int?          @map("deleted_by") @db.UnsignedInt
+  deletedAt          DateTime?     @map("deleted_at") @db.DateTime(3)
+  version            Int           @default(1) @db.UnsignedInt
+
+  // Relations
+  financialYears         FinancialYear[]
+  accountGroups          AccountGroup[]
+  accounts               Account[]
+  qualities              Quality[]
+  saleInvoices           SaleInvoice[]
+  purchaseInvoices       PurchaseInvoice[]
+  challanVouchers        ChallanVoucher[]
+  journalVouchers        JournalVoucher[]
+  cashBankVouchers       CashBankVoucher[]
+  jobVouchers            JobVoucher[]
+  generalLedgerEntries   GeneralLedgerEntry[]
+  outstandingBills       OutstandingBill[]
+  stockPackets           StockPacket[]
+  voucherNumberConfigs   VoucherNumberConfig[]
+  voucherNumberSequences VoucherNumberSequence[]
+  systemSettings         SystemSetting[]
+  printTemplates         PrintTemplate[]
+  userCompanyAccess      UserCompanyAccess[]
+  notificationRecords    NotificationRecord[]
+
+  @@map("companies")
+}
+
+/// Accounting period with transaction lock dates, tax activation flags,
+/// and year-end carry-forward controls.
+model FinancialYear {
+  id                     Int       @id @default(autoincrement()) @db.UnsignedInt
+  companyId              Int       @map("company_id") @db.UnsignedInt
+  fromDate               DateTime  @map("from_date") @db.Date
+  toDate                 DateTime  @map("to_date") @db.Date
+  isActive               Boolean   @default(false) @map("is_active")
+  isClosed               Boolean   @default(false) @map("is_closed")
+  lockTransactionUptoDate DateTime? @map("lock_transaction_upto_date") @db.Date
+  gstActive              Boolean   @default(true) @map("gst_active")
+  tcsActive              Boolean   @default(true) @map("tcs_active")
+  accountEffect          Boolean   @default(true) @map("account_effect")
+
+  // Audit
+  createdBy              Int?      @map("created_by") @db.UnsignedInt
+  createdAt              DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy              Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt              DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted              Boolean   @default(false) @map("is_deleted")
+  deletedBy              Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt              DateTime? @map("deleted_at") @db.DateTime(3)
+  version                Int       @default(1) @db.UnsignedInt
+
+  // Relations
+  company                Company   @relation(fields: [companyId], references: [id])
+  saleInvoices           SaleInvoice[]
+  purchaseInvoices       PurchaseInvoice[]
+  challanVouchers        ChallanVoucher[]
+  journalVouchers        JournalVoucher[]
+  cashBankVouchers       CashBankVoucher[]
+  jobVouchers            JobVoucher[]
+  voucherNumberConfigs   VoucherNumberConfig[]
+  voucherNumberSequences VoucherNumberSequence[]
+
+  @@unique([companyId, fromDate, toDate], map: "UQ_financial_years_company_dates")
+  @@index([companyId, isActive], map: "IX_financial_years_company_active")
+  @@map("financial_years")
+}
+
+/// Indian state code reference lookup (01–37). Seed data table.
+model StateCode {
+  id        Int    @id @default(autoincrement()) @db.UnsignedInt
+  stateCode String @unique @map("state_code") @db.VarChar(2)
+  stateName String @map("state_name") @db.VarChar(100)
+  isUt      Boolean @default(false) @map("is_ut")
+
+  @@map("state_codes")
+}
+
+/// Harmonized System of Nomenclature code reference. Seed data table.
+model HsnCode {
+  id          Int    @id @default(autoincrement()) @db.UnsignedInt
+  hsnCode     String @unique @map("hsn_code") @db.VarChar(8)
+  description String @map("description") @db.VarChar(255)
+  gstPct      Decimal @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
+  cessPct     Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+
+  @@map("hsn_codes")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 3: MASTER DATA TABLES (5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Chart of accounts hierarchy. Self-referencing tree structure.
+model AccountGroup {
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId     Int      @map("company_id") @db.UnsignedInt
+  groupName     String   @map("group_name") @db.VarChar(150)
+  parentGroupId Int?     @map("parent_group_id") @db.UnsignedInt
+  nature        String   @map("nature") @db.VarChar(30) // Assets, Liabilities, Income, Expense
+  isGlobal      Boolean  @default(false) @map("is_global")
+  sortOrder     Int      @default(0) @map("sort_order") @db.UnsignedInt
+
+  // Audit
+  createdBy     Int?     @map("created_by") @db.UnsignedInt
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy     Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted     Boolean  @default(false) @map("is_deleted")
+  deletedBy     Int?     @map("deleted_by") @db.UnsignedInt
+  deletedAt     DateTime? @map("deleted_at") @db.DateTime(3)
+  version       Int      @default(1) @db.UnsignedInt
+
+  // Relations
+  company       Company       @relation(fields: [companyId], references: [id])
+  parentGroup   AccountGroup? @relation("GroupHierarchy", fields: [parentGroupId], references: [id])
+  childGroups   AccountGroup[] @relation("GroupHierarchy")
+  accounts      Account[]
+
+  @@unique([companyId, groupName], map: "UQ_account_groups_company_name")
+  @@index([companyId, parentGroupId], map: "IX_account_groups_company_parent")
+  @@map("account_groups")
+}
+
+/// Unified master for all ledger accounts: Customers, Suppliers,
+/// Banks, Brokers, Expense/Income heads.
+model Account {
+  id                Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId         Int            @map("company_id") @db.UnsignedInt
+  accountGroupId    Int            @map("account_group_id") @db.UnsignedInt
+  accountName       String         @map("account_name") @db.VarChar(150)
+  printName         String?        @map("print_name") @db.VarChar(150)
+  status            AccountStatus  @default(ACTIVE)
+  isBroker          Boolean        @default(false) @map("is_broker")
+
+  // Tax & KYC
+  gstinNumber       String?        @map("gstin_number") @db.VarChar(15)
+  panNumber         String?        @map("pan_number") @db.VarChar(10)
+  gstRegType        GstRegType?    @map("gst_reg_type")
+  udyamMsme         String?        @map("udyam_msme") @db.VarChar(30)
+  tdsLedgerId       Int?           @map("tds_ledger_id") @db.UnsignedInt
+  tdsPct            Decimal?       @map("tds_pct") @db.Decimal(5, 2)
+
+  // Credit Terms
+  creditDays        Int            @default(0) @map("credit_days") @db.UnsignedInt
+  creditLimit       Decimal        @default(0.00) @map("credit_limit") @db.Decimal(18, 2)
+
+  // Address
+  addressLine1      String?        @map("address_line_1") @db.VarChar(255)
+  addressLine2      String?        @map("address_line_2") @db.VarChar(255)
+  city              String?        @db.VarChar(100)
+  stateCode         String?        @map("state_code") @db.VarChar(2)
+  pincode           String?        @db.VarChar(10)
+  country           String?        @default("India") @db.VarChar(100)
+
+  // Contact
+  mobile            String?        @db.VarChar(20)
+  phone             String?        @db.VarChar(20)
+  email             String?        @db.VarChar(255)
+
+  // Bank Details
+  bankAccountNumber String?        @map("bank_account_number") @db.VarChar(30)
+  bankName          String?        @map("bank_name") @db.VarChar(150)
+  bankBranch        String?        @map("bank_branch") @db.VarChar(150)
+  bankIfsc          String?        @map("bank_ifsc") @db.VarChar(11)
+
+  // Opening Balance
+  openingBalanceAmount Decimal     @default(0.00) @map("opening_balance_amount") @db.Decimal(18, 2)
+  openingBalanceType   DebitCreditType? @map("opening_balance_type")
+
+  // Audit
+  createdBy         Int?           @map("created_by") @db.UnsignedInt
+  createdAt         DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy         Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted         Boolean        @default(false) @map("is_deleted")
+  deletedBy         Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt         DateTime?      @map("deleted_at") @db.DateTime(3)
+  version           Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company           Company        @relation(fields: [companyId], references: [id])
+  accountGroup      AccountGroup   @relation(fields: [accountGroupId], references: [id])
+  brokerProfile     BrokerProfile?
+
+  // Transaction Relations (as customer/supplier/party)
+  saleInvoicesAsCustomer    SaleInvoice[]    @relation("CustomerOnSale")
+  saleInvoicesAsBroker      SaleInvoice[]    @relation("BrokerOnSale")
+  purchaseInvoicesAsSupplier PurchaseInvoice[] @relation("SupplierOnPurchase")
+  purchaseInvoicesAsBroker  PurchaseInvoice[] @relation("BrokerOnPurchase")
+  challanVouchersAsParty    ChallanVoucher[] @relation("PartyOnChallan")
+  cashBankVouchersAsParty   CashBankVoucher[] @relation("PartyOnCashBank")
+  cashBankVouchersAsBank    CashBankVoucher[] @relation("BankOnCashBank")
+  journalVoucherLines       JournalVoucherLine[]
+  jobVouchersAsParty        JobVoucher[]     @relation("PartyOnJob")
+  generalLedgerEntries      GeneralLedgerEntry[]
+  outstandingBills          OutstandingBill[]
+
+  @@unique([companyId, accountName], map: "UQ_accounts_company_name")
+  @@index([companyId, status, isDeleted], map: "IX_accounts_company_status")
+  @@index([companyId, accountGroupId], map: "IX_accounts_company_group")
+  @@index([companyId, isBroker], map: "IX_accounts_company_broker")
+  @@fulltext([accountName], map: "FT_accounts_name")
+  @@map("accounts")
+}
+
+/// Broker-specific extension fields. One-to-one with Account (where is_broker = true).
+model BrokerProfile {
+  id              Int         @id @default(autoincrement()) @db.UnsignedInt
+  accountId       Int         @unique @map("account_id") @db.UnsignedInt
+  brokeragePct    Decimal     @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
+  addLess         AddLessType @default(LESS) @map("add_less")
+  tdsLedgerId     Int?        @map("tds_ledger_id") @db.UnsignedInt
+  tdsPct          Decimal     @default(5.00) @map("tds_pct") @db.Decimal(5, 2)
+
+  // Audit
+  createdBy       Int?        @map("created_by") @db.UnsignedInt
+  createdAt       DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy       Int?        @map("updated_by") @db.UnsignedInt
+  updatedAt       DateTime    @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted       Boolean     @default(false) @map("is_deleted")
+  deletedBy       Int?        @map("deleted_by") @db.UnsignedInt
+  deletedAt       DateTime?   @map("deleted_at") @db.DateTime(3)
+  version         Int         @default(1) @db.UnsignedInt
+
+  // Relations
+  account         Account     @relation(fields: [accountId], references: [id])
+
+  @@map("broker_profiles")
+}
+
+/// Diamond grade catalog: classification, HSN, UQC, rates, stock levels.
+model Quality {
+  id               Int       @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int       @map("company_id") @db.UnsignedInt
+  qualityName      String    @map("quality_name") @db.VarChar(100)
+  itemCode         String    @map("item_code") @db.VarChar(30)
+  hsnNumber        String    @map("hsn_number") @db.VarChar(8)
+  uqc              UqcType   @default(CTS)
+  purchaseRate     Decimal   @default(0.00) @map("purchase_rate") @db.Decimal(18, 2)
+  saleRate         Decimal   @default(0.00) @map("sale_rate") @db.Decimal(18, 2)
+  mrp              Decimal   @default(0.00) @db.Decimal(18, 2)
+  minLevel         Decimal   @default(0.00) @map("min_level") @db.Decimal(12, 3)
+  maxLevel         Decimal   @default(0.00) @map("max_level") @db.Decimal(12, 3)
+  openingBalanceCarats Decimal @default(0.000) @map("opening_balance_carats") @db.Decimal(12, 3)
+  openingBalancePcs    Int     @default(0) @map("opening_balance_pcs") @db.UnsignedInt
+  openingBalanceRate   Decimal @default(0.00) @map("opening_balance_rate") @db.Decimal(18, 2)
+  status           AccountStatus @default(ACTIVE)
+
+  // Audit
+  createdBy        Int?      @map("created_by") @db.UnsignedInt
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy        Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt        DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted        Boolean   @default(false) @map("is_deleted")
+  deletedBy        Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt        DateTime? @map("deleted_at") @db.DateTime(3)
+  version          Int       @default(1) @db.UnsignedInt
+
+  // Relations
+  company          Company   @relation(fields: [companyId], references: [id])
+  gstHistory       QualityGstHistory[]
+  saleInvoiceItems     SaleInvoiceItem[]
+  purchaseInvoiceItems PurchaseInvoiceItem[]
+  challanItems         ChallanItem[]
+  jobVoucherItems      JobVoucherItem[]
+  stockPackets         StockPacket[]
+
+  @@unique([companyId, qualityName], map: "UQ_qualities_company_name")
+  @@unique([companyId, itemCode], map: "UQ_qualities_company_code")
+  @@index([companyId, status, isDeleted], map: "IX_qualities_company_status")
+  @@map("qualities")
+}
+
+/// Date-effective GST rate change history per Quality item.
+model QualityGstHistory {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  qualityId  Int      @map("quality_id") @db.UnsignedInt
+  applyDate  DateTime @map("apply_date") @db.Date
+  gstPct     Decimal  @map("gst_pct") @db.Decimal(5, 2)
+  cessPct    Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+  remarks    String?  @db.VarChar(255)
+
+  // Audit
+  createdBy  Int?     @map("created_by") @db.UnsignedInt
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy  Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt  DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  quality    Quality  @relation(fields: [qualityId], references: [id])
+
+  @@index([qualityId, applyDate], map: "IX_quality_gst_history_date")
+  @@map("quality_gst_history")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 4: TRANSACTION TABLES (12)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ─── 4a. Sale Invoice ────────────────────────────────────────────────────────
+
+/// Sale Book invoice header. Covers Sale Invoices, Sale Returns,
+/// and Sale Debit Notes via the invoiceType discriminator.
+model SaleInvoice {
+  id                  Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId           Int            @map("company_id") @db.UnsignedInt
+  financialYearId     Int            @map("financial_year_id") @db.UnsignedInt
+  invoiceType         InvoiceType    @default(SALE_INVOICE) @map("invoice_type")
+  voucherNumber       String         @map("voucher_number") @db.VarChar(50)
+  billNumber          String         @map("bill_number") @db.VarChar(50)
+  invoiceDate         DateTime       @map("invoice_date") @db.Date
+  dueDate             DateTime?      @map("due_date") @db.Date
+  status              InvoiceStatus  @default(DRAFT)
+  paymentStatus       PaymentStatus  @default(UNPAID) @map("payment_status")
+
+  // Party
+  customerId          Int            @map("customer_id") @db.UnsignedInt
+  customerGstin       String?        @map("customer_gstin") @db.VarChar(15)
+  customerStateCode   String?        @map("customer_state_code") @db.VarChar(2)
+  placeOfSupply       String?        @map("place_of_supply") @db.VarChar(2)
+
+  // Broker
+  brokerId            Int?           @map("broker_id") @db.UnsignedInt
+  brokeragePct        Decimal        @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
+  brokerageAmount     Decimal        @default(0.00) @map("brokerage_amount") @db.Decimal(18, 2)
+
+  // Credit Terms
+  creditDays          Int            @default(0) @map("credit_days") @db.UnsignedInt
+
+  // Totals (denormalized for performance)
+  totalCarats         Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalPieces         Int            @default(0) @map("total_pieces") @db.UnsignedInt
+  totalGrossAmount    Decimal        @default(0.00) @map("total_gross_amount") @db.Decimal(18, 2)
+  totalDiscount       Decimal        @default(0.00) @map("total_discount") @db.Decimal(18, 2)
+  totalCgst           Decimal        @default(0.00) @map("total_cgst") @db.Decimal(18, 2)
+  totalSgst           Decimal        @default(0.00) @map("total_sgst") @db.Decimal(18, 2)
+  totalIgst           Decimal        @default(0.00) @map("total_igst") @db.Decimal(18, 2)
+  totalCess           Decimal        @default(0.00) @map("total_cess") @db.Decimal(18, 2)
+  totalTcs            Decimal        @default(0.00) @map("total_tcs") @db.Decimal(18, 2)
+  roundOff            Decimal        @default(0.00) @map("round_off") @db.Decimal(18, 2)
+  netAmount           Decimal        @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  jamaAmount          Decimal        @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
+  outstandingAmount   Decimal        @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
+
+  // Reference (for Returns / Debit Notes)
+  referenceInvoiceId  Int?           @map("reference_invoice_id") @db.UnsignedInt
+  referenceBillNumber String?        @map("reference_bill_number") @db.VarChar(50)
+  challanVoucherId    Int?           @map("challan_voucher_id") @db.UnsignedInt
+
+  // Narration
+  narration           String?        @db.Text
+
+  // Audit
+  createdBy           Int?           @map("created_by") @db.UnsignedInt
+  createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy           Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted           Boolean        @default(false) @map("is_deleted")
+  deletedBy           Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt           DateTime?      @map("deleted_at") @db.DateTime(3)
+  version             Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company             Company        @relation(fields: [companyId], references: [id])
+  financialYear       FinancialYear  @relation(fields: [financialYearId], references: [id])
+  customer            Account        @relation("CustomerOnSale", fields: [customerId], references: [id])
+  broker              Account?       @relation("BrokerOnSale", fields: [brokerId], references: [id])
+  referenceInvoice    SaleInvoice?   @relation("SaleInvoiceRef", fields: [referenceInvoiceId], references: [id])
+  referencedBy        SaleInvoice[]  @relation("SaleInvoiceRef")
+  items               SaleInvoiceItem[]
+
+  @@unique([companyId, financialYearId, billNumber], map: "UQ_sale_invoices_bill")
+  @@index([companyId, invoiceDate], map: "IX_sale_invoices_company_date")
+  @@index([companyId, customerId, status], map: "IX_sale_invoices_customer")
+  @@index([companyId, paymentStatus], map: "IX_sale_invoices_payment")
+  @@index([companyId, invoiceType], map: "IX_sale_invoices_type")
+  @@map("sale_invoices")
+}
+
+/// Sale Book line items: quality, carats, rates, discounts, taxes.
+model SaleInvoiceItem {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  saleInvoiceId   Int      @map("sale_invoice_id") @db.UnsignedInt
+  rowNumber       Int      @map("row_number") @db.UnsignedInt
+  qualityId       Int      @map("quality_id") @db.UnsignedInt
+  hsnNumber       String   @map("hsn_number") @db.VarChar(8)
+  carats          Decimal  @map("carats") @db.Decimal(12, 3)
+  pieces          Int      @default(1) @db.UnsignedInt
+  rate            Decimal  @map("rate") @db.Decimal(18, 2)
+  lessPct         Decimal  @default(0.00) @map("less_pct") @db.Decimal(5, 2)
+  termsRate       Decimal  @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
+  grossAmount     Decimal  @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
+  gstPct          Decimal  @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
+  cgstAmount      Decimal  @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount      Decimal  @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount      Decimal  @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
+  cessPct         Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+  cessAmount      Decimal  @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
+  netAmount       Decimal  @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  stockPacketId   Int?     @map("stock_packet_id") @db.UnsignedInt
+
+  // Relations
+  saleInvoice     SaleInvoice @relation(fields: [saleInvoiceId], references: [id])
+  quality         Quality     @relation(fields: [qualityId], references: [id])
+
+  @@index([saleInvoiceId], map: "IX_sale_invoice_items_invoice")
+  @@index([qualityId], map: "IX_sale_invoice_items_quality")
+  @@map("sale_invoice_items")
+}
+
+// ─── 4b. Purchase Invoice ────────────────────────────────────────────────────
+
+/// Purchase Book invoice header. Covers Purchase Invoices, Purchase Returns,
+/// and Purchase Debit Notes via the invoiceType discriminator.
+model PurchaseInvoice {
+  id                  Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId           Int            @map("company_id") @db.UnsignedInt
+  financialYearId     Int            @map("financial_year_id") @db.UnsignedInt
+  invoiceType         InvoiceType    @default(PURCHASE_INVOICE) @map("invoice_type")
+  voucherNumber       String         @map("voucher_number") @db.VarChar(50)
+  billNumber          String         @map("bill_number") @db.VarChar(50)
+  invoiceDate         DateTime       @map("invoice_date") @db.Date
+  dueDate             DateTime?      @map("due_date") @db.Date
+  status              InvoiceStatus  @default(DRAFT)
+  paymentStatus       PaymentStatus  @default(UNPAID) @map("payment_status")
+
+  // Party
+  supplierId          Int            @map("supplier_id") @db.UnsignedInt
+  supplierGstin       String?        @map("supplier_gstin") @db.VarChar(15)
+  supplierStateCode   String?        @map("supplier_state_code") @db.VarChar(2)
+  placeOfSupply       String?        @map("place_of_supply") @db.VarChar(2)
+
+  // Broker
+  brokerId            Int?           @map("broker_id") @db.UnsignedInt
+  brokeragePct        Decimal        @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
+  brokerageAmount     Decimal        @default(0.00) @map("brokerage_amount") @db.Decimal(18, 2)
+
+  // Credit Terms
+  creditDays          Int            @default(0) @map("credit_days") @db.UnsignedInt
+
+  // Totals (denormalized)
+  totalCarats         Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalPieces         Int            @default(0) @map("total_pieces") @db.UnsignedInt
+  totalGrossAmount    Decimal        @default(0.00) @map("total_gross_amount") @db.Decimal(18, 2)
+  totalDiscount       Decimal        @default(0.00) @map("total_discount") @db.Decimal(18, 2)
+  totalCgst           Decimal        @default(0.00) @map("total_cgst") @db.Decimal(18, 2)
+  totalSgst           Decimal        @default(0.00) @map("total_sgst") @db.Decimal(18, 2)
+  totalIgst           Decimal        @default(0.00) @map("total_igst") @db.Decimal(18, 2)
+  totalCess           Decimal        @default(0.00) @map("total_cess") @db.Decimal(18, 2)
+  totalTds            Decimal        @default(0.00) @map("total_tds") @db.Decimal(18, 2)
+  roundOff            Decimal        @default(0.00) @map("round_off") @db.Decimal(18, 2)
+  netAmount           Decimal        @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  jamaAmount          Decimal        @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
+  outstandingAmount   Decimal        @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
+
+  // Reference (for Returns / Debit Notes)
+  referenceInvoiceId  Int?           @map("reference_invoice_id") @db.UnsignedInt
+  referenceBillNumber String?        @map("reference_bill_number") @db.VarChar(50)
+
+  // Narration
+  narration           String?        @db.Text
+
+  // Audit
+  createdBy           Int?           @map("created_by") @db.UnsignedInt
+  createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy           Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted           Boolean        @default(false) @map("is_deleted")
+  deletedBy           Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt           DateTime?      @map("deleted_at") @db.DateTime(3)
+  version             Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company             Company         @relation(fields: [companyId], references: [id])
+  financialYear       FinancialYear   @relation(fields: [financialYearId], references: [id])
+  supplier            Account         @relation("SupplierOnPurchase", fields: [supplierId], references: [id])
+  broker              Account?        @relation("BrokerOnPurchase", fields: [brokerId], references: [id])
+  referenceInvoice    PurchaseInvoice? @relation("PurchaseInvoiceRef", fields: [referenceInvoiceId], references: [id])
+  referencedBy        PurchaseInvoice[] @relation("PurchaseInvoiceRef")
+  items               PurchaseInvoiceItem[]
+
+  @@unique([companyId, financialYearId, billNumber], map: "UQ_purchase_invoices_bill")
+  @@index([companyId, invoiceDate], map: "IX_purchase_invoices_company_date")
+  @@index([companyId, supplierId, status], map: "IX_purchase_invoices_supplier")
+  @@index([companyId, paymentStatus], map: "IX_purchase_invoices_payment")
+  @@map("purchase_invoices")
+}
+
+/// Purchase Book line items.
+model PurchaseInvoiceItem {
+  id                Int      @id @default(autoincrement()) @db.UnsignedInt
+  purchaseInvoiceId Int      @map("purchase_invoice_id") @db.UnsignedInt
+  rowNumber         Int      @map("row_number") @db.UnsignedInt
+  qualityId         Int      @map("quality_id") @db.UnsignedInt
+  hsnNumber         String   @map("hsn_number") @db.VarChar(8)
+  carats            Decimal  @map("carats") @db.Decimal(12, 3)
+  pieces            Int      @default(1) @db.UnsignedInt
+  rate              Decimal  @map("rate") @db.Decimal(18, 2)
+  lessPct           Decimal  @default(0.00) @map("less_pct") @db.Decimal(5, 2)
+  termsRate         Decimal  @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
+  grossAmount       Decimal  @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
+  gstPct            Decimal  @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
+  cgstAmount        Decimal  @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount        Decimal  @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount        Decimal  @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
+  cessPct           Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+  cessAmount        Decimal  @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
+  netAmount         Decimal  @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  stockPacketId     Int?     @map("stock_packet_id") @db.UnsignedInt
+
+  // Relations
+  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
+  quality           Quality         @relation(fields: [qualityId], references: [id])
+
+  @@index([purchaseInvoiceId], map: "IX_purchase_invoice_items_invoice")
+  @@index([qualityId], map: "IX_purchase_invoice_items_quality")
+  @@map("purchase_invoice_items")
+}
+
+// ─── 4c. Challan Voucher ─────────────────────────────────────────────────────
+
+/// Challan header for all purposes: Jhanghad, Job Work, Lab, Orders, Transfers.
+model ChallanVoucher {
+  id                   Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId            Int            @map("company_id") @db.UnsignedInt
+  financialYearId      Int            @map("financial_year_id") @db.UnsignedInt
+  purpose              ChallanPurpose @map("purpose")
+  voucherNumber        String         @map("voucher_number") @db.VarChar(50)
+  challanNumber        String         @map("challan_number") @db.VarChar(50)
+  challanDate          DateTime       @map("challan_date") @db.Date
+  status               ChallanStatus  @default(DRAFT)
+
+  // Party / Custodian
+  partyId              Int            @map("party_id") @db.UnsignedInt
+  partyName            String?        @map("party_name") @db.VarChar(150)
+
+  // Dates
+  expectedReturnDate   DateTime?      @map("expected_return_date") @db.Date
+  actualReturnDate     DateTime?      @map("actual_return_date") @db.Date
+
+  // Totals (denormalized)
+  totalCarats          Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalPieces          Int            @default(0) @map("total_pieces") @db.UnsignedInt
+  totalAmount          Decimal        @default(0.00) @map("total_amount") @db.Decimal(18, 2)
+  returnedCarats       Decimal        @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
+  returnedPieces       Int            @default(0) @map("returned_pieces") @db.UnsignedInt
+
+  // Conversion Reference
+  convertedInvoiceType  String?       @map("converted_invoice_type") @db.VarChar(30)
+  convertedInvoiceId    Int?          @map("converted_invoice_id") @db.UnsignedInt
+
+  // Narration
+  narration            String?        @db.Text
+
+  // Audit
+  createdBy            Int?           @map("created_by") @db.UnsignedInt
+  createdAt            DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy            Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt            DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted            Boolean        @default(false) @map("is_deleted")
+  deletedBy            Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt            DateTime?      @map("deleted_at") @db.DateTime(3)
+  version              Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company              Company        @relation(fields: [companyId], references: [id])
+  financialYear        FinancialYear  @relation(fields: [financialYearId], references: [id])
+  party                Account        @relation("PartyOnChallan", fields: [partyId], references: [id])
+  items                ChallanItem[]
+  stockReservations    StockReservation[]
+
+  @@unique([companyId, financialYearId, challanNumber], map: "UQ_challan_vouchers_number")
+  @@index([companyId, purpose, status], map: "IX_challan_vouchers_purpose_status")
+  @@index([companyId, expectedReturnDate], map: "IX_challan_vouchers_return_date")
+  @@index([companyId, partyId], map: "IX_challan_vouchers_party")
+  @@map("challan_vouchers")
+}
+
+/// Challan line items.
+model ChallanItem {
+  id               Int      @id @default(autoincrement()) @db.UnsignedInt
+  challanVoucherId Int      @map("challan_voucher_id") @db.UnsignedInt
+  rowNumber        Int      @map("row_number") @db.UnsignedInt
+  qualityId        Int      @map("quality_id") @db.UnsignedInt
+  carats           Decimal  @map("carats") @db.Decimal(12, 3)
+  pieces           Int      @default(1) @db.UnsignedInt
+  rate             Decimal  @default(0.00) @map("rate") @db.Decimal(18, 2)
+  amount           Decimal  @default(0.00) @map("amount") @db.Decimal(18, 2)
+  returnedCarats   Decimal  @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
+  returnedPieces   Int      @default(0) @map("returned_pieces") @db.UnsignedInt
+  stockPacketId    Int?     @map("stock_packet_id") @db.UnsignedInt
+  remarks          String?  @db.VarChar(255)
+
+  // Relations
+  challanVoucher   ChallanVoucher @relation(fields: [challanVoucherId], references: [id])
+  quality          Quality        @relation(fields: [qualityId], references: [id])
+
+  @@index([challanVoucherId], map: "IX_challan_items_voucher")
+  @@map("challan_items")
+}
+
+// ─── 4d. Journal Voucher ─────────────────────────────────────────────────────
+
+/// Journal Voucher header for all journal types.
+model JournalVoucher {
+  id               Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int            @map("company_id") @db.UnsignedInt
+  financialYearId  Int            @map("financial_year_id") @db.UnsignedInt
+  journalType      JournalType    @default(GENERAL) @map("journal_type")
+  voucherNumber    String         @map("voucher_number") @db.VarChar(50)
+  voucherDate      DateTime       @map("voucher_date") @db.Date
+  status           VoucherStatus  @default(DRAFT)
+  totalDebit       Decimal        @default(0.00) @map("total_debit") @db.Decimal(18, 2)
+  totalCredit      Decimal        @default(0.00) @map("total_credit") @db.Decimal(18, 2)
+  narration        String?        @db.Text
+  referenceId      String?        @map("reference_id") @db.VarChar(50)
+  referenceType    String?        @map("reference_type") @db.VarChar(30)
+
+  // Audit
+  createdBy        Int?           @map("created_by") @db.UnsignedInt
+  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy        Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted        Boolean        @default(false) @map("is_deleted")
+  deletedBy        Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
+  version          Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company          Company        @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear  @relation(fields: [financialYearId], references: [id])
+  lines            JournalVoucherLine[]
+
+  @@unique([companyId, financialYearId, voucherNumber], map: "UQ_journal_vouchers_number")
+  @@index([companyId, voucherDate], map: "IX_journal_vouchers_date")
+  @@map("journal_vouchers")
+}
+
+/// Journal Voucher debit/credit lines.
+model JournalVoucherLine {
+  id                Int             @id @default(autoincrement()) @db.UnsignedInt
+  journalVoucherId  Int             @map("journal_voucher_id") @db.UnsignedInt
+  rowNumber         Int             @map("row_number") @db.UnsignedInt
+  accountId         Int             @map("account_id") @db.UnsignedInt
+  debitCreditType   DebitCreditType @map("debit_credit_type")
+  amount            Decimal         @map("amount") @db.Decimal(18, 2)
+  narration         String?         @db.VarChar(255)
+
+  // Relations
+  journalVoucher    JournalVoucher  @relation(fields: [journalVoucherId], references: [id])
+  account           Account         @relation(fields: [accountId], references: [id])
+
+  @@index([journalVoucherId], map: "IX_journal_voucher_lines_voucher")
+  @@index([accountId], map: "IX_journal_voucher_lines_account")
+  @@map("journal_voucher_lines")
+}
+
+// ─── 4e. Cash/Bank Voucher ───────────────────────────────────────────────────
+
+/// Unified Cash + Bank voucher header.
+model CashBankVoucher {
+  id               Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int            @map("company_id") @db.UnsignedInt
+  financialYearId  Int            @map("financial_year_id") @db.UnsignedInt
+  transactionType  CashBankType   @map("transaction_type")
+  voucherNumber    String         @map("voucher_number") @db.VarChar(50)
+  manualVoucherNo  String?        @map("manual_voucher_no") @db.VarChar(50)
+  voucherDate      DateTime       @map("voucher_date") @db.Date
+  status           VoucherStatus  @default(DRAFT)
+
+  // Party
+  partyId          Int            @map("party_id") @db.UnsignedInt
+
+  // Cash/Bank Account
+  cashBankAccountId Int           @map("cash_bank_account_id") @db.UnsignedInt
+
+  // Payment Mode (Bank only)
+  paymentMode      PaymentMode?   @map("payment_mode")
+  chequeNumber     String?        @map("cheque_number") @db.VarChar(20)
+  chequeDate       DateTime?      @map("cheque_date") @db.Date
+  utrNumber        String?        @map("utr_number") @db.VarChar(50)
+  transactionRef   String?        @map("transaction_ref") @db.VarChar(50)
+
+  // Amount
+  amount           Decimal        @map("amount") @db.Decimal(18, 2)
+  narration        String?        @db.Text
+
+  // Reference
+  referenceBillNo  String?        @map("reference_bill_no") @db.VarChar(50)
+
+  // Audit
+  createdBy        Int?           @map("created_by") @db.UnsignedInt
+  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy        Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted        Boolean        @default(false) @map("is_deleted")
+  deletedBy        Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
+  version          Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company          Company        @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear  @relation(fields: [financialYearId], references: [id])
+  party            Account        @relation("PartyOnCashBank", fields: [partyId], references: [id])
+  cashBankAccount  Account        @relation("BankOnCashBank", fields: [cashBankAccountId], references: [id])
+  allocations      CashBankAllocation[]
+  bankReconciliations BankReconciliation[]
+
+  @@unique([companyId, financialYearId, voucherNumber], map: "UQ_cash_bank_vouchers_number")
+  @@index([companyId, transactionType, voucherDate], map: "IX_cash_bank_vouchers_type_date")
+  @@index([companyId, partyId], map: "IX_cash_bank_vouchers_party")
+  @@map("cash_bank_vouchers")
+}
+
+/// Outstanding bill allocation lines per Cash/Bank payment.
+model CashBankAllocation {
+  id                 Int      @id @default(autoincrement()) @db.UnsignedInt
+  cashBankVoucherId  Int      @map("cash_bank_voucher_id") @db.UnsignedInt
+  outstandingBillId  Int      @map("outstanding_bill_id") @db.UnsignedInt
+  allocatedAmount    Decimal  @map("allocated_amount") @db.Decimal(18, 2)
+
+  // Relations
+  cashBankVoucher    CashBankVoucher @relation(fields: [cashBankVoucherId], references: [id])
+  outstandingBill    OutstandingBill @relation(fields: [outstandingBillId], references: [id])
+
+  @@index([cashBankVoucherId], map: "IX_cash_bank_allocations_voucher")
+  @@index([outstandingBillId], map: "IX_cash_bank_allocations_bill")
+  @@map("cash_bank_allocations")
+}
+
+// ─── 4f. Job Voucher ─────────────────────────────────────────────────────────
+
+/// Job Book header for Job Income / Job Expense.
+model JobVoucher {
+  id               Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int            @map("company_id") @db.UnsignedInt
+  financialYearId  Int            @map("financial_year_id") @db.UnsignedInt
+  jobType          JobType        @map("job_type")
+  voucherNumber    String         @map("voucher_number") @db.VarChar(50)
+  billNumber       String         @map("bill_number") @db.VarChar(50)
+  voucherDate      DateTime       @map("voucher_date") @db.Date
+  status           VoucherStatus  @default(DRAFT)
+
+  // Party (Job Worker)
+  partyId          Int            @map("party_id") @db.UnsignedInt
+
+  // Totals
+  totalCarats      Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalAmount      Decimal        @default(0.00) @map("total_amount") @db.Decimal(18, 2)
+  narration        String?        @db.Text
+
+  // Audit
+  createdBy        Int?           @map("created_by") @db.UnsignedInt
+  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy        Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted        Boolean        @default(false) @map("is_deleted")
+  deletedBy        Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
+  version          Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company          Company        @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear  @relation(fields: [financialYearId], references: [id])
+  party            Account        @relation("PartyOnJob", fields: [partyId], references: [id])
+  items            JobVoucherItem[]
+  costEntries      JobCostEntry[]
+
+  @@unique([companyId, financialYearId, billNumber], map: "UQ_job_vouchers_bill")
+  @@index([companyId, voucherDate], map: "IX_job_vouchers_date")
+  @@map("job_vouchers")
+}
+
+/// Job Book line items.
+model JobVoucherItem {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  jobVoucherId   Int      @map("job_voucher_id") @db.UnsignedInt
+  rowNumber      Int      @map("row_number") @db.UnsignedInt
+  qualityId      Int      @map("quality_id") @db.UnsignedInt
+  carats         Decimal  @map("carats") @db.Decimal(12, 3)
+  pieces         Int      @default(1) @db.UnsignedInt
+  rate           Decimal  @default(0.00) @map("rate") @db.Decimal(18, 2)
+  amount         Decimal  @default(0.00) @map("amount") @db.Decimal(18, 2)
+  stockPacketId  Int?     @map("stock_packet_id") @db.UnsignedInt
+  remarks        String?  @db.VarChar(255)
+
+  // Relations
+  jobVoucher     JobVoucher @relation(fields: [jobVoucherId], references: [id])
+  quality        Quality    @relation(fields: [qualityId], references: [id])
+
+  @@index([jobVoucherId], map: "IX_job_voucher_items_voucher")
+  @@map("job_voucher_items")
+}
+
+/// Job cost capitalization records.
+model JobCostEntry {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  jobVoucherId   Int      @map("job_voucher_id") @db.UnsignedInt
+  stockPacketId  Int      @map("stock_packet_id") @db.UnsignedInt
+  costType       String   @map("cost_type") @db.VarChar(50)
+  amount         Decimal  @map("amount") @db.Decimal(18, 2)
+  remarks        String?  @db.VarChar(255)
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  jobVoucher     JobVoucher  @relation(fields: [jobVoucherId], references: [id])
+  stockPacket    StockPacket @relation(fields: [stockPacketId], references: [id])
+
+  @@index([jobVoucherId], map: "IX_job_cost_entries_voucher")
+  @@index([stockPacketId], map: "IX_job_cost_entries_packet")
+  @@map("job_cost_entries")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 5: ACCOUNTING ENGINE TABLES (4)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Unified double-entry general ledger postings. Every transaction
+/// generates balanced debit/credit rows in this table.
+model GeneralLedgerEntry {
+  id                 Int             @id @default(autoincrement()) @db.UnsignedInt
+  companyId          Int             @map("company_id") @db.UnsignedInt
+  accountId          Int             @map("account_id") @db.UnsignedInt
+  voucherDate        DateTime        @map("voucher_date") @db.Date
+  debitCreditType    DebitCreditType @map("debit_credit_type")
+  amount             Decimal         @map("amount") @db.Decimal(18, 2)
+
+  // Polymorphic Source
+  sourceVoucherType  VoucherType     @map("source_voucher_type")
+  sourceVoucherId    Int             @map("source_voucher_id") @db.UnsignedInt
+  sourceBillNumber   String?         @map("source_bill_number") @db.VarChar(50)
+
+  narration          String?         @db.VarChar(255)
+
+  // Audit
+  createdBy          Int?            @map("created_by") @db.UnsignedInt
+  createdAt          DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  company            Company         @relation(fields: [companyId], references: [id])
+  account            Account         @relation(fields: [accountId], references: [id])
+
+  @@index([companyId, accountId, voucherDate], map: "IX_gl_entries_account_date")
+  @@index([companyId, voucherDate], map: "IX_gl_entries_company_date")
+  @@index([sourceVoucherType, sourceVoucherId], map: "IX_gl_entries_source")
+  @@map("general_ledger_entries")
+}
+
+/// Bill-level outstanding tracking for receivables and payables.
+model OutstandingBill {
+  id                 Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId          Int            @map("company_id") @db.UnsignedInt
+  accountId          Int            @map("account_id") @db.UnsignedInt
+  billNumber         String         @map("bill_number") @db.VarChar(50)
+  billDate           DateTime       @map("bill_date") @db.Date
+  dueDate            DateTime?      @map("due_date") @db.Date
+  billType           DebitCreditType @map("bill_type") // DEBIT = Receivable, CREDIT = Payable
+  originalAmount     Decimal        @map("original_amount") @db.Decimal(18, 2)
+  allocatedAmount    Decimal        @default(0.00) @map("allocated_amount") @db.Decimal(18, 2)
+  outstandingAmount  Decimal        @map("outstanding_amount") @db.Decimal(18, 2)
+  status             PaymentStatus  @default(UNPAID)
+
+  // Polymorphic Source
+  sourceVoucherType  VoucherType    @map("source_voucher_type")
+  sourceVoucherId    Int            @map("source_voucher_id") @db.UnsignedInt
+
+  // Audit
+  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  company            Company        @relation(fields: [companyId], references: [id])
+  account            Account        @relation(fields: [accountId], references: [id])
+  allocations        CashBankAllocation[]
+
+  @@index([companyId, accountId, status], map: "IX_outstanding_bills_account")
+  @@index([companyId, dueDate], map: "IX_outstanding_bills_due_date")
+  @@index([sourceVoucherType, sourceVoucherId], map: "IX_outstanding_bills_source")
+  @@map("outstanding_bills")
+}
+
+/// Bank Reconciliation Statement (BRS) matching records.
+model BankReconciliation {
+  id                 Int            @id @default(autoincrement()) @db.UnsignedInt
+  cashBankVoucherId  Int            @map("cash_bank_voucher_id") @db.UnsignedInt
+  matchStatus        BrsMatchStatus @default(UNMATCHED) @map("match_status")
+  bankStatementDate  DateTime?      @map("bank_statement_date") @db.Date
+  bankStatementRef   String?        @map("bank_statement_ref") @db.VarChar(50)
+  bankStatementAmount Decimal?      @map("bank_statement_amount") @db.Decimal(18, 2)
+  reconciledDate     DateTime?      @map("reconciled_date") @db.Date
+  reconciledBy       Int?           @map("reconciled_by") @db.UnsignedInt
+  remarks            String?        @db.VarChar(255)
+  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt          DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  cashBankVoucher    CashBankVoucher @relation(fields: [cashBankVoucherId], references: [id])
+
+  @@index([cashBankVoucherId], map: "IX_bank_reconciliations_voucher")
+  @@index([matchStatus], map: "IX_bank_reconciliations_status")
+  @@map("bank_reconciliations")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 6: DIAMOND INVENTORY TABLES (5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Individual diamond packet: master record with physical properties,
+/// current status (denormalized), and certification details.
+model StockPacket {
+  id                Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId         Int            @map("company_id") @db.UnsignedInt
+  qualityId         Int            @map("quality_id") @db.UnsignedInt
+  stockIdNumber     String         @map("stock_id_number") @db.VarChar(30)
+  category          StockCategory  @default(NON_CERTIFIED)
+  registrationDate  DateTime       @map("registration_date") @db.Date
+
+  // Physical
+  shape             String?        @db.VarChar(30)
+  caratWeight       Decimal        @map("carat_weight") @db.Decimal(12, 3)
+  pieceCount        Int            @default(1) @map("piece_count") @db.UnsignedInt
+  color             String?        @db.VarChar(30)
+  clarity           String?        @db.VarChar(30)
+  cut               String?        @db.VarChar(30)
+  polish            String?        @db.VarChar(30)
+  symmetry          String?        @db.VarChar(30)
+  lengthMm          Decimal?       @map("length_mm") @db.Decimal(8, 2)
+  widthMm           Decimal?       @map("width_mm") @db.Decimal(8, 2)
+  depthMm           Decimal?       @map("depth_mm") @db.Decimal(8, 2)
+  totalDepthPct     Decimal?       @map("total_depth_pct") @db.Decimal(5, 2)
+  tablePct          Decimal?       @map("table_pct") @db.Decimal(5, 2)
+
+  // Certification
+  certificateType   String?        @map("certificate_type") @db.VarChar(20)
+  certificateNumber String?        @unique @map("certificate_number") @db.VarChar(50)
+
+  // Valuation
+  costPerCarat      Decimal        @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
+  totalCost         Decimal        @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+
+  // Denormalized Status (updated by StockMovement events)
+  currentStatus     StockStatus    @default(CREATED) @map("current_status")
+  currentOwnership  StockOwnership @default(COMPANY) @map("current_ownership")
+  currentOwnerId    Int?           @map("current_owner_id") @db.UnsignedInt
+  currentLocation   String?        @map("current_location") @db.VarChar(100)
+
+  // Audit
+  createdBy         Int?           @map("created_by") @db.UnsignedInt
+  createdAt         DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy         Int?           @map("updated_by") @db.UnsignedInt
+  updatedAt         DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted         Boolean        @default(false) @map("is_deleted")
+  deletedBy         Int?           @map("deleted_by") @db.UnsignedInt
+  deletedAt         DateTime?      @map("deleted_at") @db.DateTime(3)
+  version           Int            @default(1) @db.UnsignedInt
+
+  // Relations
+  company           Company        @relation(fields: [companyId], references: [id])
+  quality           Quality        @relation(fields: [qualityId], references: [id])
+  movements         StockMovement[]
+  reservations      StockReservation[]
+  media             StockMedia[]
+  jobCostEntries    JobCostEntry[]
+
+  @@unique([companyId, stockIdNumber], map: "UQ_stock_packets_id_number")
+  @@index([companyId, currentStatus], map: "IX_stock_packets_status")
+  @@index([companyId, shape, color, clarity], map: "IX_stock_packets_physical")
+  @@index([companyId, caratWeight], map: "IX_stock_packets_weight")
+  @@index([companyId, qualityId], map: "IX_stock_packets_quality")
+  @@fulltext([stockIdNumber], map: "FT_stock_packets_id")
+  @@map("stock_packets")
+}
+
+/// Lifecycle event log per stock packet. Append-only.
+model StockMovement {
+  id                 Int          @id @default(autoincrement()) @db.UnsignedInt
+  stockPacketId      Int          @map("stock_packet_id") @db.UnsignedInt
+  movementDate       DateTime     @map("movement_date") @db.Date
+  movementType       MovementType @map("movement_type")
+  previousStatus     StockStatus  @map("previous_status")
+  newStatus          StockStatus  @map("new_status")
+  previousOwnerId    Int?         @map("previous_owner_id") @db.UnsignedInt
+  newOwnerId         Int?         @map("new_owner_id") @db.UnsignedInt
+  carats             Decimal?     @db.Decimal(12, 3)
+  pieces             Int?         @db.UnsignedInt
+
+  // Polymorphic Source
+  sourceVoucherType  VoucherType? @map("source_voucher_type")
+  sourceVoucherId    Int?         @map("source_voucher_id") @db.UnsignedInt
+
+  remarks            String?      @db.VarChar(255)
+  userId             Int?         @map("user_id") @db.UnsignedInt
+  createdAt          DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  stockPacket        StockPacket  @relation(fields: [stockPacketId], references: [id])
+
+  @@index([stockPacketId, createdAt], map: "IX_stock_movements_packet_date")
+  @@index([sourceVoucherType, sourceVoucherId], map: "IX_stock_movements_source")
+  @@map("stock_movements")
+}
+
+/// Hold/allocation tracking per stock packet.
+model StockReservation {
+  id               Int      @id @default(autoincrement()) @db.UnsignedInt
+  stockPacketId    Int      @map("stock_packet_id") @db.UnsignedInt
+  challanVoucherId Int?     @map("challan_voucher_id") @db.UnsignedInt
+  reservationType  String   @map("reservation_type") @db.VarChar(30) // HOLD, JOB_WORK, SALE_ORDER
+  reservedCarats   Decimal  @map("reserved_carats") @db.Decimal(12, 3)
+  reservedDate     DateTime @map("reserved_date") @db.Date
+  expiryDate       DateTime? @map("expiry_date") @db.Date
+  isActive         Boolean  @default(true) @map("is_active")
+  remarks          String?  @db.VarChar(255)
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  stockPacket      StockPacket     @relation(fields: [stockPacketId], references: [id])
+  challanVoucher   ChallanVoucher? @relation(fields: [challanVoucherId], references: [id])
+
+  @@index([stockPacketId, isActive], map: "IX_stock_reservations_active")
+  @@map("stock_reservations")
+}
+
+/// Stock packet media attachments: photos, videos, certificate PDFs.
+model StockMedia {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  stockPacketId  Int      @map("stock_packet_id") @db.UnsignedInt
+  mediaType      String   @map("media_type") @db.VarChar(20) // PHOTO, VIDEO, CERTIFICATE
+  filePath       String   @map("file_path") @db.VarChar(500)
+  fileName       String   @map("file_name") @db.VarChar(255)
+  fileSizeBytes  Int?     @map("file_size_bytes") @db.UnsignedInt
+  sortOrder      Int      @default(0) @map("sort_order") @db.UnsignedInt
+  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  stockPacket    StockPacket @relation(fields: [stockPacketId], references: [id])
+
+  @@index([stockPacketId], map: "IX_stock_media_packet")
+  @@map("stock_media")
+}
+
+/// Physical stock verification batch records.
+model StockAuditBatch {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int      @map("company_id") @db.UnsignedInt
+  batchNumber     String   @map("batch_number") @db.VarChar(30)
+  auditDate       DateTime @map("audit_date") @db.Date
+  status          String   @default("PENDING") @db.VarChar(20) // PENDING, IN_PROGRESS, COMPLETED
+  totalPackets    Int      @default(0) @map("total_packets") @db.UnsignedInt
+  matchedPackets  Int      @default(0) @map("matched_packets") @db.UnsignedInt
+  mismatchPackets Int      @default(0) @map("mismatch_packets") @db.UnsignedInt
+  remarks         String?  @db.Text
+  conductedBy     Int?     @map("conducted_by") @db.UnsignedInt
+  approvedBy      Int?     @map("approved_by") @db.UnsignedInt
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("stock_audit_batches")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 7: CONFIGURATION TABLES (5)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Voucher numbering format configuration per company + voucher type.
+model VoucherNumberConfig {
+  id               Int             @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int             @map("company_id") @db.UnsignedInt
+  financialYearId  Int             @map("financial_year_id") @db.UnsignedInt
+  voucherType      VoucherType     @map("voucher_type")
+  method           NumberingMethod @default(AUTOMATIC)
+  prefix           String?         @db.VarChar(20)
+  separator        String          @default("-") @db.VarChar(5)
+  suffix           String?         @db.VarChar(20)
+  digitLength      Int             @default(6) @map("digit_length") @db.UnsignedInt
+  includeYear      Boolean         @default(true) @map("include_year")
+  resetAnnually    Boolean         @default(true) @map("reset_annually")
+
+  // Audit
+  createdBy        Int?            @map("created_by") @db.UnsignedInt
+  createdAt        DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy        Int?            @map("updated_by") @db.UnsignedInt
+  updatedAt        DateTime        @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  company          Company         @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear   @relation(fields: [financialYearId], references: [id])
+
+  @@unique([companyId, financialYearId, voucherType], map: "UQ_voucher_number_configs")
+  @@map("voucher_number_configs")
+}
+
+/// Running sequence counters per company + FY + voucher type.
+model VoucherNumberSequence {
+  id               Int         @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int         @map("company_id") @db.UnsignedInt
+  financialYearId  Int         @map("financial_year_id") @db.UnsignedInt
+  voucherType      VoucherType @map("voucher_type")
+  currentNumber    Int         @default(0) @map("current_number") @db.UnsignedInt
+  lastGeneratedAt  DateTime?   @map("last_generated_at") @db.DateTime(3)
+
+  // Relations
+  company          Company       @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear @relation(fields: [financialYearId], references: [id])
+
+  @@unique([companyId, financialYearId, voucherType], map: "UQ_voucher_number_sequences")
+  @@map("voucher_number_sequences")
+}
+
+/// Key-value system settings per company.
+model SystemSetting {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId   Int      @map("company_id") @db.UnsignedInt
+  settingKey  String   @map("setting_key") @db.VarChar(100)
+  settingValue Json?   @map("setting_value")
+  category    String?  @db.VarChar(50)
+  description String?  @db.VarChar(255)
+  updatedBy   Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  company     Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([companyId, settingKey], map: "UQ_system_settings_key")
+  @@map("system_settings")
+}
+
+/// Print template layout configurations per company + voucher type.
+model PrintTemplate {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int      @map("company_id") @db.UnsignedInt
+  voucherType     VoucherType @map("voucher_type")
+  templateName    String   @map("template_name") @db.VarChar(100)
+  isDefault       Boolean  @default(false) @map("is_default")
+  layoutConfig    Json?    @map("layout_config")
+  headerHtml      String?  @map("header_html") @db.Text
+  footerHtml      String?  @map("footer_html") @db.Text
+  paperSize       String   @default("A4") @map("paper_size") @db.VarChar(10)
+  orientation     String   @default("portrait") @db.VarChar(10)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  company         Company  @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, voucherType], map: "IX_print_templates_company_type")
+  @@map("print_templates")
+}
+
+/// Backup execution history with file references and checksums.
+model BackupRecord {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  backupType      String   @map("backup_type") @db.VarChar(20) // FULL, INCREMENTAL, MANUAL
+  filePath        String   @map("file_path") @db.VarChar(500)
+  fileName        String   @map("file_name") @db.VarChar(255)
+  fileSizeBytes   BigInt?  @map("file_size_bytes")
+  checksum        String?  @db.VarChar(64) // SHA-256
+  status          String   @default("COMPLETED") @db.VarChar(20)
+  durationMs      Int?     @map("duration_ms") @db.UnsignedInt
+  initiatedBy     Int?     @map("initiated_by") @db.UnsignedInt
+  remarks         String?  @db.VarChar(255)
+  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([createdAt], map: "IX_backup_records_date")
+  @@map("backup_records")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 8: SECURITY & ADMINISTRATION TABLES (8)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Staff user accounts with authentication credentials and profile details.
+model User {
+  id                Int        @id @default(autoincrement()) @db.UnsignedInt
+  userIdHandle      String     @unique @map("user_id_handle") @db.VarChar(50)
+  passwordHash      String     @map("password_hash") @db.VarChar(255)
+  fullName          String     @map("full_name") @db.VarChar(150)
+  email             String     @unique @db.VarChar(255)
+  mobile            String?    @db.VarChar(20)
+  designation       String?    @db.VarChar(100)
+  profilePicturePath String?   @map("profile_picture_path") @db.VarChar(500)
+  isSuperAdmin      Boolean    @default(false) @map("is_super_admin")
+  status            UserStatus @default(ACTIVE)
+  permissionTemplateId Int?    @map("permission_template_id") @db.UnsignedInt
+  failedLoginAttempts  Int     @default(0) @map("failed_login_attempts") @db.UnsignedInt
+  lastLoginAt       DateTime?  @map("last_login_at") @db.DateTime(3)
+  lastPasswordChange DateTime? @map("last_password_change") @db.DateTime(3)
+
+  // Audit
+  createdBy         Int?       @map("created_by") @db.UnsignedInt
+  createdAt         DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy         Int?       @map("updated_by") @db.UnsignedInt
+  updatedAt         DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted         Boolean    @default(false) @map("is_deleted")
+  deletedBy         Int?       @map("deleted_by") @db.UnsignedInt
+  deletedAt         DateTime?  @map("deleted_at") @db.DateTime(3)
+  version           Int        @default(1) @db.UnsignedInt
+
+  // Relations
+  permissionTemplate PermissionTemplate? @relation(fields: [permissionTemplateId], references: [id])
+  companyAccess      UserCompanyAccess[]
+  sessions           UserSession[]
+  activityLogs       ActivityLog[]
+  loginHistory       LoginHistory[]
+  notifications      NotificationRecord[]
+  dashboardWidgets   DashboardWidget[]
+  workspace          UserWorkspace?
+  pagePermissions    PagePermission[]     @relation("UserPagePerms")
+  modulePermissions  ModulePermission[]   @relation("UserModulePerms")
+
+  @@map("users")
+}
+
+/// Company-level access grants per user.
+model UserCompanyAccess {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId     Int      @map("user_id") @db.UnsignedInt
+  companyId  Int      @map("company_id") @db.UnsignedInt
+  isDefault  Boolean  @default(false) @map("is_default")
+  grantedAt  DateTime @default(now()) @map("granted_at") @db.DateTime(3)
+  grantedBy  Int?     @map("granted_by") @db.UnsignedInt
+
+  // Relations
+  user       User     @relation(fields: [userId], references: [id])
+  company    Company  @relation(fields: [companyId], references: [id])
+
+  @@unique([userId, companyId], map: "UQ_user_company_access")
+  @@map("user_company_access")
+}
+
+/// Active login session tracking.
+model UserSession {
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId        Int      @map("user_id") @db.UnsignedInt
+  sessionToken  String   @unique @map("session_token") @db.VarChar(255)
+  hostname      String?  @db.VarChar(100)
+  ipAddress     String?  @map("ip_address") @db.VarChar(45)
+  loginAt       DateTime @default(now()) @map("login_at") @db.DateTime(3)
+  lastActivityAt DateTime? @map("last_activity_at") @db.DateTime(3)
+  logoutAt      DateTime? @map("logout_at") @db.DateTime(3)
+  isActive      Boolean  @default(true) @map("is_active")
+
+  // Relations
+  user          User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, isActive], map: "IX_user_sessions_active")
+  @@map("user_sessions")
+}
+
+/// Predefined role/permission profiles.
+model PermissionTemplate {
+  id               Int      @id @default(autoincrement()) @db.UnsignedInt
+  templateName     String   @map("template_name") @db.VarChar(100)
+  description      String?  @db.VarChar(255)
+  companyId        Int?     @map("company_id") @db.UnsignedInt // Nullable for global templates
+
+  // Audit
+  createdBy        Int?     @map("created_by") @db.UnsignedInt
+  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy        Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt        DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted        Boolean  @default(false) @map("is_deleted")
+  version          Int      @default(1) @db.UnsignedInt
+
+  // Relations
+  users            User[]
+  pagePermissions  PagePermission[]  @relation("TemplatePagePerms")
+  modulePermissions ModulePermission[] @relation("TemplateModulePerms")
+
+  @@map("permission_templates")
+}
+
+/// Page/menu visibility control per user or template.
+model PagePermission {
+  id                   Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId               Int?     @map("user_id") @db.UnsignedInt
+  permissionTemplateId Int?     @map("permission_template_id") @db.UnsignedInt
+  pageUri              String   @map("page_uri") @db.VarChar(100)
+  canView              Boolean  @default(false) @map("can_view")
+
+  // Relations
+  user                 User?              @relation("UserPagePerms", fields: [userId], references: [id])
+  permissionTemplate   PermissionTemplate? @relation("TemplatePagePerms", fields: [permissionTemplateId], references: [id])
+
+  @@index([userId], map: "IX_page_permissions_user")
+  @@index([permissionTemplateId], map: "IX_page_permissions_template")
+  @@map("page_permissions")
+}
+
+/// Action-level CRUD controls per user or template.
+model ModulePermission {
+  id                   Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId               Int?     @map("user_id") @db.UnsignedInt
+  permissionTemplateId Int?     @map("permission_template_id") @db.UnsignedInt
+  moduleCode           String   @map("module_code") @db.VarChar(50) // e.g., 'sale_book', 'quality_master'
+  actionCode           String   @map("action_code") @db.VarChar(50) // e.g., 'create', 'edit', 'delete', 'export'
+  isAllowed            Boolean  @default(false) @map("is_allowed")
+
+  // Relations
+  user                 User?              @relation("UserModulePerms", fields: [userId], references: [id])
+  permissionTemplate   PermissionTemplate? @relation("TemplateModulePerms", fields: [permissionTemplateId], references: [id])
+
+  @@index([userId], map: "IX_module_permissions_user")
+  @@index([permissionTemplateId], map: "IX_module_permissions_template")
+  @@map("module_permissions")
+}
+
+/// User activity event tracking. Append-only.
+model ActivityLog {
+  id          Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId      Int      @map("user_id") @db.UnsignedInt
+  action      String   @db.VarChar(50)
+  moduleCode  String?  @map("module_code") @db.VarChar(50)
+  entityType  String?  @map("entity_type") @db.VarChar(50)
+  entityId    Int?     @map("entity_id") @db.UnsignedInt
+  description String?  @db.VarChar(500)
+  ipAddress   String?  @map("ip_address") @db.VarChar(45)
+  createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], map: "IX_activity_logs_user_date")
+  @@index([entityType, entityId], map: "IX_activity_logs_entity")
+  @@map("activity_logs")
+}
+
+/// Login/logout timestamps and device details. Append-only.
+model LoginHistory {
+  id          Int       @id @default(autoincrement()) @db.UnsignedInt
+  userId      Int       @map("user_id") @db.UnsignedInt
+  action      String    @db.VarChar(10) // LOGIN, LOGOUT, FAILED
+  hostname    String?   @db.VarChar(100)
+  ipAddress   String?   @map("ip_address") @db.VarChar(45)
+  userAgent   String?   @map("user_agent") @db.VarChar(255)
+  failReason  String?   @map("fail_reason") @db.VarChar(255)
+  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  user        User      @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt], map: "IX_login_history_user_date")
+  @@map("login_history")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 9: AUDIT & LOG TABLES (3)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Immutable system-wide change log. NO UPDATE or DELETE allowed.
+model AuditLog {
+  id             BigInt      @id @default(autoincrement())
+  companyId      Int?        @map("company_id") @db.UnsignedInt
+  entityType     String      @map("entity_type") @db.VarChar(50)
+  entityId       Int         @map("entity_id") @db.UnsignedInt
+  action         AuditAction
+  beforeValue    Json?       @map("before_value")
+  afterValue     Json?       @map("after_value")
+  changedFields  Json?       @map("changed_fields")
+  userId         Int         @map("user_id") @db.UnsignedInt
+  ipAddress      String?     @map("ip_address") @db.VarChar(45)
+  hostname       String?     @db.VarChar(100)
+  overrideReason String?     @map("override_reason") @db.Text
+  createdAt      DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([entityType, entityId], map: "IX_audit_logs_entity")
+  @@index([companyId, createdAt], map: "IX_audit_logs_company_date")
+  @@index([userId, createdAt], map: "IX_audit_logs_user_date")
+  @@map("audit_logs")
+}
+
+/// User-facing notification/alert records.
+model NotificationRecord {
+  id               Int                  @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int                  @map("company_id") @db.UnsignedInt
+  userId           Int                  @map("user_id") @db.UnsignedInt
+  notificationType NotificationType     @map("notification_type")
+  priority         NotificationPriority @default(MEDIUM)
+  title            String               @db.VarChar(150)
+  message          String               @db.Text
+  isRead           Boolean              @default(false) @map("is_read")
+  readAt           DateTime?            @map("read_at") @db.DateTime(3)
+  isDismissed      Boolean              @default(false) @map("is_dismissed")
+  referenceType    String?              @map("reference_type") @db.VarChar(50)
+  referenceId      Int?                 @map("reference_id") @db.UnsignedInt
+  createdAt        DateTime             @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  company          Company              @relation(fields: [companyId], references: [id])
+  user             User                 @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt], map: "IX_notifications_user_unread")
+  @@index([companyId, createdAt], map: "IX_notifications_company_date")
+  @@map("notification_records")
+}
+
+/// System error tracking log. Append-only.
+model ErrorLog {
+  id           Int      @id @default(autoincrement()) @db.UnsignedInt
+  errorCode    String?  @map("error_code") @db.VarChar(30)
+  errorMessage String   @map("error_message") @db.Text
+  stackTrace   String?  @map("stack_trace") @db.Text
+  moduleCode   String?  @map("module_code") @db.VarChar(50)
+  userId       Int?     @map("user_id") @db.UnsignedInt
+  hostname     String?  @db.VarChar(100)
+  severity     String   @default("ERROR") @db.VarChar(20) // INFO, WARNING, ERROR, CRITICAL
+  createdAt    DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([severity, createdAt], map: "IX_error_logs_severity_date")
+  @@map("error_logs")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION 10: DASHBOARD & WORKSPACE TABLES (2)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// User dashboard widget personalization.
+model DashboardWidget {
+  id           Int        @id @default(autoincrement()) @db.UnsignedInt
+  userId       Int        @map("user_id") @db.UnsignedInt
+  widgetType   WidgetType @map("widget_type")
+  widgetTitle  String     @map("widget_title") @db.VarChar(100)
+  dataSource   String     @map("data_source") @db.VarChar(100) // e.g., 'sales_today', 'outstanding_receivables'
+  position     Int        @default(0) @db.UnsignedInt
+  columnSpan   Int        @default(1) @map("column_span") @db.UnsignedInt
+  isVisible    Boolean    @default(true) @map("is_visible")
+  config       Json?      // colors, date range, filters
+  createdAt    DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  user         User       @relation(fields: [userId], references: [id])
+
+  @@index([userId], map: "IX_dashboard_widgets_user")
+  @@map("dashboard_widgets")
+}
+
+/// Personal workspace: favorites, quick actions, recent items.
+model UserWorkspace {
+  id              Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId          Int      @unique @map("user_id") @db.UnsignedInt
+  favoritePages   Json?    @map("favorite_pages")   // Array of page URIs
+  quickActions    Json?    @map("quick_actions")     // Array of action configs
+  recentItems     Json?    @map("recent_items")      // Array of recently accessed items
+  pinnedReports   Json?    @map("pinned_reports")    // Array of saved report configs
+  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  // Relations
+  user            User     @relation(fields: [userId], references: [id])
+
+  @@map("user_workspaces")
+}

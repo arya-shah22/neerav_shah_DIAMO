@@ -1,0 +1,264 @@
+/* ═══════════════════════════════════════════════════════════════
+   DIAMO ERP — Global Styles & Design Tokens
+   Phase 17.1 UI/UX Design System Implementation
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ─── CSS Custom Properties (Design Tokens) ─────────────────── */
+:root {
+  /* Colors — Phase 17.1 §5 */
+  --color-primary: #1E293B;
+  --color-primary-light: #334155;
+  --color-primary-dark: #0F172A;
+  --color-accent: #3B82F6;
+  --color-accent-hover: #2563EB;
+  --color-accent-light: #DBEAFE;
+  --color-success: #10B981;
+  --color-success-hover: #059669;
+  --color-success-light: #D1FAE5;
+  --color-warning: #F59E0B;
+  --color-warning-hover: #D97706;
+  --color-warning-light: #FEF3C7;
+  --color-danger: #EF4444;
+  --color-danger-hover: #DC2626;
+  --color-danger-light: #FEE2E2;
+  --color-info: #0EA5E9;
+  --color-info-light: #E0F2FE;
+
+  --color-bg: #F8FAFC;
+  --color-surface: #FFFFFF;
+  --color-border: #E2E8F0;
+  --color-border-focus: #3B82F6;
+  --color-row-alt: #F1F5F9;
+  --color-disabled-text: #94A3B8;
+  --color-disabled-bg: #E2E8F0;
+  --color-text-primary: #1E293B;
+  --color-text-secondary: #475569;
+  --color-text-muted: #94A3B8;
+
+  /* Typography — Phase 17.1 §6 */
+  --font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, monospace;
+
+  --text-title: 20px;
+  --text-heading: 16px;
+  --text-label: 12px;
+  --text-body: 12px;
+  --text-cell: 11px;
+  --text-small: 10px;
+
+  --weight-regular: 400;
+  --weight-medium: 500;
+  --weight-semibold: 600;
+  --weight-bold: 700;
+
+  --line-title: 28px;
+  --line-heading: 24px;
+  --line-label: 18px;
+  --line-body: 18px;
+  --line-cell: 16px;
+  --line-small: 14px;
+
+  /* Spacing */
+  --spacing-xxs: 2px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 32px;
+  --spacing-2xl: 48px;
+
+  /* Layout — Phase 17.1 §4 */
+  --header-height: 48px;
+  --sidebar-width: 200px;
+  --sidebar-collapsed: 48px;
+  --footer-height: 24px;
+
+  /* Shadows */
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.07), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.10), 0 4px 6px -4px rgba(0, 0, 0, 0.05);
+
+  /* Borders */
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-full: 9999px;
+
+  /* Transitions — Phase 17.1 §23 */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+  --transition-slow: 300ms ease;
+
+  /* Z-Index Scale */
+  --z-base: 0;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-toast: 500;
+}
+
+/* ─── Reset & Base ──────────────────────────────────────────── */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: var(--font-family);
+  font-size: var(--text-body);
+  line-height: var(--line-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-bg);
+  overflow: hidden; /* Electron — no page scroll */
+  user-select: none; /* Desktop app — prevent text selection on UI chrome */
+}
+
+/* Allow text selection in content areas */
+input, textarea, [data-selectable], .content-area {
+  user-select: text;
+}
+
+a {
+  color: var(--color-accent);
+  text-decoration: none;
+}
+
+/* ─── Scrollbar Styling ─────────────────────────────────────── */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-disabled-text);
+  border-radius: var(--radius-full);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-secondary);
+}
+
+/* ─── Focus Styles ──────────────────────────────────────────── */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* ─── Typography Utility Classes ────────────────────────────── */
+.text-title {
+  font-size: var(--text-title);
+  font-weight: var(--weight-bold);
+  line-height: var(--line-title);
+}
+
+.text-heading {
+  font-size: var(--text-heading);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-heading);
+}
+
+.text-label {
+  font-size: var(--text-label);
+  font-weight: var(--weight-semibold);
+  line-height: var(--line-label);
+}
+
+.text-body {
+  font-size: var(--text-body);
+  font-weight: var(--weight-regular);
+  line-height: var(--line-body);
+}
+
+.text-cell {
+  font-family: var(--font-mono);
+  font-size: var(--text-cell);
+  line-height: var(--line-cell);
+}
+
+.text-small {
+  font-size: var(--text-small);
+  line-height: var(--line-small);
+}
+
+.text-muted {
+  color: var(--color-text-muted);
+}
+
+.text-right {
+  text-align: right;
+}
+
+.text-center {
+  text-align: center;
+}
+
+.font-mono {
+  font-family: var(--font-mono);
+}
+
+/* ─── Skeleton Loading Animation ────────────────────────────── */
+@keyframes skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.skeleton {
+  background: var(--color-disabled-bg);
+  border-radius: var(--radius-sm);
+  animation: skeleton-pulse 1.5s ease-in-out infinite;
+}
+
+/* ─── Toast Animation ───────────────────────────────────────── */
+@keyframes toast-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes toast-slide-out {
+  from {
+    transform: translateX(0);
+    opacity: 1;
+  }
+  to {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+}
+
+/* ─── Modal Backdrop Animation ──────────────────────────────── */
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-scale-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
