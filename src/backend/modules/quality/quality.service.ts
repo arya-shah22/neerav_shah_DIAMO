@@ -1,0 +1,162 @@
+// ═══════════════════════════════════════════════════════════════
+// DIAMO ERP — Quality Service
+// ═══════════════════════════════════════════════════════════════
+
+import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { AccountStatus, UqcType } from '@prisma/client';
+
+@Injectable()
+export class QualityService {
+  @Inject(PrismaService)
+  private readonly prisma!: PrismaService;
+
+  async list(companyId: number, search?: string) {
+    return this.prisma.quality.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        ...(search ? { qualityName: { contains: search } } : {}),
+      },
+      orderBy: { qualityName: 'asc' },
+      include: {
+        gstHistory: { orderBy: { applyDate: 'desc' }, take: 1 },
+      },
+    });
+  }
+
+  async get(id: number, companyId: number) {
+    const quality = await this.prisma.quality.findFirst({
+      where: { id, companyId, isDeleted: false },
+      include: {
+        gstHistory: { orderBy: { applyDate: 'desc' } },
+      },
+    });
+    if (!quality) throw new BadRequestException('Quality not found');
+    return quality;
+  }
+
+  async create(companyId: number, data: Record<string, unknown>) {
+    await this.validateUnique(companyId, data.qualityName as string, data.itemCode as string);
+
+    return this.prisma.$transaction(async (tx) => {
+      const quality = await tx.quality.create({
+        data: {
+          companyId,
+          qualityName: data.qualityName as string,
+          itemCode: data.itemCode as string,
+          hsnNumber: data.hsnNumber as string,
+          uqc: (data.uqc as UqcType) || UqcType.CTS,
+          purchaseRate: Number(data.purchaseRate) || 0,
+          saleRate: Number(data.saleRate) || 0,
+          mrp: Number(data.mrp) || 0,
+          minLevel: Number(data.minLevel) || 0,
+          maxLevel: Number(data.maxLevel) || 0,
+          openingBalanceCarats: Number(data.openingBalanceCarats) || 0,
+          openingBalancePcs: Number(data.openingBalancePcs) || 0,
+          openingBalanceRate: Number(data.openingBalanceRate) || 0,
+          status: (data.status as AccountStatus) || AccountStatus.ACTIVE,
+        },
+      });
+
+      if (data.gstPct != null) {
+        await tx.qualityGstHistory.create({
+          data: {
+            qualityId: quality.id,
+            applyDate: data.gstApplyDate ? new Date(data.gstApplyDate as string) : new Date(),
+            gstPct: Number(data.gstPct),
+            cessPct: Number(data.cessPct) || 0,
+          },
+        });
+      }
+
+      return tx.quality.findUnique({
+        where: { id: quality.id },
+        include: { gstHistory: true },
+      });
+    });
+  }
+
+  async update(id: number, companyId: number, data: Record<string, unknown>) {
+    const existing = await this.get(id, companyId);
+
+    if (
+      (data.qualityName && data.qualityName !== existing.qualityName) ||
+      (data.itemCode && data.itemCode !== existing.itemCode)
+    ) {
+      await this.validateUnique(
+        companyId,
+        (data.qualityName as string) || existing.qualityName,
+        (data.itemCode as string) || existing.itemCode,
+        id,
+      );
+    }
+
+    const minLevel = data.minLevel != null ? Number(data.minLevel) : Number(existing.minLevel);
+    const maxLevel = data.maxLevel != null ? Number(data.maxLevel) : Number(existing.maxLevel);
+    if (minLevel > maxLevel && maxLevel > 0) {
+      throw new BadRequestException('Min level cannot exceed max level');
+    }
+
+    return this.prisma.quality.update({
+      where: { id },
+      data: {
+        qualityName: data.qualityName as string,
+        itemCode: data.itemCode as string,
+        hsnNumber: data.hsnNumber as string,
+        uqc: data.uqc as UqcType,
+        purchaseRate: data.purchaseRate != null ? Number(data.purchaseRate) : undefined,
+        saleRate: data.saleRate != null ? Number(data.saleRate) : undefined,
+        mrp: data.mrp != null ? Number(data.mrp) : undefined,
+        minLevel: data.minLevel != null ? Number(data.minLevel) : undefined,
+        maxLevel: data.maxLevel != null ? Number(data.maxLevel) : undefined,
+        status: data.status as AccountStatus,
+        version: { increment: 1 },
+      },
+      include: { gstHistory: { orderBy: { applyDate: 'desc' } } },
+    });
+  }
+
+  async delete(id: number, companyId: number) {
+    await this.get(id, companyId);
+
+    const usedInStock = await this.prisma.stockPacket.count({
+      where: { qualityId: id },
+    });
+    if (usedInStock > 0) {
+      throw new BadRequestException('Cannot delete quality referenced by stock packets');
+    }
+
+    await this.prisma.qualityGstHistory.deleteMany({ where: { qualityId: id } });
+    return this.prisma.quality.delete({ where: { id } });
+  }
+
+  async listHsnCodes() {
+    return this.prisma.hsnCode.findMany({ orderBy: { hsnCode: 'asc' } });
+  }
+
+  private async validateUnique(
+    companyId: number,
+    name: string,
+    code: string,
+    excludeId?: number,
+  ) {
+    const dup = await this.prisma.quality.findFirst({
+      where: {
+        companyId,
+        OR: [{ qualityName: name }, { itemCode: code }],
+        ...(excludeId ? { id: { not: excludeId } } : {}),
+      },
+    });
+    if (dup) {
+      if (dup.isDeleted) {
+        await this.prisma.qualityGstHistory.deleteMany({ where: { qualityId: dup.id } });
+        await this.prisma.quality.delete({ where: { id: dup.id } });
+        return;
+      }
+      throw new BadRequestException(
+        dup.qualityName === name ? 'Quality name already exists' : 'Item code already exists',
+      );
+    }
+  }
+}

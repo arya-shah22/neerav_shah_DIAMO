@@ -2,55 +2,60 @@
 // DIAMO ERP — Auth Service Backend
 // ═══════════════════════════════════════════════════════════════
 
-import { Injectable, UnauthorizedException, Inject } from '@nestjs/common';
+import { Injectable, Inject, UnauthorizedException } from '@nestjs/common';
+import { randomBytes } from 'crypto';
 import { PrismaService } from '../../database/prisma.service';
 import { LoginDto } from './dto/login.dto';
 import bcrypt from 'bcryptjs';
+
+export interface AuthUserPayload {
+  id: number;
+  userIdHandle: string;
+  fullName: string;
+  email: string;
+  isSuperAdmin: boolean;
+}
+
+export interface LoginResult extends AuthUserPayload {
+  sessionToken: string;
+}
 
 @Injectable()
 export class AuthService {
   @Inject(PrismaService)
   private readonly prisma!: PrismaService;
 
-  async validateUser(loginDto: LoginDto) {
+  async validateUser(loginDto: LoginDto): Promise<LoginResult> {
     const { userIdHandle, password } = loginDto;
-    console.log(`[AuthService] Attempting login for user: "${userIdHandle}"`);
 
-    // Fetch user from DB
     const user = await this.prisma.user.findFirst({
       where: {
-        userIdHandle: userIdHandle,
+        userIdHandle,
         isDeleted: false,
       },
     });
 
     if (!user) {
-      console.log(`[AuthService] User not found or deleted: "${userIdHandle}"`);
       throw new UnauthorizedException('Invalid username or password');
     }
 
-    console.log(`[AuthService] User found. ID: ${user.id}, Status: ${user.status}`);
-
     if (user.status !== 'ACTIVE') {
-      console.log(`[AuthService] User account is not active. Status: ${user.status}`);
       throw new UnauthorizedException('User account is inactive or blocked');
     }
 
-    // Compare bcrypt hashes
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
-    console.log(`[AuthService] Bcrypt comparison result: ${isPasswordValid}`);
-    
     if (!isPasswordValid) {
-      // Increment failed login count
       await this.prisma.user.update({
         where: { id: user.id },
         data: { failedLoginAttempts: { increment: 1 } },
       });
+      await this.logLoginHistory(user.id, 'FAILED', 'Invalid password');
       throw new UnauthorizedException('Invalid username or password');
     }
 
-    // Reset failed login attempts and update last login timestamp
-    const updatedUser = await this.prisma.user.update({
+    const sessionToken = await this.createSession(user.id);
+
+    await this.prisma.user.update({
       where: { id: user.id },
       data: {
         failedLoginAttempts: 0,
@@ -58,30 +63,109 @@ export class AuthService {
       },
     });
 
-    console.log(`[AuthService] Login successful for user: "${userIdHandle}"`);
+    await this.logLoginHistory(user.id, 'LOGIN');
+    await this.logActivity(user.id, 'LOGIN', `User ${user.userIdHandle} logged in successfully.`);
 
-    // Return safe user data without password hash
     return {
-      id: updatedUser.id,
-      userIdHandle: updatedUser.userIdHandle,
-      fullName: updatedUser.fullName,
-      email: updatedUser.email,
-      isSuperAdmin: updatedUser.isSuperAdmin,
+      id: user.id,
+      userIdHandle: user.userIdHandle,
+      fullName: user.fullName,
+      email: user.email,
+      isSuperAdmin: user.isSuperAdmin,
+      sessionToken,
     };
   }
 
-  async logActivity(userId: number, action: string, description: string) {
+  async validateSession(sessionToken: string): Promise<AuthUserPayload> {
+    const session = await this.prisma.userSession.findUnique({
+      where: { sessionToken },
+      include: { user: true },
+    });
+
+    if (!session || !session.isActive) {
+      throw new UnauthorizedException('Session expired or invalid');
+    }
+
+    if (session.user.isDeleted || session.user.status !== 'ACTIVE') {
+      throw new UnauthorizedException('User account is no longer active');
+    }
+
+    await this.prisma.userSession.update({
+      where: { id: session.id },
+      data: { lastActivityAt: new Date() },
+    });
+
+    return {
+      id: session.user.id,
+      userIdHandle: session.user.userIdHandle,
+      fullName: session.user.fullName,
+      email: session.user.email,
+      isSuperAdmin: session.user.isSuperAdmin,
+    };
+  }
+
+  async endSession(sessionToken: string, userId: number, username: string): Promise<void> {
+    await this.prisma.userSession.updateMany({
+      where: { sessionToken, isActive: true },
+      data: {
+        isActive: false,
+        logoutAt: new Date(),
+      },
+    });
+
+    await this.logLoginHistory(userId, 'LOGOUT');
+    await this.logActivity(userId, 'LOGOUT', `User ${username} logged out.`);
+  }
+
+  private async createSession(userId: number): Promise<string> {
+    const sessionToken = randomBytes(32).toString('hex');
+
+    await this.prisma.userSession.create({
+      data: {
+        userId,
+        sessionToken,
+        hostname: 'localhost',
+        ipAddress: '127.0.0.1',
+        isActive: true,
+        lastActivityAt: new Date(),
+      },
+    });
+
+    return sessionToken;
+  }
+
+  private async logLoginHistory(
+    userId: number,
+    action: 'LOGIN' | 'LOGOUT' | 'FAILED',
+    failReason?: string,
+  ): Promise<void> {
+    try {
+      await this.prisma.loginHistory.create({
+        data: {
+          userId,
+          action,
+          hostname: 'localhost',
+          ipAddress: '127.0.0.1',
+          failReason: failReason || null,
+        },
+      });
+    } catch (error) {
+      console.error('[AuthService] Failed to write login history:', error);
+    }
+  }
+
+  async logActivity(userId: number, action: string, description: string): Promise<void> {
     try {
       await this.prisma.activityLog.create({
         data: {
           userId,
           action,
           description,
-          ipAddress: '127.0.0.1', // Desktop offline app default
+          ipAddress: '127.0.0.1',
         },
       });
     } catch (error) {
-      console.error('Failed to log user activity:', error);
+      console.error('[AuthService] Failed to log user activity:', error);
     }
   }
 }

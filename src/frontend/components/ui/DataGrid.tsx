@@ -21,7 +21,7 @@ export interface Column<T> {
 interface DataGridProps<T> {
   columns: Column<T>[];
   data: T[];
-  keyField: string;
+  keyField: keyof T & string;
   pageSize?: number;
   onRowClick?: (row: T) => void;
   loading?: boolean;
@@ -32,7 +32,11 @@ interface DataGridProps<T> {
 
 type SortDir = 'asc' | 'desc' | null;
 
-export function DataGrid<T extends Record<string, unknown>>({
+function getRowValue(row: object, key: string): unknown {
+  return (row as Record<string, unknown>)[key];
+}
+
+export function DataGrid<T extends object>({
   columns,
   data,
   keyField,
@@ -51,8 +55,8 @@ export function DataGrid<T extends Record<string, unknown>>({
   const sortedData = useMemo(() => {
     if (!sortKey || !sortDir) return data;
     return [...data].sort((a, b) => {
-      const aVal = a[sortKey];
-      const bVal = b[sortKey];
+      const aVal = getRowValue(a, sortKey);
+      const bVal = getRowValue(b, sortKey);
       if (aVal == null || bVal == null) return 0;
       const cmp = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
       return sortDir === 'asc' ? cmp : -cmp;
@@ -159,7 +163,7 @@ export function DataGrid<T extends Record<string, unknown>>({
                         whiteSpace: 'nowrap',
                       }}
                     >
-                      {col.render ? col.render(row, i) : String(row[col.key] ?? '')}
+                      {col.render ? col.render(row, i) : String(getRowValue(row, col.key) ?? '')}
                     </td>
                   ))}
                 </tr>

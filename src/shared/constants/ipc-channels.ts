@@ -41,6 +41,7 @@ export const IPC = {
   // ─── Account Group (Stage 2) ────────────────────────────
   ACCOUNT_GROUP_LIST: 'account-group:list',
   ACCOUNT_GROUP_TREE: 'account-group:tree',
+  ACCOUNT_GROUP_GET: 'account-group:get',
   ACCOUNT_GROUP_CREATE: 'account-group:create',
   ACCOUNT_GROUP_UPDATE: 'account-group:update',
   ACCOUNT_GROUP_DELETE: 'account-group:delete',
@@ -53,12 +54,23 @@ export const IPC = {
   ACCOUNT_DELETE: 'account:delete',
   ACCOUNT_SEARCH: 'account:search',
 
+  // ─── Broker (Stage 2) ───────────────────────────────────
+  BROKER_LIST: 'broker:list',
+  BROKER_GET: 'broker:get',
+  BROKER_CREATE: 'broker:create',
+  BROKER_UPDATE: 'broker:update',
+  BROKER_DELETE: 'broker:delete',
+
+  // ─── Account Group seed ─────────────────────────────────
+  ACCOUNT_GROUP_SEED: 'account-group:seed',
+
   // ─── Quality (Stage 2) ─────────────────────────────────
   QUALITY_LIST: 'quality:list',
   QUALITY_GET: 'quality:get',
   QUALITY_CREATE: 'quality:create',
   QUALITY_UPDATE: 'quality:update',
   QUALITY_DELETE: 'quality:delete',
+  QUALITY_HSN_LIST: 'quality:hsn-list',
 
   // ─── Stock (Stage 3) ───────────────────────────────────
   STOCK_LIST: 'stock:list',

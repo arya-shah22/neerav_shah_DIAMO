@@ -1,11 +1,12 @@
 // ═══════════════════════════════════════════════════════════════
 // DIAMO ERP — Auth Store (Zustand)
-// Phase 17.2 §8: Global state for session
+// Global session state with local persistence
 // ═══════════════════════════════════════════════════════════════
 
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
-interface AuthUser {
+export interface AuthUser {
   id: number;
   username: string;
   fullName: string;
@@ -15,18 +16,40 @@ interface AuthUser {
 
 interface AuthState {
   user: AuthUser | null;
+  sessionToken: string | null;
   isAuthenticated: boolean;
-  setUser: (user: AuthUser) => void;
-  clearUser: () => void;
+  hasHydrated: boolean;
+  setSession: (user: AuthUser, sessionToken: string) => void;
+  clearSession: () => void;
+  setHasHydrated: () => void;
 }
 
-export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
-  isAuthenticated: false,
+export const useAuthStore = create<AuthState>()(
+  persist(
+    (set) => ({
+      user: null,
+      sessionToken: null,
+      isAuthenticated: false,
+      hasHydrated: false,
 
-  setUser: (user) =>
-    set({ user, isAuthenticated: true }),
+      setSession: (user, sessionToken) =>
+        set({ user, sessionToken, isAuthenticated: true }),
 
-  clearUser: () =>
-    set({ user: null, isAuthenticated: false }),
-}));
+      clearSession: () =>
+        set({ user: null, sessionToken: null, isAuthenticated: false }),
+
+      setHasHydrated: () => set({ hasHydrated: true }),
+    }),
+    {
+      name: 'diamo-auth',
+      partialize: (state) => ({
+        user: state.user,
+        sessionToken: state.sessionToken,
+        isAuthenticated: state.isAuthenticated,
+      }),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated();
+      },
+    },
+  ),
+);

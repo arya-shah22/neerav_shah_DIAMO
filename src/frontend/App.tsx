@@ -3,40 +3,229 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ErrorBoundary } from './components/feedback/ErrorBoundary';
+import { LoadingOverlay } from './components/feedback/LoadingOverlay';
 import { ToastProvider } from './components/ui/Toast';
 import { LoginPage } from './features/auth';
+import { CompanyListPage, CompanyFormPage } from './features/company';
+import { FinancialYearPage } from './features/financial-year';
+import { AccountGroupPage } from './features/account-group';
+import { AccountListPage, AccountFormPage } from './features/account';
+import { BrokerListPage, BrokerFormPage } from './features/broker';
+import { QualityListPage, QualityFormPage } from './features/quality';
 import { useAuthStore } from './state/auth-store';
+import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
+import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem } from 'lucide-react';
 
 // ─── Route Guards ─────────────────────────────────────────────
 const ProtectedRoutes = () => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
+
+  if (!hasHydrated) {
+    return <LoadingOverlay visible message="Loading..." />;
+  }
+
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" replace />;
 };
 
 const GuestRoutes = () => {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const hasHydrated = useAuthStore((s) => s.hasHydrated);
+
+  if (!hasHydrated) {
+    return <LoadingOverlay visible message="Loading..." />;
+  }
+
   return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
 };
 
-// ─── Placeholder pages ────────────────────────────────────────
-const DashboardPage: React.FC = () => (
-  <div style={{ padding: 'var(--spacing-lg)' }}>
-    <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-      Welcome to DIAMO ERP
-    </h1>
-    <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-disabled-text)', marginTop: 'var(--spacing-sm)' }}>
-      Enterprise Diamond Industry Management System
-    </p>
-    <div style={{ marginTop: 'var(--spacing-lg)', padding: 'var(--spacing-lg)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)' }}>
-      <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-primary)' }}>
-        🚀 Stage 0 — Project scaffolding complete. Ready for module development.
-      </p>
+// ─── Dashboard ────────────────────────────────────────────────
+const DashboardPage: React.FC = () => {
+  const user = useAuthStore((s) => s.user);
+  const activeCompany = useCompanyStore((s) => s.activeCompany);
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+
+  const setupItems = [
+  {
+    label: 'Authentication',
+    done: true,
+    detail: `Logged in as ${user?.fullName || '—'}`,
+  },
+  {
+    label: 'Company Master',
+    done: !!activeCompany,
+    detail: activeCompany ? activeCompany.companyName : 'Create a company to continue',
+  },
+  {
+    label: 'Financial Year',
+    done: !!activeFinancialYear,
+    detail: activeFinancialYear
+      ? `FY ${formatFinancialYearLabel(activeFinancialYear)}`
+      : 'Configure a financial year for the active company',
+  },
+];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+      <div>
+        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+          Welcome to DIAMO ERP
+        </h1>
+        <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
+          Stage 2 — Master data modules are ready. Proceed to Stage 3 (Inventory).
+        </p>
+      </div>
+
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(3, 1fr)',
+        gap: 'var(--spacing-md)',
+      }}>
+        {setupItems.map((item) => (
+          <div
+            key={item.label}
+            style={{
+              padding: 'var(--spacing-lg)',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-lg)',
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+              {item.done ? (
+                <CheckCircle2 size={18} color="var(--color-success)" />
+              ) : (
+                <div style={{ width: 18, height: 18, borderRadius: '50%', border: '2px solid var(--color-border)' }} />
+              )}
+              <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{item.label}</span>
+            </div>
+            <p style={{ fontSize: 'var(--text-label)', color: 'var(--color-text-secondary)' }}>
+              {item.detail}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div style={{
+        padding: 'var(--spacing-lg)',
+        background: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-lg)',
+      }}>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: 'var(--spacing-md)' }}>
+          Quick Setup
+        </h2>
+        <div style={{ display: 'flex', gap: 'var(--spacing-md)' }}>
+          <Link
+            to="/masters/business/companies"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <Building2 size={16} /> Manage Companies
+          </Link>
+          <Link
+            to="/masters/business/financial-years"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <Calendar size={16} /> Financial Years
+          </Link>
+          <Link
+            to="/masters/accounting/account-groups"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <FolderTree size={16} /> Account Groups
+          </Link>
+          <Link
+            to="/masters/accounting/accounts"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <Users size={16} /> Accounts
+          </Link>
+          <Link
+            to="/masters/business/brokers"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <Handshake size={16} /> Brokers
+          </Link>
+          <Link
+            to="/masters/diamond/qualities"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <Gem size={16} /> Qualities
+          </Link>
+        </div>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // ─── App Root ────────────────────────────────────────────────
 
@@ -46,20 +235,51 @@ const App: React.FC = () => {
       <ToastProvider>
         <BrowserRouter>
           <Routes>
-            {/* Guest/Unauthenticated Routes */}
             <Route element={<GuestRoutes />}>
               <Route path="/login" element={<LoginPage />} />
             </Route>
 
-            {/* Authenticated Application Wrapper */}
             <Route element={<ProtectedRoutes />}>
               <Route element={<AppShell />}>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+
+                {/* Stage 1: Company Master */}
+                <Route path="/masters/business/companies" element={<CompanyListPage />} />
+                <Route path="/masters/business/companies/new" element={<CompanyFormPage />} />
+                <Route path="/masters/business/companies/edit/:id" element={<CompanyFormPage />} />
+
+                {/* Legacy redirects */}
+                <Route path="/companies" element={<Navigate to="/masters/business/companies" replace />} />
+                <Route path="/companies/new" element={<Navigate to="/masters/business/companies/new" replace />} />
+                <Route path="/companies/edit/:id" element={<Navigate to="/masters/business/companies/edit/:id" replace />} />
+
+                {/* Stage 1: Financial Year Master */}
+                <Route path="/masters/business/financial-years" element={<FinancialYearPage />} />
+
+                {/* Stage 2: Account Group Master */}
+                <Route path="/masters/accounting/account-groups" element={<AccountGroupPage />} />
+
+                {/* Stage 2: Account Master */}
+                <Route path="/masters/accounting/accounts" element={<AccountListPage />} />
+                <Route path="/masters/accounting/accounts/new" element={<AccountFormPage />} />
+                <Route path="/masters/accounting/accounts/edit/:id" element={<AccountFormPage />} />
+
+                {/* Stage 2: Broker Master */}
+                <Route path="/masters/business/brokers" element={<BrokerListPage />} />
+                <Route path="/masters/business/brokers/new" element={<BrokerFormPage />} />
+                <Route path="/masters/business/brokers/edit/:id" element={<BrokerFormPage />} />
+
+                {/* Stage 2: Quality Master */}
+                <Route path="/masters/diamond/qualities" element={<QualityListPage />} />
+                <Route path="/masters/diamond/qualities/new" element={<QualityFormPage />} />
+                <Route path="/masters/diamond/qualities/edit/:id" element={<QualityFormPage />} />
+
+                {/* Legacy redirects */}
+                <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />
               </Route>
             </Route>
 
-            {/* Fallback */}
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
         </BrowserRouter>

@@ -1,16 +1,28 @@
 // ═══════════════════════════════════════════════════════════════
 // DIAMO ERP — Application Shell Layout
-// Phase 17.1 §4: Top Header + Left Sidebar + Content + Footer
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState } from 'react';
-import { Outlet } from 'react-router-dom';
+import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { StatusFooter } from './StatusFooter';
+import { LoadingOverlay } from '../feedback/LoadingOverlay';
+import { useSessionBootstrap } from '../../hooks/useSessionBootstrap';
+import { useAuthStore } from '../../state/auth-store';
 
 export const AppShell: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const { isReady, isRestoring } = useSessionBootstrap();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/login" replace />;
+  }
+
+  if (!isReady || isRestoring) {
+    return <LoadingOverlay visible message="Restoring session..." />;
+  }
 
   return (
     <div style={{
@@ -21,35 +33,27 @@ export const AppShell: React.FC = () => {
       overflow: 'hidden',
       background: 'var(--color-bg)',
     }}>
-      {/* Top Header — 48px fixed */}
       <TopHeader
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
-      {/* Main Area: Sidebar + Content */}
-      <div style={{
-        display: 'flex',
-        flex: 1,
-        overflow: 'hidden',
-      }}>
-        {/* Left Sidebar — 200px / 48px */}
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar collapsed={sidebarCollapsed} />
 
-        {/* Workspace Content Area — flexible */}
         <main
           className="content-area"
           style={{
             flex: 1,
             overflow: 'auto',
             background: 'var(--color-bg)',
+            padding: 'var(--spacing-lg)',
           }}
         >
           <Outlet />
         </main>
       </div>
 
-      {/* Status Footer — 24px fixed */}
       <StatusFooter />
     </div>
   );

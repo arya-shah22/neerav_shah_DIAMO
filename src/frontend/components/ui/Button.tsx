@@ -6,7 +6,7 @@
 import React from 'react';
 import { Loader2 } from 'lucide-react';
 
-type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success';
+type ButtonVariant = 'primary' | 'secondary' | 'danger' | 'success' | 'ghost';
 type ButtonSize = 'sm' | 'md' | 'lg';
 
 interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
@@ -40,6 +40,12 @@ const VARIANT_STYLES: Record<ButtonVariant, { bg: string; bgHover: string; color
     bg: 'var(--color-success)',
     bgHover: 'var(--color-success-hover)',
     color: '#FFFFFF',
+    border: 'transparent',
+  },
+  ghost: {
+    bg: 'transparent',
+    bgHover: 'var(--color-accent-light)',
+    color: 'var(--color-text-secondary)',
     border: 'transparent',
   },
 };

@@ -1,0 +1,182 @@
+// ═══════════════════════════════════════════════════════════════
+// DIAMO ERP — Broker Service
+// Extends Account with BrokerProfile (one-to-one)
+// ═══════════════════════════════════════════════════════════════
+
+import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+import { AccountService } from '../account/account.service';
+import { AccountGroupService } from '../account-group/account-group.service';
+import { AddLessType } from '@prisma/client';
+
+function emptyToNull(value: unknown): string | null {
+  if (value == null) return null;
+  const str = String(value).trim();
+  return str.length > 0 ? str : null;
+}
+
+@Injectable()
+export class BrokerService {
+  @Inject(PrismaService)
+  private readonly prisma!: PrismaService;
+
+  @Inject(AccountService)
+  private readonly accountService!: AccountService;
+
+  @Inject(AccountGroupService)
+  private readonly accountGroupService!: AccountGroupService;
+
+  async list(companyId: number) {
+    return this.prisma.account.findMany({
+      where: { companyId, isDeleted: false, isBroker: true },
+      orderBy: { accountName: 'asc' },
+      include: {
+        accountGroup: { select: { id: true, groupName: true } },
+        brokerProfile: true,
+      },
+    });
+  }
+
+  async get(id: number, companyId: number) {
+    const account = await this.prisma.account.findFirst({
+      where: { id, companyId, isDeleted: false, isBroker: true },
+      include: {
+        accountGroup: { select: { id: true, groupName: true } },
+        brokerProfile: true,
+      },
+    });
+    if (!account) throw new BadRequestException('Broker not found');
+    return account;
+  }
+
+  private async resolveBrokersGroupId(companyId: number): Promise<number> {
+    let brokersGroup = await this.prisma.accountGroup.findFirst({
+      where: { companyId, groupName: 'Brokers', isDeleted: false },
+    });
+
+    if (!brokersGroup) {
+      await this.accountGroupService.seedDefaultGroups(companyId);
+      brokersGroup = await this.prisma.accountGroup.findFirst({
+        where: { companyId, groupName: 'Brokers', isDeleted: false },
+      });
+    }
+
+    if (!brokersGroup) {
+      throw new BadRequestException(
+        'Brokers account group is missing. Open Account Groups and click "Load Default Chart", then try again.',
+      );
+    }
+
+    return brokersGroup.id;
+  }
+
+  async create(companyId: number, data: Record<string, unknown>) {
+    const accountName = String(data.accountName ?? '').trim();
+    if (!accountName) {
+      throw new BadRequestException('Broker name is required');
+    }
+
+    await this.accountService.assertAccountNameAvailable(companyId, accountName);
+
+    const accountGroupId = data.accountGroupId
+      ? Number(data.accountGroupId)
+      : await this.resolveBrokersGroupId(companyId);
+
+    return this.prisma.$transaction(async (tx) => {
+      const account = await tx.account.create({
+        data: {
+          companyId,
+          accountGroupId,
+          accountName,
+          printName: emptyToNull(data.printName),
+          status: (data.status as 'ACTIVE') || 'ACTIVE',
+          isBroker: true,
+          gstinNumber: emptyToNull(data.gstinNumber),
+          panNumber: emptyToNull(data.panNumber),
+          creditDays: Number(data.creditDays) || 0,
+          creditLimit: Number(data.creditLimit) || 0,
+          addressLine1: emptyToNull(data.addressLine1),
+          addressLine2: emptyToNull(data.addressLine2),
+          city: emptyToNull(data.city),
+          stateCode: emptyToNull(data.stateCode),
+          pincode: emptyToNull(data.pincode),
+          mobile: emptyToNull(data.mobile),
+          phone: emptyToNull(data.phone),
+          email: emptyToNull(data.email),
+          bankAccountNumber: emptyToNull(data.bankAccountNumber),
+          bankName: emptyToNull(data.bankName),
+          bankBranch: emptyToNull(data.bankBranch),
+          bankIfsc: emptyToNull(data.bankIfsc),
+        },
+      });
+
+      await tx.brokerProfile.create({
+        data: {
+          accountId: account.id,
+          brokeragePct: Number(data.brokeragePct) || 0,
+          addLess: (data.addLess as AddLessType) || AddLessType.LESS,
+          tdsLedgerId: data.tdsLedgerId ? Number(data.tdsLedgerId) : null,
+          tdsPct: data.tdsPct != null ? Number(data.tdsPct) : 5,
+        },
+      });
+
+      return tx.account.findUnique({
+        where: { id: account.id },
+        include: { accountGroup: true, brokerProfile: true },
+      });
+    });
+  }
+
+  async update(id: number, companyId: number, data: Record<string, unknown>) {
+    const existing = await this.get(id, companyId);
+    const accountName = data.accountName ? String(data.accountName).trim() : existing.accountName;
+
+    if (accountName !== existing.accountName) {
+      await this.accountService.assertAccountNameAvailable(companyId, accountName, id);
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      await tx.account.update({
+        where: { id },
+        data: {
+          accountName,
+          printName: emptyToNull(data.printName),
+          status: data.status as never,
+          gstinNumber: emptyToNull(data.gstinNumber),
+          panNumber: emptyToNull(data.panNumber),
+          creditDays: Number(data.creditDays) || 0,
+          creditLimit: Number(data.creditLimit) || 0,
+          addressLine1: emptyToNull(data.addressLine1),
+          city: emptyToNull(data.city),
+          stateCode: emptyToNull(data.stateCode),
+          pincode: emptyToNull(data.pincode),
+          mobile: emptyToNull(data.mobile),
+          email: emptyToNull(data.email),
+          bankAccountNumber: emptyToNull(data.bankAccountNumber),
+          bankName: emptyToNull(data.bankName),
+          bankIfsc: emptyToNull(data.bankIfsc),
+          version: { increment: 1 },
+        },
+      });
+
+      await tx.brokerProfile.updateMany({
+        where: { accountId: id },
+        data: {
+          brokeragePct: Number(data.brokeragePct) || 0,
+          addLess: (data.addLess as AddLessType) || AddLessType.LESS,
+          tdsPct: data.tdsPct != null ? Number(data.tdsPct) : 5,
+        },
+      });
+
+      return tx.account.findUnique({
+        where: { id },
+        include: { accountGroup: true, brokerProfile: true },
+      });
+    });
+  }
+
+  async delete(id: number, companyId: number) {
+    await this.get(id, companyId);
+    return this.accountService.delete(id, companyId);
+  }
+}

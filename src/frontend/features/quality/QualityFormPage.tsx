@@ -1,0 +1,198 @@
+// ═══════════════════════════════════════════════════════════════
+// DIAMO ERP — Quality Form Page
+// ═══════════════════════════════════════════════════════════════
+
+import React, { useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { Save, ArrowLeft } from 'lucide-react';
+import { qualitySchema, QualityFormData } from './quality.schema';
+import { useIpc } from '../../hooks/useIpc';
+import { useActiveCompany } from '../../hooks/useActiveCompany';
+import { Button, Input, useToast } from '../../components/ui';
+import type { IHsnCode, IQuality } from './quality.types';
+
+const LIST_ROUTE = '/masters/diamond/qualities';
+
+export const QualityFormPage: React.FC = () => {
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const { showToast } = useToast();
+  const { companyId, isReady } = useActiveCompany();
+  const isEdit = !!id;
+  const [hsnCodes, setHsnCodes] = useState<IHsnCode[]>([]);
+
+  const { invoke: fetchQuality } = useIpc<IQuality>('quality:get');
+  const { invoke: createQuality, loading: creating } = useIpc('quality:create');
+  const { invoke: updateQuality, loading: updating } = useIpc('quality:update');
+  const { invoke: fetchHsn } = useIpc<IHsnCode[]>('quality:hsn-list');
+
+  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<QualityFormData>({
+    resolver: zodResolver(qualitySchema),
+    defaultValues: {
+      qualityName: '',
+      itemCode: '',
+      hsnNumber: '',
+      uqc: 'CTS',
+      purchaseRate: 0,
+      saleRate: 0,
+      mrp: 0,
+      minLevel: 0,
+      maxLevel: 0,
+      openingBalanceCarats: 0,
+      openingBalancePcs: 0,
+      openingBalanceRate: 0,
+      status: 'ACTIVE',
+      gstPct: 3,
+      cessPct: 0,
+    },
+  });
+
+  const selectedHsn = watch('hsnNumber');
+
+  useEffect(() => {
+    const loadHsn = async () => {
+      const res = await fetchHsn();
+      if (res.success && res.data) setHsnCodes(res.data);
+    };
+    loadHsn();
+  }, [fetchHsn]);
+
+  useEffect(() => {
+    const hsn = hsnCodes.find((h) => h.hsnCode === selectedHsn);
+    if (hsn && !isEdit) {
+      setValue('gstPct', Number(hsn.gstPct));
+      setValue('cessPct', Number(hsn.cessPct));
+    }
+  }, [selectedHsn, hsnCodes, setValue, isEdit]);
+
+  useEffect(() => {
+    if (!companyId || !isEdit || !id) return;
+    const load = async () => {
+      const res = await fetchQuality({ id: Number(id), companyId });
+      if (res.success && res.data) {
+        const q = res.data;
+        const latestGst = q.gstHistory?.[0];
+        reset({
+          qualityName: q.qualityName,
+          itemCode: q.itemCode,
+          hsnNumber: q.hsnNumber,
+          uqc: q.uqc,
+          purchaseRate: Number(q.purchaseRate),
+          saleRate: Number(q.saleRate),
+          mrp: Number(q.mrp),
+          minLevel: Number(q.minLevel),
+          maxLevel: Number(q.maxLevel),
+          openingBalanceCarats: Number(q.openingBalanceCarats),
+          openingBalancePcs: q.openingBalancePcs,
+          openingBalanceRate: Number(q.openingBalanceRate),
+          status: q.status,
+          gstPct: latestGst ? Number(latestGst.gstPct) : 3,
+          cessPct: latestGst ? Number(latestGst.cessPct) : 0,
+        });
+      }
+    };
+    load();
+  }, [companyId, id, isEdit, fetchQuality, reset]);
+
+  const onSubmit = async (data: QualityFormData) => {
+    if (!companyId) return;
+    const res = isEdit
+      ? await updateQuality({ id: Number(id), companyId, data })
+      : await createQuality({ companyId, data });
+    if (res.success) {
+      showToast(isEdit ? 'Quality updated' : 'Quality created', 'success');
+      navigate(LIST_ROUTE);
+    } else {
+      showToast(res.error || 'Save failed', 'error');
+    }
+  };
+
+  if (!isReady) {
+    return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
+  }
+
+  const selectStyle: React.CSSProperties = {
+    width: '100%',
+    height: '32px',
+    padding: '0 8px',
+    borderRadius: 'var(--radius-sm)',
+    border: '1px solid var(--color-border)',
+  };
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <Button variant="ghost" onClick={() => navigate(LIST_ROUTE)}><ArrowLeft size={18} /></Button>
+        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+          {isEdit ? 'Edit Quality' : 'New Quality'}
+        </h1>
+      </div>
+
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
+      >
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Basic Details</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+          <Input label="Quality Name *" error={errors.qualityName?.message} {...register('qualityName')} />
+          <Input label="Item Code *" error={errors.itemCode?.message} {...register('itemCode')} />
+          <div>
+            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>HSN Code *</label>
+            <select style={selectStyle} {...register('hsnNumber')}>
+              <option value="">Select HSN</option>
+              {hsnCodes.map((h) => (
+                <option key={h.id} value={h.hsnCode}>{h.hsnCode} — {h.description}</option>
+              ))}
+            </select>
+            {errors.hsnNumber && <span style={{ color: 'var(--color-danger)', fontSize: '12px' }}>{errors.hsnNumber.message}</span>}
+          </div>
+          <div>
+            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>UQC</label>
+            <select style={selectStyle} {...register('uqc')}>
+              <option value="CTS">Carats (CTS)</option>
+              <option value="PCS">Pieces (PCS)</option>
+            </select>
+          </div>
+          <div>
+            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Status</label>
+            <select style={selectStyle} {...register('status')}>
+              <option value="ACTIVE">Active</option>
+              <option value="INACTIVE">Inactive</option>
+              <option value="BLOCKED">Blocked</option>
+            </select>
+          </div>
+        </div>
+
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Rates & Stock Levels</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+          <Input label="Purchase Rate" type="number" step="0.01" {...register('purchaseRate', { valueAsNumber: true })} />
+          <Input label="Sale Rate" type="number" step="0.01" {...register('saleRate', { valueAsNumber: true })} />
+          <Input label="MRP" type="number" step="0.01" {...register('mrp', { valueAsNumber: true })} />
+          <Input label="Min Level" type="number" step="0.001" {...register('minLevel', { valueAsNumber: true })} />
+          <Input label="Max Level" type="number" step="0.001" {...register('maxLevel', { valueAsNumber: true })} />
+          <Input label="GST %" type="number" step="0.01" {...register('gstPct', { valueAsNumber: true })} disabled={isEdit} />
+          <Input label="Cess %" type="number" step="0.01" {...register('cessPct', { valueAsNumber: true })} disabled={isEdit} />
+        </div>
+
+        {!isEdit && (
+          <>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Opening Balance</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <Input label="Carats" type="number" step="0.001" {...register('openingBalanceCarats', { valueAsNumber: true })} />
+              <Input label="Pieces" type="number" {...register('openingBalancePcs', { valueAsNumber: true })} />
+              <Input label="Rate" type="number" step="0.01" {...register('openingBalanceRate', { valueAsNumber: true })} />
+            </div>
+          </>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
+          <Button variant="primary" type="submit" loading={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Save size={16} /> Save Quality
+          </Button>
+        </div>
+      </form>
+    </div>
+  );
+};

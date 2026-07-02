@@ -11,6 +11,7 @@ import { loginSchema, LoginFormData } from './login.schema';
 import { useToast } from '../../components/ui';
 import { useAuthStore } from '../../state/auth-store';
 import { useIpc } from '../../hooks/useIpc';
+import { loadCompanyContext } from '../../services/company-context';
 // @ts-ignore
 import logoUrl from '../../../../Logo_Full.png';
 
@@ -45,7 +46,7 @@ const inp = {
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const setUser = useAuthStore((s) => s.setUser);
+  const setSession = useAuthStore((s) => s.setSession);
   const [showPassword, setShowPassword] = useState(false);
 
   const { invoke: loginIpc, loading } = useIpc<any>('auth:login');
@@ -70,13 +71,18 @@ export const LoginPage: React.FC = () => {
     });
 
     if (response && response.success && response.data) {
-      setUser({
-        id: response.data.id,
-        username: response.data.userIdHandle,
-        fullName: response.data.fullName,
-        role: response.data.isSuperAdmin ? 'SUPER_ADMIN' : 'OPERATOR',
-        isSuperAdmin: response.data.isSuperAdmin,
-      });
+      const { sessionToken, ...userData } = response.data;
+      setSession(
+        {
+          id: userData.id,
+          username: userData.userIdHandle,
+          fullName: userData.fullName,
+          role: userData.isSuperAdmin ? 'SUPER_ADMIN' : 'OPERATOR',
+          isSuperAdmin: userData.isSuperAdmin,
+        },
+        sessionToken,
+      );
+      await loadCompanyContext();
       showToast('Logged in successfully', 'success');
       navigate('/dashboard');
     } else {

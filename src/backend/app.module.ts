@@ -6,9 +6,24 @@ import { Module, ValidationPipe } from '@nestjs/common';
 import { APP_PIPE } from '@nestjs/core';
 import { PrismaModule } from './database/prisma.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { CompanyModule } from './modules/company/company.module';
+import { FinancialYearModule } from './modules/financial-year/fy.module';
+import { AccountGroupModule } from './modules/account-group/account-group.module';
+import { AccountModule } from './modules/account/account.module';
+import { BrokerModule } from './modules/broker/broker.module';
+import { QualityModule } from './modules/quality/quality.module';
 
 @Module({
-  imports: [PrismaModule, AuthModule],
+  imports: [
+    PrismaModule,
+    AuthModule,
+    CompanyModule,
+    FinancialYearModule,
+    AccountGroupModule,
+    AccountModule,
+    BrokerModule,
+    QualityModule,
+  ],
   controllers: [],
   providers: [
     {

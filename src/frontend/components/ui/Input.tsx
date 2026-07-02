@@ -68,7 +68,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
       {/* Input */}
       <input
         ref={ref}
-        type={type === 'date' ? 'text' : type}
+        type={type}
         step={isNumber && decimals ? `0.${'0'.repeat(decimals - 1)}1` : undefined}
         style={{
           height: s.height,

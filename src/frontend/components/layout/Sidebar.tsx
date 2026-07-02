@@ -1,13 +1,11 @@
 // ═══════════════════════════════════════════════════════════════
 // DIAMO ERP — Sidebar Navigation
-// Phase 17.1 §4: 200px fixed width, collapsible to 48px
 // ═══════════════════════════════════════════════════════════════
 
 import React from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
-  Database,
   ShoppingCart,
   ShoppingBag,
   FileText,
@@ -19,6 +17,11 @@ import {
   Settings,
   Shield,
   Gem,
+  Building2,
+  Calendar,
+  FolderTree,
+  Users,
+  Handshake,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -34,7 +37,12 @@ interface NavItem {
 
 const NAV_ITEMS: NavItem[] = [
   { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, group: 'Main' },
-  { path: '/masters/accounts', label: 'Masters', icon: <Database size={18} />, group: 'Main' },
+  { path: '/masters/business/companies', label: 'Companies', icon: <Building2 size={18} />, group: 'Masters' },
+  { path: '/masters/business/financial-years', label: 'Financial Years', icon: <Calendar size={18} />, group: 'Masters' },
+  { path: '/masters/accounting/account-groups', label: 'Account Groups', icon: <FolderTree size={18} />, group: 'Masters' },
+  { path: '/masters/accounting/accounts', label: 'Accounts', icon: <Users size={18} />, group: 'Masters' },
+  { path: '/masters/business/brokers', label: 'Brokers', icon: <Handshake size={18} />, group: 'Masters' },
+  { path: '/masters/diamond/qualities', label: 'Qualities', icon: <Gem size={18} />, group: 'Masters' },
   { path: '/inventory/stock', label: 'Inventory', icon: <Gem size={18} />, group: 'Transactions' },
   { path: '/transactions/sales', label: 'Sale Book', icon: <ShoppingCart size={18} />, group: 'Transactions' },
   { path: '/transactions/purchases', label: 'Purchase Book', icon: <ShoppingBag size={18} />, group: 'Transactions' },
@@ -63,7 +71,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       transition: 'width var(--transition-normal), min-width var(--transition-normal)',
       overflow: 'hidden',
     }}>
-      {/* Logo Area */}
       <div style={{
         height: '48px',
         display: 'flex',
@@ -86,7 +93,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         )}
       </div>
 
-      {/* Navigation Items */}
       <nav style={{
         flex: 1,
         overflowY: 'auto',
@@ -100,7 +106,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
           return (
             <React.Fragment key={item.path}>
-              {/* Group header */}
               {showGroupHeader && !collapsed && (
                 <div style={{
                   fontSize: 'var(--text-small)',
@@ -114,7 +119,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                 </div>
               )}
 
-              {/* Nav link */}
               <NavLink
                 to={item.path}
                 style={{

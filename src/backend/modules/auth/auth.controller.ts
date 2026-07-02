@@ -16,10 +16,8 @@ export class AuthController {
   async handleLogin(payload: LoginDto): Promise<IApiResponse> {
     try {
       const user = await this.authService.validateUser(payload);
-      await this.authService.logActivity(user.id, 'LOGIN', `User ${user.userIdHandle} logged in successfully.`);
       return { success: true, data: user };
     } catch (error) {
-      console.error('[AuthController] handleLogin error:', error);
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Authentication failed',
@@ -27,14 +25,30 @@ export class AuthController {
     }
   }
 
-  async handleLogout(payload: { userId: number; username: string }): Promise<IApiResponse> {
+  async handleLogout(payload: {
+    sessionToken: string;
+    userId: number;
+    username: string;
+  }): Promise<IApiResponse> {
     try {
-      await this.authService.logActivity(payload.userId, 'LOGOUT', `User ${payload.username} logged out.`);
+      await this.authService.endSession(payload.sessionToken, payload.userId, payload.username);
       return { success: true };
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Logout logging failed',
+        error: error instanceof Error ? error.message : 'Logout failed',
+      };
+    }
+  }
+
+  async handleSession(payload: { sessionToken: string }): Promise<IApiResponse> {
+    try {
+      const user = await this.authService.validateSession(payload.sessionToken);
+      return { success: true, data: user };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Session invalid',
       };
     }
   }

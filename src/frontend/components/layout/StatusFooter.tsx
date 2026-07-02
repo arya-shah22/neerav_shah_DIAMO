@@ -1,17 +1,29 @@
 // ═══════════════════════════════════════════════════════════════
 // DIAMO ERP — Status Footer Bar
-// Phase 17.1 §4: 24px fixed height
-// Connection status, active user, printer, background tasks
 // ═══════════════════════════════════════════════════════════════
 
-import React from 'react';
-import { Wifi, User, Printer, Clock } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Wifi, User, Building2, Clock } from 'lucide-react';
+import { useAuthStore } from '../../state/auth-store';
+import { useCompanyStore, formatFinancialYearLabel } from '../../state/company-store';
 
 export const StatusFooter: React.FC = () => {
-  const currentTime = new Date().toLocaleTimeString('en-IN', {
-    hour: '2-digit',
-    minute: '2-digit',
-  });
+  const user = useAuthStore((s) => s.user);
+  const activeCompany = useCompanyStore((s) => s.activeCompany);
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+
+  const [currentTime, setCurrentTime] = useState(
+    new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+  );
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(
+        new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
+      );
+    }, 30000);
+    return () => clearInterval(timer);
+  }, []);
 
   return (
     <footer style={{
@@ -25,7 +37,6 @@ export const StatusFooter: React.FC = () => {
       fontSize: 'var(--text-small)',
       color: 'rgba(255,255,255,0.6)',
     }}>
-      {/* Left — Connection Status */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
           <Wifi size={10} color="var(--color-success)" />
@@ -33,16 +44,20 @@ export const StatusFooter: React.FC = () => {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
           <User size={10} />
-          <span>Super Admin</span>
+          <span>{user?.fullName || '—'}</span>
         </div>
+        {activeCompany && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
+            <Building2 size={10} />
+            <span>{activeCompany.companyCode}</span>
+          </div>
+        )}
       </div>
 
-      {/* Right — Printer + Time */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-md)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
-          <Printer size={10} />
-          <span>Default Printer</span>
-        </div>
+        {activeFinancialYear && (
+          <span>FY {formatFinancialYearLabel(activeFinancialYear)}</span>
+        )}
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-xs)' }}>
           <Clock size={10} />
           <span>{currentTime}</span>

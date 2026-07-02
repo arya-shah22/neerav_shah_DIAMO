@@ -4,22 +4,24 @@
 
 import React from 'react';
 
-type BadgeVariant = 'default' | 'success' | 'warning' | 'danger' | 'info';
+type BadgeVariant = 'default' | 'primary' | 'success' | 'warning' | 'danger' | 'info';
 
 interface BadgeProps {
   variant?: BadgeVariant;
   children: React.ReactNode;
+  style?: React.CSSProperties;
 }
 
 const VARIANT_STYLES: Record<BadgeVariant, { bg: string; color: string }> = {
   default: { bg: 'var(--color-row-alt)', color: 'var(--color-text-secondary)' },
+  primary: { bg: 'var(--color-accent-light)', color: 'var(--color-accent)' },
   success: { bg: 'var(--color-success-light)', color: '#065F46' },
   warning: { bg: 'var(--color-warning-light)', color: '#92400E' },
   danger: { bg: 'var(--color-danger-light)', color: '#991B1B' },
   info: { bg: 'var(--color-info-light)', color: '#075985' },
 };
 
-export const Badge: React.FC<BadgeProps> = ({ variant = 'default', children }) => {
+export const Badge: React.FC<BadgeProps> = ({ variant = 'default', children, style }) => {
   const s = VARIANT_STYLES[variant];
 
   return (
@@ -34,6 +36,7 @@ export const Badge: React.FC<BadgeProps> = ({ variant = 'default', children }) =
       background: s.bg,
       color: s.color,
       whiteSpace: 'nowrap',
+      ...style,
     }}>
       {children}
     </span>
