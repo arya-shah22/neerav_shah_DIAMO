@@ -1,17 +1,46 @@
 // ═══════════════════════════════════════════════════════════════
-// DIAMO ERP — LoginPage UI Component
-// Phase 17.1 UI standards: custom cards, input boxes, typography
+// DIAMO ERP — LoginPage UI Component (Styled Specification)
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Gem, Eye, EyeOff } from 'lucide-react';
+import { User, Lock, Eye, EyeOff } from 'lucide-react';
 import { loginSchema, LoginFormData } from './login.schema';
-import { Button, Input, useToast } from '../../components/ui';
+import { useToast } from '../../components/ui';
 import { useAuthStore } from '../../state/auth-store';
 import { useIpc } from '../../hooks/useIpc';
+// @ts-ignore
+import logoUrl from '../../../../Logo_Full.png';
+
+// ─── Design System Styling Constants ───────────────────────────
+const G = {
+  navy: '#0f172a', // Main Background Container color
+  surface: '#ffffff', // Login Card container color
+  border: '#e2e8f0', // Input border color
+  text: '#1e293b', // Main text color
+  textSub: '#64748b', // Subtitle text color
+  textMid: '#475569', // Input label text color
+  gold: '#b89030', // Submit button background color
+  navyText: '#94a3b8', // Footer text color
+};
+
+const font = "'Inter', sans-serif";
+
+const inp = {
+  width: "100%",
+  padding: "11px 14px",
+  border: `1px solid ${G.border}`,
+  borderRadius: 10,
+  fontSize: 14,
+  fontFamily: font,
+  color: G.text,
+  background: G.surface,
+  outline: "none",
+  boxSizing: "border-box" as const,
+  transition: 'border-color 0.2s, box-shadow 0.2s',
+};
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -57,95 +86,205 @@ export const LoginPage: React.FC = () => {
 
   return (
     <div style={{
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      height: '100vh',
-      width: '100vw',
-      background: 'var(--color-bg)',
+      minHeight: "100vh",
+      background: G.navy,
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      boxSizing: 'border-box',
     }}>
-      <div style={{
-        width: '400px',
-        background: 'var(--color-surface)',
-        padding: 'var(--spacing-xl)',
-        borderRadius: 'var(--radius-lg)',
-        boxShadow: 'var(--shadow-lg)',
-        border: '1px solid var(--color-border)',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
+      <div style={{ 
+        width: "100%", 
+        maxWidth: 400 
       }}>
-        {/* Brand/Logo Header */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)', marginBottom: 'var(--spacing-lg)' }}>
-          <Gem size={32} color="var(--color-accent)" />
-          <span style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-primary)', letterSpacing: '2px' }}>
-            DIAMO
-          </span>
+        {/* Brand Header */}
+        <div style={{ 
+          textAlign: "center", 
+          marginBottom: 20 
+        }}>
+          <img
+            src={logoUrl}
+            alt="DIAMO Logo"
+            style={{
+              width: 320,
+              height: 320,
+              objectFit: "contain",
+              filter: "drop-shadow(0px 10px 25px rgba(0, 0, 0, 0.4))",
+            }}
+          />
         </div>
 
-        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-text-secondary)', marginBottom: 'var(--spacing-md)' }}>
-          Log in to your account
-        </h2>
+        {/* Login Card */}
+        <div 
+          className="animate-scale-in"
+          style={{
+            background: G.surface,
+            borderRadius: 20,
+            padding: 36,
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          }}
+        >
+          {/* Welcome Text */}
+          <h2 style={{
+            margin: "0 0 6px",
+            fontSize: 18,
+            fontWeight: 600,
+            color: G.text,
+            fontFamily: font,
+          }}>
+            Welcome back
+          </h2>
+          <p style={{
+            margin: "0 0 26px",
+            fontSize: 13,
+            color: G.textSub,
+            fontFamily: font,
+          }}>
+            Sign in to your account
+          </p>
 
-        {/* Form */}
-        <form onSubmit={handleSubmit(onSubmit)} style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-          <Input
-            label="Username"
-            placeholder="Enter username"
-            error={errors.userIdHandle?.message}
-            required
-            disabled={loading}
-            {...register('userIdHandle')}
-          />
+          {/* Form */}
+          <form onSubmit={handleSubmit(onSubmit)} style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+            {/* Username Field */}
+            <div>
+              <label style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 600,
+                color: G.textMid,
+                marginBottom: 6,
+                fontFamily: font,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}>
+                USERNAME
+              </label>
+              <div style={{ position: 'relative' }}>
+                <User size={16} style={{
+                  position: "absolute",
+                  left: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: G.textSub,
+                }} />
+                <input
+                  type="text"
+                  placeholder="admin"
+                  disabled={loading}
+                  style={{
+                    ...inp,
+                    paddingLeft: 38,
+                    borderColor: errors.userIdHandle ? '#ef4444' : G.border,
+                  }}
+                  {...register('userIdHandle')}
+                />
+              </div>
+              {errors.userIdHandle && (
+                <span style={{ fontSize: 12, color: '#ef4444', marginTop: 4, display: 'block', fontFamily: font }}>
+                  {errors.userIdHandle.message}
+                </span>
+              )}
+            </div>
 
-          <div style={{ position: 'relative', width: '100%' }}>
-            <Input
-              label="Password"
-              type={showPassword ? 'text' : 'password'}
-              placeholder="Enter password"
-              error={errors.password?.message}
-              required
-              disabled={loading}
-              {...register('password')}
-            />
+            {/* Password Field */}
+            <div>
+              <label style={{
+                display: "block",
+                fontSize: 11,
+                fontWeight: 600,
+                color: G.textMid,
+                marginBottom: 6,
+                fontFamily: font,
+                textTransform: "uppercase",
+                letterSpacing: "0.05em",
+              }}>
+                PASSWORD
+              </label>
+              <div style={{ position: 'relative' }}>
+                <Lock size={16} style={{
+                  position: "absolute",
+                  left: 12,
+                  top: "50%",
+                  transform: "translateY(-50%)",
+                  color: G.textSub,
+                }} />
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="••••••••"
+                  disabled={loading}
+                  style={{
+                    ...inp,
+                    paddingLeft: 38,
+                    paddingRight: 38,
+                    borderColor: errors.password ? '#ef4444' : G.border,
+                  }}
+                  {...register('password')}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: "absolute",
+                    right: 12,
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: G.textSub,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    padding: 4,
+                    borderRadius: 6,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {errors.password && (
+                <span style={{ fontSize: 12, color: '#ef4444', marginTop: 4, display: 'block', fontFamily: font }}>
+                  {errors.password.message}
+                </span>
+              )}
+            </div>
+
+            {/* Submit Button */}
             <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
+              type="submit"
+              disabled={loading}
               style={{
-                position: 'absolute',
-                right: '10px',
-                top: '28px',
-                background: 'transparent',
-                border: 'none',
-                cursor: 'pointer',
-                color: 'var(--color-text-muted)',
+                width: "100%",
+                padding: "12px",
+                background: G.gold,
+                border: "none",
+                borderRadius: 10,
+                color: "#fff",
+                fontSize: 14,
+                fontWeight: 700,
+                cursor: loading ? "wait" : "pointer",
+                fontFamily: font,
+                opacity: loading ? 0.8 : 1,
+                marginTop: 10,
+                boxShadow: '0 4px 6px -1px rgba(184, 144, 48, 0.2), 0 2px 4px -1px rgba(184, 144, 48, 0.1)',
               }}
             >
-              {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+              {loading ? 'Signing In...' : 'Sign In'}
             </button>
-          </div>
+          </form>
+        </div>
 
-          {/* Remember Me */}
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-label)', cursor: 'pointer', userSelect: 'none' }}>
-            <input type="checkbox" {...register('rememberMe')} style={{ width: '14px', height: '14px', accentColor: 'var(--color-accent)' }} />
-            <span>Remember me</span>
-          </label>
-
-          {/* Login Button */}
-          <Button
-            type="submit"
-            variant="primary"
-            fullWidth
-            loading={loading}
-            style={{ marginTop: '8px' }}
-          >
-            Sign In
-          </Button>
-        </form>
-
-        <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)', marginTop: 'var(--spacing-lg)' }}>
-          v1.0.0 · Secure Offline Mode
-        </span>
+        {/* Footer Text */}
+        <div style={{
+          textAlign: "center",
+          marginTop: 22,
+          fontSize: 12,
+          color: G.navyText,
+          fontFamily: font,
+        }}>
+          DIAMO v1.0 · Offline · All data stored locally
+        </div>
       </div>
     </div>
   );
