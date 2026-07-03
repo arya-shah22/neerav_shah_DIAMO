@@ -12,6 +12,7 @@ import { AccountController } from '../backend/modules/account/account.controller
 import { BrokerController } from '../backend/modules/broker/broker.controller';
 import { QualityController } from '../backend/modules/quality/quality.controller';
 import { StockController } from '../backend/modules/stock/stock.controller';
+import { InvoiceController } from '../backend/modules/invoice/invoice.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -40,6 +41,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const brokerController = nestApp.get(BrokerController);
   const qualityController = nestApp.get(QualityController);
   const stockController = nestApp.get(StockController);
+  const invoiceController = nestApp.get(InvoiceController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -117,4 +119,12 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'stock:timeline', (payload) => stockController.handleTimeline(payload));
   ipcHandle(ipcMain, 'stock:preview-id', (companyId: number) => stockController.handlePreviewId(companyId));
   ipcHandle(ipcMain, 'stock:shapes-list', (companyId: number) => stockController.handleListShapes(companyId));
+
+  // ─── Stage 4: Invoices ───────────────────────────────────
+  ipcHandle(ipcMain, 'invoice:list', (payload) => invoiceController.handleList(payload));
+  ipcHandle(ipcMain, 'invoice:preview-number', (payload) => invoiceController.handlePreviewNumber(payload));
+  ipcHandle(ipcMain, 'invoice:get', (payload) => invoiceController.handleGet(payload));
+  ipcHandle(ipcMain, 'invoice:create', (payload) => invoiceController.handleCreate(payload));
+  ipcHandle(ipcMain, 'invoice:update', (payload) => invoiceController.handleUpdate(payload));
+  ipcHandle(ipcMain, 'invoice:delete', (payload) => invoiceController.handleDelete(payload));
 }

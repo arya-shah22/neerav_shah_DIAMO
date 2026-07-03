@@ -280,7 +280,7 @@ export const BrokerFormPage: React.FC = () => {
           <Input label="Bank Account" {...register('bankAccountNumber')} />
           <Input label="Bank Name" {...register('bankName')} />
           <Input label="IFSC" {...register('bankIfsc')} />
-          <Input label="Credit Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
+          <Input label="Due Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
           <Input label="Credit Limit" type="number" {...register('creditLimit', { valueAsNumber: true })} />
         </div>
 

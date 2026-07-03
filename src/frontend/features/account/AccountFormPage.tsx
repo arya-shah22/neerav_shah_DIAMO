@@ -387,7 +387,7 @@ export const AccountFormPage: React.FC = () => {
           <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Credit & Opening Balance</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <Input label="Credit Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
+              <Input label="Due Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
               <Input label="Credit Limit" type="number" {...register('creditLimit', { valueAsNumber: true })} />
               <Input label="Opening Balance" type="number" {...register('openingBalanceAmount', { valueAsNumber: true })} />
               <FormSelect

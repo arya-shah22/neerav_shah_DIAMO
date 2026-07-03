@@ -16,6 +16,7 @@ import { AccountListPage, AccountFormPage } from './features/account';
 import { BrokerListPage, BrokerFormPage } from './features/broker';
 import { QualityListPage, QualityFormPage } from './features/quality';
 import { StockListPage, StockFormPage, StockDetailPage } from './features/stock';
+import { InvoiceListPage, InvoiceFormPage, InvoiceViewPage } from './features/invoice';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -308,6 +309,16 @@ const App: React.FC = () => {
                 <Route path="/inventory/stock/new" element={<StockFormPage />} />
                 <Route path="/inventory/stock/edit/:id" element={<StockFormPage />} />
                 <Route path="/inventory/stock/:id" element={<StockDetailPage />} />
+
+                {/* Stage 4: Invoices (Sale & Purchase Books) */}
+                <Route path="/transactions/sales" element={<InvoiceListPage type="SALE_INVOICE" />} />
+                <Route path="/transactions/sales/new" element={<InvoiceFormPage type="SALE_INVOICE" />} />
+                <Route path="/transactions/sales/:id" element={<InvoiceViewPage type="SALE_INVOICE" />} />
+                <Route path="/transactions/sales/:id/edit" element={<InvoiceFormPage type="SALE_INVOICE" />} />
+                <Route path="/transactions/purchases" element={<InvoiceListPage type="PURCHASE_INVOICE" />} />
+                <Route path="/transactions/purchases/new" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
+                <Route path="/transactions/purchases/:id" element={<InvoiceViewPage type="PURCHASE_INVOICE" />} />
+                <Route path="/transactions/purchases/:id/edit" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />
