@@ -308,6 +308,7 @@ export const CompanyFormPage: React.FC = () => {
                 label="State Code / State"
                 placeholder="Select State"
                 error={errors.stateCode?.message}
+                creatable={true}
                 options={statesList.map((st) => ({
                   value: st.stateCode,
                   label: `${st.stateCode} - ${st.stateName}`,

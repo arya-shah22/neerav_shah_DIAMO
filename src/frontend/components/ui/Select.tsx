@@ -29,6 +29,8 @@ interface SelectProps {
   loading?: boolean;
   /** Number of options visible before scrolling (default 10) */
   maxVisibleItems?: number;
+  /** Allow entering custom values not present in the options list */
+  creatable?: boolean;
 }
 
 interface DropdownPosition {
@@ -52,6 +54,7 @@ export const Select: React.FC<SelectProps> = ({
   fullWidth = true,
   loading = false,
   maxVisibleItems = 10,
+  creatable = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -76,10 +79,36 @@ export const Select: React.FC<SelectProps> = ({
     setSelectedValue(normalizedPropValue);
   }, [normalizedPropValue]);
 
-  const selectedOption = options.find((o) => String(o.value) === selectedValue);
+  // Find selected option, or fall back to treating value itself as label if not in list
+  const selectedOption =
+    options.find((o) => String(o.value) === selectedValue) ||
+    (selectedValue ? { value: selectedValue, label: selectedValue } : null);
+
   const filteredOptions = searchText
     ? options.filter((o) => o.label.toLowerCase().includes(searchText.toLowerCase()))
     : options;
+
+  // Capitalize search text: "gujarat" -> "Gujarat"
+  const capitalizedSearchText = searchText
+    ? searchText
+        .split(' ')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ')
+    : '';
+
+  // Determine if we should show a creatable custom option row
+  const showCreatableOption =
+    creatable &&
+    searchText.trim().length > 0 &&
+    !options.some((o) => o.label.toLowerCase() === searchText.trim().toLowerCase());
+
+  const filteredOptionsWithCreatable = [...filteredOptions];
+  if (showCreatableOption) {
+    filteredOptionsWithCreatable.push({
+      value: capitalizedSearchText,
+      label: `+ Add "${capitalizedSearchText}"`,
+    });
+  }
 
   const updateDropdownPosition = useCallback(() => {
     if (!triggerRef.current) return;
@@ -87,7 +116,7 @@ export const Select: React.FC<SelectProps> = ({
     const searchHeight = searchable ? 40 : 0;
     const desiredHeight = Math.min(
       listMaxHeight + searchHeight,
-      filteredOptions.length * OPTION_HEIGHT_PX + searchHeight,
+      filteredOptionsWithCreatable.length * OPTION_HEIGHT_PX + searchHeight,
     );
     const spaceBelow = window.innerHeight - rect.bottom - 8;
     const spaceAbove = rect.top - 8;
@@ -101,7 +130,7 @@ export const Select: React.FC<SelectProps> = ({
       width: rect.width,
       maxHeight,
     });
-  }, [filteredOptions.length, listMaxHeight, searchable]);
+  }, [filteredOptionsWithCreatable.length, listMaxHeight, searchable]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -133,6 +162,13 @@ export const Select: React.FC<SelectProps> = ({
     return () => document.removeEventListener('mousedown', handleClick);
   }, []);
 
+  const handleSelectOption = (option: SelectOption) => {
+    setSelectedValue(option.value);
+    onChange?.(option.value);
+    setIsOpen(false);
+    setSearchText('');
+  };
+
   // Keyboard navigation
   const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (!isOpen && (e.key === 'Enter' || e.key === 'ArrowDown')) {
@@ -145,18 +181,18 @@ export const Select: React.FC<SelectProps> = ({
       return;
     }
     if (e.key === 'ArrowDown') {
-      setHighlightedIndex((prev) => Math.min(prev + 1, filteredOptions.length - 1));
+      setHighlightedIndex((prev) => Math.min(prev + 1, filteredOptionsWithCreatable.length - 1));
     } else if (e.key === 'ArrowUp') {
       setHighlightedIndex((prev) => Math.max(prev - 1, 0));
     } else if (e.key === 'Enter' && isOpen) {
-      const selected = filteredOptions[highlightedIndex];
+      e.preventDefault();
+      e.stopPropagation();
+      const selected = filteredOptionsWithCreatable[highlightedIndex];
       if (selected) {
-        onChange?.(selected.value);
-        setIsOpen(false);
-        setSearchText('');
+        handleSelectOption(selected);
       }
     }
-  }, [isOpen, filteredOptions, highlightedIndex, onChange]);
+  }, [isOpen, filteredOptionsWithCreatable, highlightedIndex, onChange]);
 
   const hasError = Boolean(error);
 
@@ -191,6 +227,16 @@ export const Select: React.FC<SelectProps> = ({
             ref={inputRef}
             type="text"
             value={searchText}
+            onKeyDown={(evt) => {
+              if (evt.key === 'Enter') {
+                evt.preventDefault();
+                evt.stopPropagation();
+                const selected = filteredOptionsWithCreatable[highlightedIndex];
+                if (selected) {
+                  handleSelectOption(selected);
+                }
+              }
+            }}
             onChange={(e) => {
               setSearchText(e.target.value);
               setHighlightedIndex(0);
@@ -222,23 +268,18 @@ export const Select: React.FC<SelectProps> = ({
           <div style={{ padding: 'var(--spacing-md)', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 'var(--text-label)' }}>
             Loading...
           </div>
-        ) : filteredOptions.length === 0 ? (
+        ) : filteredOptionsWithCreatable.length === 0 ? (
           <div style={{ padding: 'var(--spacing-md)', textAlign: 'center', color: 'var(--color-text-muted)', fontSize: 'var(--text-label)' }}>
             No results found
           </div>
         ) : (
-          filteredOptions.map((option, i) => (
+          filteredOptionsWithCreatable.map((option, i) => (
             <div
               key={option.value}
               role="option"
               aria-selected={String(option.value) === selectedValue}
               onMouseDown={(e) => e.preventDefault()}
-              onClick={() => {
-                setSelectedValue(String(option.value));
-                onChange?.(option.value);
-                setIsOpen(false);
-                setSearchText('');
-              }}
+              onClick={() => handleSelectOption(option)}
               onMouseEnter={() => setHighlightedIndex(i)}
               style={{
                 height: `${OPTION_HEIGHT_PX}px`,

@@ -355,6 +355,7 @@ export const AccountFormPage: React.FC = () => {
                 name="stateCode"
                 label="State"
                 placeholder="Select state"
+                creatable={true}
                 options={statesList.map((s) => ({
                   value: s.stateCode,
                   label: s.stateName,

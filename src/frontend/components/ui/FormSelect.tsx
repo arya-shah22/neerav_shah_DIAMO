@@ -17,6 +17,7 @@ type FormSelectProps<T extends FieldValues> = {
   searchable?: boolean;
   clearable?: boolean;
   maxVisibleItems?: number;
+  creatable?: boolean;
   toValue?: (raw: string) => unknown;
   toString?: (value: unknown) => string;
 };
@@ -33,6 +34,7 @@ export function FormSelect<T extends FieldValues>({
   searchable = true,
   clearable = true,
   maxVisibleItems = 10,
+  creatable = false,
   toValue = (v) => v,
   toString = (v) => (v == null || v === '' ? '' : String(v)),
 }: FormSelectProps<T>) {
@@ -53,6 +55,7 @@ export function FormSelect<T extends FieldValues>({
           searchable={searchable}
           clearable={clearable}
           maxVisibleItems={maxVisibleItems}
+          creatable={creatable}
         />
       )}
     />
