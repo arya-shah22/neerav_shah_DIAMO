@@ -11,6 +11,7 @@ import { AccountGroupController } from '../backend/modules/account-group/account
 import { AccountController } from '../backend/modules/account/account.controller';
 import { BrokerController } from '../backend/modules/broker/broker.controller';
 import { QualityController } from '../backend/modules/quality/quality.controller';
+import { StockController } from '../backend/modules/stock/stock.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -38,6 +39,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const accountController = nestApp.get(AccountController);
   const brokerController = nestApp.get(BrokerController);
   const qualityController = nestApp.get(QualityController);
+  const stockController = nestApp.get(StockController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -103,4 +105,15 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'quality:update', (payload) => qualityController.handleUpdate(payload));
   ipcHandle(ipcMain, 'quality:delete', (payload) => qualityController.handleDelete(payload));
   ipcHandle(ipcMain, 'quality:hsn-list', () => qualityController.handleHsnList());
+
+  // ─── Stage 3: Stock / Inventory ──────────────────────────
+  ipcHandle(ipcMain, 'stock:list', (payload) => stockController.handleList(payload));
+  ipcHandle(ipcMain, 'stock:get', (payload) => stockController.handleGet(payload));
+  ipcHandle(ipcMain, 'stock:create', (payload) => stockController.handleCreate(payload));
+  ipcHandle(ipcMain, 'stock:update', (payload) => stockController.handleUpdate(payload));
+  ipcHandle(ipcMain, 'stock:delete', (payload) => stockController.handleDelete(payload));
+  ipcHandle(ipcMain, 'stock:search', (payload) => stockController.handleSearch(payload));
+  ipcHandle(ipcMain, 'stock:timeline', (payload) => stockController.handleTimeline(payload));
+  ipcHandle(ipcMain, 'stock:preview-id', (companyId: number) => stockController.handlePreviewId(companyId));
+  ipcHandle(ipcMain, 'stock:shapes-list', (companyId: number) => stockController.handleListShapes(companyId));
 }

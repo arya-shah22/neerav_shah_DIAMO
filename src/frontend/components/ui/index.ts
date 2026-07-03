@@ -7,6 +7,8 @@ export { Input } from './Input';
 export { DateInput, toDisplayDate, parseToIsoDate } from './DateInput';
 export { Select } from './Select';
 export type { SelectOption } from './Select';
+export { FormSelect } from './FormSelect';
+export { Combobox } from './Combobox';
 export { Modal } from './Modal';
 export { ToastProvider, useToast } from './Toast';
 export { DataGrid } from './DataGrid';

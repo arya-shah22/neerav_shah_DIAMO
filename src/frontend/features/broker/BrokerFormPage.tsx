@@ -10,7 +10,7 @@ import { Save, ArrowLeft } from 'lucide-react';
 import { brokerSchema, BrokerFormData } from './broker.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
-import { Button, Input, useToast } from '../../components/ui';
+import { Button, Input, FormSelect, useToast } from '../../components/ui';
 import type { IBroker } from './broker.types';
 
 const LIST_ROUTE = '/masters/business/brokers';
@@ -33,7 +33,7 @@ export const BrokerFormPage: React.FC = () => {
   const { invoke: updateBroker, loading: updating } = useIpc('broker:update');
   const { invoke: fetchStates } = useIpc<StateCodeObj[]>('company:states');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<BrokerFormData>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<BrokerFormData>({
     resolver: zodResolver(brokerSchema),
     defaultValues: {
       accountName: '',
@@ -112,14 +112,6 @@ export const BrokerFormPage: React.FC = () => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
 
-  const selectStyle: React.CSSProperties = {
-    width: '100%',
-    height: '32px',
-    padding: '0 8px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -137,14 +129,18 @@ export const BrokerFormPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Broker Name *" error={errors.accountName?.message} {...register('accountName')} />
           <Input label="Print Name" {...register('printName')} />
-          <div>
-            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Status</label>
-            <select style={selectStyle} {...register('status')}>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="BLOCKED">Blocked</option>
-            </select>
-          </div>
+          <FormSelect
+            control={control}
+            name="status"
+            label="Status"
+            options={[
+              { value: 'ACTIVE', label: 'Active' },
+              { value: 'INACTIVE', label: 'Inactive' },
+              { value: 'BLOCKED', label: 'Blocked' },
+            ]}
+            searchable={false}
+            clearable={false}
+          />
           <Input label="Mobile" {...register('mobile')} />
           <Input label="Email" error={errors.email?.message} {...register('email')} />
           <Input label="GSTIN" {...register('gstinNumber')} />
@@ -154,13 +150,17 @@ export const BrokerFormPage: React.FC = () => {
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Brokerage & TDS</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Brokerage %" type="number" step="0.01" {...register('brokeragePct', { valueAsNumber: true })} />
-          <div>
-            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Add / Less</label>
-            <select style={selectStyle} {...register('addLess')}>
-              <option value="LESS">Less</option>
-              <option value="ADD">Add</option>
-            </select>
-          </div>
+          <FormSelect
+            control={control}
+            name="addLess"
+            label="Add / Less"
+            options={[
+              { value: 'LESS', label: 'Less' },
+              { value: 'ADD', label: 'Add' },
+            ]}
+            searchable={false}
+            clearable={false}
+          />
           <Input label="TDS %" type="number" step="0.01" {...register('tdsPct', { valueAsNumber: true })} />
         </div>
 
@@ -168,15 +168,16 @@ export const BrokerFormPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <Input label="Address" {...register('addressLine1')} />
           <Input label="City" {...register('city')} />
-          <div>
-            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>State</label>
-            <select style={selectStyle} {...register('stateCode')}>
-              <option value="">Select state</option>
-              {statesList.map((s) => (
-                <option key={s.stateCode} value={s.stateCode}>{s.stateName}</option>
-              ))}
-            </select>
-          </div>
+          <FormSelect
+            control={control}
+            name="stateCode"
+            label="State"
+            placeholder="Select state"
+            options={statesList.map((s) => ({
+              value: s.stateCode,
+              label: s.stateName,
+            }))}
+          />
           <Input label="Pincode" {...register('pincode')} />
           <Input label="Bank Account" {...register('bankAccountNumber')} />
           <Input label="Bank Name" {...register('bankName')} />

@@ -22,6 +22,7 @@ import {
   FolderTree,
   Users,
   Handshake,
+  Package,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -43,7 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/masters/accounting/accounts', label: 'Accounts', icon: <Users size={18} />, group: 'Masters' },
   { path: '/masters/business/brokers', label: 'Brokers', icon: <Handshake size={18} />, group: 'Masters' },
   { path: '/masters/diamond/qualities', label: 'Qualities', icon: <Gem size={18} />, group: 'Masters' },
-  { path: '/inventory/stock', label: 'Inventory', icon: <Gem size={18} />, group: 'Transactions' },
+  { path: '/inventory/stock', label: 'Stock Inventory', icon: <Package size={18} />, group: 'Transactions' },
   { path: '/transactions/sales', label: 'Sale Book', icon: <ShoppingCart size={18} />, group: 'Transactions' },
   { path: '/transactions/purchases', label: 'Purchase Book', icon: <ShoppingBag size={18} />, group: 'Transactions' },
   { path: '/transactions/challans', label: 'Challan Book', icon: <FileText size={18} />, group: 'Transactions' },

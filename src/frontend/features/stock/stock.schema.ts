@@ -1,0 +1,61 @@
+import { z } from 'zod';
+
+export const stockSchema = z
+  .object({
+    stockIdNumber: z.string().max(30).optional(),
+    qualityId: z.number({ invalid_type_error: 'Quality is required' }).min(1, 'Quality is required'),
+    category: z.enum(['CERTIFIED', 'NON_CERTIFIED']).default('NON_CERTIFIED'),
+    registrationDate: z.string().min(1, 'Registration date is required'),
+    currentStatus: z
+      .enum(['CREATED', 'PURCHASED', 'AVAILABLE', 'HOLD', 'JOB_WORK', 'SOLD', 'RETURNED', 'DAMAGED', 'ARCHIVED'])
+      .default('AVAILABLE'),
+    currentLocation: z.string().max(100).optional(),
+    shape: z.string().max(30).optional(),
+    caratWeight: z.number({ invalid_type_error: 'Carat weight is required' }).positive('Carat weight must be greater than zero'),
+    pieceCount: z.number().int().min(1, 'At least 1 piece').default(1),
+    color: z.string().max(30).optional(),
+    clarity: z.string().max(30).optional(),
+    cut: z.string().max(30).optional(),
+    polish: z.string().max(30).optional(),
+    symmetry: z.string().max(30).optional(),
+    lengthMm: z.number().min(0).optional(),
+    widthMm: z.number().min(0).optional(),
+    depthMm: z.number().min(0).optional(),
+    totalDepthPct: z.number().min(0).max(100).optional(),
+    tablePct: z.number().min(0).max(100).optional(),
+    certificateType: z.string().max(20).optional(),
+    certificateNumber: z.string().max(50).optional(),
+    costPerCarat: z.number().min(0).default(0),
+    totalCost: z.number().min(0).default(0),
+    statusRemarks: z.string().max(255).optional(),
+    imageLink: z
+      .string()
+      .max(500)
+      .optional()
+      .refine((v) => !v?.trim() || isValidHttpUrl(v), 'Enter a valid image URL'),
+    videoLink: z
+      .string()
+      .max(500)
+      .optional()
+      .refine((v) => !v?.trim() || isValidHttpUrl(v), 'Enter a valid video URL'),
+  })
+  .superRefine((data, ctx) => {
+    if (data.category === 'CERTIFIED' && !data.certificateNumber?.trim()) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Certificate number is required for certified stones',
+        path: ['certificateNumber'],
+      });
+    }
+  });
+
+export type StockFormData = z.infer<typeof stockSchema>;
+
+function isValidHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}

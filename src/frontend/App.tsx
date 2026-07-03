@@ -15,9 +15,10 @@ import { AccountGroupPage } from './features/account-group';
 import { AccountListPage, AccountFormPage } from './features/account';
 import { BrokerListPage, BrokerFormPage } from './features/broker';
 import { QualityListPage, QualityFormPage } from './features/quality';
+import { StockListPage, StockFormPage, StockDetailPage } from './features/stock';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
-import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem } from 'lucide-react';
+import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
 
 // ─── Route Guards ─────────────────────────────────────────────
 const ProtectedRoutes = () => {
@@ -66,6 +67,16 @@ const DashboardPage: React.FC = () => {
       ? `FY ${formatFinancialYearLabel(activeFinancialYear)}`
       : 'Configure a financial year for the active company',
   },
+  {
+    label: 'Quality Master',
+    done: true,
+    detail: 'Diamond qualities configured',
+  },
+  {
+    label: 'Inventory',
+    done: false,
+    detail: 'Register stock packets under Inventory',
+  },
 ];
 
   return (
@@ -75,7 +86,7 @@ const DashboardPage: React.FC = () => {
           Welcome to DIAMO ERP
         </h1>
         <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
-          Stage 2 — Master data modules are ready. Proceed to Stage 3 (Inventory).
+          Stage 3 — Inventory module is ready. Register stock packets and track lifecycle.
         </p>
       </div>
 
@@ -221,6 +232,23 @@ const DashboardPage: React.FC = () => {
           >
             <Gem size={16} /> Qualities
           </Link>
+          <Link
+            to="/inventory/stock"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '12px 16px',
+              background: 'var(--color-accent-light)',
+              borderRadius: 'var(--radius-md)',
+              color: 'var(--color-accent)',
+              fontWeight: 600,
+              fontSize: 'var(--text-label)',
+              textDecoration: 'none',
+            }}
+          >
+            <Package size={16} /> Inventory
+          </Link>
         </div>
       </div>
     </div>
@@ -274,6 +302,12 @@ const App: React.FC = () => {
                 <Route path="/masters/diamond/qualities" element={<QualityListPage />} />
                 <Route path="/masters/diamond/qualities/new" element={<QualityFormPage />} />
                 <Route path="/masters/diamond/qualities/edit/:id" element={<QualityFormPage />} />
+
+                {/* Stage 3: Inventory / Stock */}
+                <Route path="/inventory/stock" element={<StockListPage />} />
+                <Route path="/inventory/stock/new" element={<StockFormPage />} />
+                <Route path="/inventory/stock/edit/:id" element={<StockFormPage />} />
+                <Route path="/inventory/stock/:id" element={<StockDetailPage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

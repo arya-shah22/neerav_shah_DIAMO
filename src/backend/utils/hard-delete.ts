@@ -74,7 +74,6 @@ export async function assertCompanyCanBeDeleted(prisma: PrismaClient, companyId:
     ['challan vouchers', await prisma.challanVoucher.count({ where: { companyId } })],
     ['journal vouchers', await prisma.journalVoucher.count({ where: { companyId } })],
     ['cash/bank vouchers', await prisma.cashBankVoucher.count({ where: { companyId } })],
-    ['stock packets', await prisma.stockPacket.count({ where: { companyId } })],
   ]);
 
   const blocked = checks.find(([, count]) => count > 0);
@@ -86,6 +85,18 @@ export async function assertCompanyCanBeDeleted(prisma: PrismaClient, companyId:
 }
 
 export async function hardDeleteCompanyMasters(prisma: PrismaClient, companyId: number): Promise<void> {
+  const stockPackets = await prisma.stockPacket.findMany({
+    where: { companyId },
+    select: { id: true },
+  });
+  if (stockPackets.length > 0) {
+    const ids = stockPackets.map((s) => s.id);
+    await prisma.stockMovement.deleteMany({ where: { stockPacketId: { in: ids } } });
+    await prisma.stockReservation.deleteMany({ where: { stockPacketId: { in: ids } } });
+    await prisma.stockMedia.deleteMany({ where: { stockPacketId: { in: ids } } });
+    await prisma.stockPacket.deleteMany({ where: { companyId } });
+  }
+
   const accounts = await prisma.account.findMany({
     where: { companyId },
     select: { id: true },
@@ -112,5 +123,6 @@ export async function hardDeleteCompanyMasters(prisma: PrismaClient, companyId: 
   await prisma.accountGroup.deleteMany({ where: { companyId } });
 
   await prisma.financialYear.deleteMany({ where: { companyId } });
+
   await prisma.userCompanyAccess.deleteMany({ where: { companyId } });
 }

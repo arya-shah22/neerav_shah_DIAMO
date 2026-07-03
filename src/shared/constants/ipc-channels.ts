@@ -79,6 +79,9 @@ export const IPC = {
   STOCK_UPDATE: 'stock:update',
   STOCK_SEARCH: 'stock:search',
   STOCK_TIMELINE: 'stock:timeline',
+  STOCK_DELETE: 'stock:delete',
+  STOCK_PREVIEW_ID: 'stock:preview-id',
+  STOCK_SHAPES_LIST: 'stock:shapes-list',
 
   // ─── Purchase (Stage 4) ────────────────────────────────
   PURCHASE_LIST: 'purchase:list',

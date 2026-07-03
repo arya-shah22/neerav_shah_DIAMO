@@ -218,14 +218,29 @@ Run this once after any major change:
 
 ## 12. Out of scope (not built yet — expect placeholders or empty)
 
-Do **not** fail these; they are Stage 3+:
+Do **not** fail these; they are Stage 4+:
 
-- Inventory / stock packets
 - Sale, purchase, challan books
 - Cash/bank, journal, ledger reports
 - Settings, admin, backups UI
 
-Sidebar links to those routes may exist but functionality is not part of Stage 1–2.
+Sidebar links to those routes may exist but functionality is not part of Stage 1–3.
+
+---
+
+## 13. Stock / Inventory (Stage 3)
+
+**Route:** `/inventory/stock` · **Automated:** `npm run verify:test-plan` (TC-210–TC-294)
+
+| ID | Test case | Steps | Expected result |
+|----|-----------|-------|-----------------|
+| TC-210 | List stock | Open inventory with quality master | Grid loads (empty or with rows) |
+| TC-230 | Auto stock ID | New packet without manual ID | Preview `DM-YYYY-XXXXXX` |
+| TC-237 | Create stock | Quality + carats + date → Save | Success; detail page opens |
+| TC-260 | Media links | Add image/video URLs → Save | Links on detail page |
+| TC-242 | Certified validation | Certified without cert number | Validation error |
+| TC-286 | Edit sold blocked | Mark sold → try edit | Error; edit button hidden on detail |
+| TC-290 | Archive stock | Trash icon → confirm | Removed from list |
 
 ---
 
@@ -245,4 +260,4 @@ Console/terminal error: (paste from Electron devtools or terminal)
 
 ---
 
-*Last updated: Stage 1 (Foundation) + Stage 2 (Masters) — Company, FY, Account Group, Account, Broker, Quality.*
+*Last updated: Stage 1–3 — Company, FY, Account Group, Account, Broker, Quality, Stock Inventory.*

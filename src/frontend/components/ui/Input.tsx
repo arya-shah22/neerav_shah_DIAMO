@@ -3,7 +3,7 @@
 // Phase 17.1 §9: Text, Number, Date inputs with validation states
 // ═══════════════════════════════════════════════════════════════
 
-import React, { forwardRef } from 'react';
+import React, { forwardRef, useState } from 'react';
 
 type InputType = 'text' | 'number' | 'date' | 'password' | 'email' | 'tel';
 
@@ -37,11 +37,15 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   inputSize = 'md',
   fullWidth = true,
   style,
+  onFocus,
+  onBlur,
+  onWheel,
   ...props
 }, ref) => {
   const hasError = Boolean(error);
   const s = SIZE_MAP[inputSize];
   const isNumber = type === 'number';
+  const [isFocused, setIsFocused] = useState(false);
 
   return (
     <div style={{
@@ -78,24 +82,28 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           textAlign: isNumber ? 'right' : 'left',
           color: 'var(--color-text-primary)',
           background: props.disabled ? 'var(--color-disabled-bg)' : 'var(--color-surface)',
-          border: `1px solid ${hasError ? 'var(--color-danger)' : 'var(--color-border)'}`,
+          border: `1px solid ${hasError ? 'var(--color-danger)' : isFocused ? 'var(--color-accent)' : 'var(--color-border)'}`,
           borderRadius: 'var(--radius-sm)',
           outline: 'none',
           transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+          boxShadow: !hasError && isFocused ? '0 0 0 2px var(--color-accent-light)' : 'none',
           width: '100%',
           ...style,
         }}
         onFocus={(e) => {
-          if (!hasError) {
-            e.target.style.borderColor = 'var(--color-accent)';
-            e.target.style.boxShadow = '0 0 0 2px var(--color-accent-light)';
+          setIsFocused(true);
+          onFocus?.(e);
+        }}
+        onWheel={(e) => {
+          // Prevent accidental value changes on mouse wheel for number inputs.
+          if (isNumber && document.activeElement === e.currentTarget) {
+            e.currentTarget.blur();
           }
-          props.onFocus?.(e);
+          onWheel?.(e);
         }}
         onBlur={(e) => {
-          e.target.style.borderColor = hasError ? 'var(--color-danger)' : 'var(--color-border)';
-          e.target.style.boxShadow = 'none';
-          props.onBlur?.(e);
+          setIsFocused(false);
+          onBlur?.(e);
         }}
         {...props}
       />

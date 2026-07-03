@@ -10,12 +10,11 @@ import { Save, ArrowLeft } from 'lucide-react';
 import { accountSchema, AccountFormData } from './account.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
-import { Button, Input, useToast } from '../../components/ui';
+import { Button, Input, FormSelect, useToast } from '../../components/ui';
 import type { IAccountGroup } from '../account-group/account-group.types';
 import type { IAccount } from './account.types';
 
 const LIST_ROUTE = '/masters/accounting/accounts';
-type Tab = 'basic' | 'address' | 'gst' | 'bank' | 'credit';
 
 interface StateCodeObj {
   stateCode: string;
@@ -28,7 +27,6 @@ export const AccountFormPage: React.FC = () => {
   const { showToast } = useToast();
   const { companyId, isReady } = useActiveCompany();
   const isEdit = !!id;
-  const [activeTab, setActiveTab] = useState<Tab>('basic');
   const [groups, setGroups] = useState<IAccountGroup[]>([]);
   const [statesList, setStatesList] = useState<StateCodeObj[]>([]);
 
@@ -38,7 +36,7 @@ export const AccountFormPage: React.FC = () => {
   const { invoke: fetchGroups } = useIpc<IAccountGroup[]>('account-group:list');
   const { invoke: fetchStates } = useIpc<StateCodeObj[]>('company:states');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<AccountFormData>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
       accountGroupId: undefined,
@@ -129,26 +127,9 @@ export const AccountFormPage: React.FC = () => {
     }
   };
 
-  const tabs: { key: Tab; label: string }[] = [
-    { key: 'basic', label: 'Basic' },
-    { key: 'address', label: 'Address' },
-    { key: 'gst', label: 'GST / Tax' },
-    { key: 'bank', label: 'Bank' },
-    { key: 'credit', label: 'Credit & OB' },
-  ];
-
   if (!isReady) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
-
-  const selectStyle: React.CSSProperties = {
-    width: '100%',
-    height: '32px',
-    padding: '0 8px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-    fontSize: 'var(--text-body)',
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
@@ -159,120 +140,132 @@ export const AccountFormPage: React.FC = () => {
         </h1>
       </div>
 
-      <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid var(--color-border)' }}>
-        {tabs.map((t) => (
-          <button
-            key={t.key}
-            type="button"
-            onClick={() => setActiveTab(t.key)}
-            style={{
-              padding: '8px 16px',
-              border: 'none',
-              background: 'transparent',
-              borderBottom: activeTab === t.key ? '2px solid var(--color-accent)' : '2px solid transparent',
-              fontWeight: activeTab === t.key ? 600 : 400,
-              color: activeTab === t.key ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-              cursor: 'pointer',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
-
       <form
         onSubmit={handleSubmit(onSubmit)}
         style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
       >
-        {activeTab === 'basic' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Account Group *</label>
-              <select style={selectStyle} {...register('accountGroupId', { valueAsNumber: true })}>
-                <option value="">Select group</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id}>{g.groupName}</option>
-                ))}
-              </select>
-              {errors.accountGroupId && <span style={{ color: 'var(--color-danger)', fontSize: '12px' }}>{errors.accountGroupId.message}</span>}
-            </div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Basic</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+            <FormSelect
+              control={control}
+              name="accountGroupId"
+              label="Account Group *"
+              placeholder="Select group"
+              error={errors.accountGroupId?.message}
+              required
+              options={groups.map((g) => ({
+                value: String(g.id),
+                label: g.groupName,
+              }))}
+              toValue={(v) => Number(v)}
+              toString={(v) => String(v ?? '')}
+            />
             <Input label="Account Name *" error={errors.accountName?.message} {...register('accountName')} />
             <Input label="Print Name" error={errors.printName?.message} {...register('printName')} />
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Status</label>
-              <select style={selectStyle} {...register('status')}>
-                <option value="ACTIVE">Active</option>
-                <option value="INACTIVE">Inactive</option>
-                <option value="BLOCKED">Blocked</option>
-              </select>
+            <FormSelect
+              control={control}
+              name="status"
+              label="Status"
+              options={[
+                { value: 'ACTIVE', label: 'Active' },
+                { value: 'INACTIVE', label: 'Inactive' },
+                { value: 'BLOCKED', label: 'Blocked' },
+              ]}
+              searchable={false}
+              clearable={false}
+            />
             </div>
-          </div>
-        )}
+          </section>
 
-        {activeTab === 'address' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Address</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Input label="Address Line 1" {...register('addressLine1')} />
             <Input label="Address Line 2" {...register('addressLine2')} />
             <Input label="City" {...register('city')} />
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>State</label>
-              <select style={selectStyle} {...register('stateCode')}>
-                <option value="">Select state</option>
-                {statesList.map((s) => (
-                  <option key={s.stateCode} value={s.stateCode}>{s.stateName}</option>
-                ))}
-              </select>
-            </div>
+            <FormSelect
+              control={control}
+              name="stateCode"
+              label="State"
+              placeholder="Select state"
+              options={statesList.map((s) => ({
+                value: s.stateCode,
+                label: s.stateName,
+              }))}
+            />
             <Input label="Pincode" {...register('pincode')} />
             <Input label="Mobile" {...register('mobile')} />
             <Input label="Phone" {...register('phone')} />
             <Input label="Email" error={errors.email?.message} {...register('email')} />
-          </div>
-        )}
+            </div>
+          </section>
 
-        {activeTab === 'gst' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>GST / Tax</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Input label="GSTIN" {...register('gstinNumber')} />
             <Input label="PAN" {...register('panNumber')} />
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>GST Registration Type</label>
-              <select style={selectStyle} {...register('gstRegType')}>
-                <option value="">—</option>
-                <option value="REGULAR">Regular</option>
-                <option value="COMPOSITION">Composition</option>
-                <option value="UNREGISTERED">Unregistered</option>
-                <option value="SEZ">SEZ</option>
-                <option value="DEEMED_EXPORT">Deemed Export</option>
-              </select>
-            </div>
+            <FormSelect
+              control={control}
+              name="gstRegType"
+              label="GST Registration Type"
+              placeholder="—"
+              options={[
+                { value: 'REGULAR', label: 'Regular' },
+                { value: 'COMPOSITION', label: 'Composition' },
+                { value: 'UNREGISTERED', label: 'Unregistered' },
+                { value: 'SEZ', label: 'SEZ' },
+                { value: 'DEEMED_EXPORT', label: 'Deemed Export' },
+              ]}
+              toValue={(v) => (v ? v : null)}
+              toString={(v) => (v == null ? '' : String(v))}
+            />
             <Input label="Udyam / MSME" {...register('udyamMsme')} />
-          </div>
-        )}
+            </div>
+          </section>
 
-        {activeTab === 'bank' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Bank</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Input label="Account Number" {...register('bankAccountNumber')} />
             <Input label="Bank Name" {...register('bankName')} />
             <Input label="Branch" {...register('bankBranch')} />
             <Input label="IFSC" {...register('bankIfsc')} />
-          </div>
-        )}
+            </div>
+          </section>
 
-        {activeTab === 'credit' && (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Credit & OB</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Input label="Credit Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
             <Input label="Credit Limit" type="number" {...register('creditLimit', { valueAsNumber: true })} />
             <Input label="Opening Balance" type="number" {...register('openingBalanceAmount', { valueAsNumber: true })} />
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Opening Balance Type</label>
-              <select style={selectStyle} {...register('openingBalanceType')}>
-                <option value="">—</option>
-                <option value="DEBIT">Debit</option>
-                <option value="CREDIT">Credit</option>
-              </select>
+            <FormSelect
+              control={control}
+              name="openingBalanceType"
+              label="Opening Balance Type"
+              placeholder="—"
+              options={[
+                { value: 'DEBIT', label: 'Debit' },
+                { value: 'CREDIT', label: 'Credit' },
+              ]}
+              searchable={false}
+              toValue={(v) => (v ? v : null)}
+              toString={(v) => (v == null ? '' : String(v))}
+            />
             </div>
+          </section>
           </div>
-        )}
 
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
           <Button variant="primary" type="submit" loading={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

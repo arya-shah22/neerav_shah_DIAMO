@@ -9,7 +9,7 @@ import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useIpc } from '../../hooks/useIpc';
 import { useCompanyStore, formatFinancialYearLabel } from '../../state/company-store';
-import { Button, DateInput, Badge, useToast } from '../../components/ui';
+import { Button, DateInput, Badge, Select, useToast } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import {
   financialYearSchema,
@@ -275,37 +275,18 @@ export const FinancialYearPage: React.FC = () => {
         </h2>
 
         {/* Quick year selector */}
-        <div style={{ marginBottom: 'var(--spacing-md)' }}>
-          <label style={{
-            display: 'block',
-            fontSize: 'var(--text-label)',
-            fontWeight: 600,
-            color: 'var(--color-text-primary)',
-            marginBottom: '6px',
-          }}>
-            Quick Select Financial Year
-          </label>
-          <select
-            value={selectedStartYear}
-            onChange={(e) => handleYearSelect(Number(e.target.value))}
-            style={{
-              width: '220px',
-              height: '32px',
-              padding: '0 var(--spacing-sm)',
-              fontSize: 'var(--text-body)',
-              border: '1px solid var(--color-border)',
-              borderRadius: 'var(--radius-sm)',
-              background: 'var(--color-surface)',
-              color: 'var(--color-text-primary)',
-              cursor: 'pointer',
-            }}
-          >
-            {fyOptions.map((opt) => (
-              <option key={opt.startYear} value={opt.startYear}>
-                {opt.label} (01/04/{opt.startYear} – 31/03/{opt.startYear + 1})
-              </option>
-            ))}
-          </select>
+        <div style={{ marginBottom: 'var(--spacing-md)', maxWidth: '420px' }}>
+          <Select
+            label="Quick Select Financial Year"
+            value={String(selectedStartYear)}
+            onChange={(v) => handleYearSelect(Number(v))}
+            options={fyOptions.map((opt) => ({
+              value: String(opt.startYear),
+              label: `${opt.label} (01/04/${opt.startYear} – 31/03/${opt.startYear + 1})`,
+            }))}
+            searchable={false}
+            clearable={false}
+          />
           <p style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)', marginTop: '4px' }}>
             Select a year to auto-fill dates, or enter them manually below.
           </p>

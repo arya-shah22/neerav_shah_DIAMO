@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 type ModalSize = 'sm' | 'md' | 'lg';
@@ -67,43 +68,51 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
-  return (
+  return createPortal(
     <>
-      {/* Backdrop */}
+      {/* Fixed full-screen wrapper to guarantee centering */}
       <div
-        onClick={() => !preventClose && onClose()}
         style={{
           position: 'fixed',
           inset: 0,
-          background: 'rgba(15, 23, 42, 0.5)',
           zIndex: 'var(--z-overlay)',
-          animation: 'modal-fade-in var(--transition-normal) forwards',
-        }}
-      />
-
-      {/* Modal Panel */}
-      <div
-        ref={modalRef}
-        role="dialog"
-        aria-modal="true"
-        aria-label={title}
-        style={{
-          position: 'fixed',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: SIZE_MAP[size],
-          maxWidth: '95vw',
-          maxHeight: '85vh',
-          background: 'var(--color-surface)',
-          borderRadius: 'var(--radius-lg)',
-          boxShadow: 'var(--shadow-lg)',
-          zIndex: 'var(--z-modal)',
           display: 'flex',
-          flexDirection: 'column',
-          animation: 'modal-scale-in var(--transition-normal) forwards',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '24px',
         }}
       >
+        {/* Backdrop */}
+        <div
+          onClick={() => !preventClose && onClose()}
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.5)',
+            animation: 'modal-fade-in var(--transition-normal) forwards',
+          }}
+        />
+
+        {/* Modal Panel */}
+        <div
+          ref={modalRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={title}
+          style={{
+            position: 'relative',
+            width: SIZE_MAP[size],
+            maxWidth: '95vw',
+            maxHeight: '85vh',
+            background: 'var(--color-surface)',
+            borderRadius: 'var(--radius-lg)',
+            boxShadow: 'var(--shadow-lg)',
+            zIndex: 'var(--z-modal)',
+            display: 'flex',
+            flexDirection: 'column',
+            animation: 'modal-scale-in var(--transition-normal) forwards',
+          }}
+        >
         {/* Header */}
         <div style={{
           display: 'flex',
@@ -172,6 +181,8 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
       </div>
-    </>
+      </div>
+    </>,
+    document.body,
   );
 };

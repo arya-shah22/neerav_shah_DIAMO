@@ -120,11 +120,22 @@ export class QualityService {
   async delete(id: number, companyId: number) {
     await this.get(id, companyId);
 
-    const usedInStock = await this.prisma.stockPacket.count({
-      where: { qualityId: id },
+    const activeStock = await this.prisma.stockPacket.count({
+      where: { qualityId: id, isDeleted: false },
     });
-    if (usedInStock > 0) {
+    if (activeStock > 0) {
       throw new BadRequestException('Cannot delete quality referenced by stock packets');
+    }
+
+    const archivedStock = await this.prisma.stockPacket.findMany({
+      where: { qualityId: id, isDeleted: true },
+      select: { id: true },
+    });
+    for (const packet of archivedStock) {
+      await this.prisma.stockMovement.deleteMany({ where: { stockPacketId: packet.id } });
+      await this.prisma.stockReservation.deleteMany({ where: { stockPacketId: packet.id } });
+      await this.prisma.stockMedia.deleteMany({ where: { stockPacketId: packet.id } });
+      await this.prisma.stockPacket.delete({ where: { id: packet.id } });
     }
 
     await this.prisma.qualityGstHistory.deleteMany({ where: { qualityId: id } });

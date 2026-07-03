@@ -8,7 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
-import { Button, Input, Badge, useToast } from '../../components/ui';
+import { Button, Input, Badge, FormSelect, useToast } from '../../components/ui';
 import { accountGroupSchema, AccountGroupFormData } from './account-group.schema';
 import type { IAccountGroup, IAccountGroupTreeNode } from './account-group.types';
 
@@ -63,7 +63,7 @@ export const AccountGroupPage: React.FC = () => {
   const { invoke: deleteGroup } = useIpc('account-group:delete');
   const { invoke: seedGroups } = useIpc('account-group:seed');
 
-  const { register, handleSubmit, reset, formState: { errors } } = useForm<AccountGroupFormData>({
+  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<AccountGroupFormData>({
     resolver: zodResolver(accountGroupSchema),
     defaultValues: { groupName: '', nature: 'Assets', parentGroupId: null, sortOrder: 0 },
   });
@@ -205,32 +205,33 @@ export const AccountGroupPage: React.FC = () => {
 
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
             <Input label="Group Name" error={errors.groupName?.message} disabled={selectedGroup?.isGlobal && !isNew} {...register('groupName')} />
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Nature *</label>
-              <select
-                style={{ width: '100%', height: '32px', padding: '0 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}
-                {...register('nature')}
-              >
-                <option value="Assets">Assets</option>
-                <option value="Liabilities">Liabilities</option>
-                <option value="Income">Income</option>
-                <option value="Expense">Expense</option>
-              </select>
-            </div>
-            <div>
-              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Parent Group</label>
-              <select
-                style={{ width: '100%', height: '32px', padding: '0 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)' }}
-                {...register('parentGroupId', {
-                  setValueAs: (v) => (v === '' || v === 'null' ? null : Number(v)),
-                })}
-              >
-                <option value="">— Root (no parent) —</option>
-                {(groups || []).filter((g) => g.id !== selectedId).map((g) => (
-                  <option key={g.id} value={g.id}>{g.groupName}</option>
-                ))}
-              </select>
-            </div>
+            <FormSelect
+              control={control}
+              name="nature"
+              label="Nature *"
+              options={[
+                { value: 'Assets', label: 'Assets' },
+                { value: 'Liabilities', label: 'Liabilities' },
+                { value: 'Income', label: 'Income' },
+                { value: 'Expense', label: 'Expense' },
+              ]}
+              searchable={false}
+              clearable={false}
+            />
+            <FormSelect
+              control={control}
+              name="parentGroupId"
+              label="Parent Group"
+              placeholder="— Root (no parent) —"
+              options={(groups || [])
+                .filter((g) => g.id !== selectedId)
+                .map((g) => ({
+                  value: String(g.id),
+                  label: g.groupName,
+                }))}
+              toValue={(v) => (v === '' ? null : Number(v))}
+              toString={(v) => (v == null ? '' : String(v))}
+            />
             <Input label="Sort Order" type="number" error={errors.sortOrder?.message} {...register('sortOrder', { valueAsNumber: true })} />
           </div>
 

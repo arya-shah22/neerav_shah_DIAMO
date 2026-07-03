@@ -1,5 +1,5 @@
 /**
- * Automated verification for docs/MANUAL_TEST_PLAN.md (Stage 1–2).
+ * Automated verification for docs/MANUAL_TEST_PLAN.md (Stage 1–3).
  * Runs backend/API logic via NestJS controllers (same path as Electron IPC).
  * UI-only cases are marked SKIP.
  */
@@ -16,6 +16,7 @@ import { AccountGroupController } from '../src/backend/modules/account-group/acc
 import { AccountController } from '../src/backend/modules/account/account.controller';
 import { BrokerController } from '../src/backend/modules/broker/broker.controller';
 import { QualityController } from '../src/backend/modules/quality/quality.controller';
+import { StockController } from '../src/backend/modules/stock/stock.controller';
 import { serializeForIpc } from '../src/backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../src/shared/types/common.types';
 
@@ -89,6 +90,8 @@ async function main() {
   let accountId = 0;
   let brokerId = 0;
   let qualityId = 0;
+  let stockPacketId = 0;
+  let stockIdNumber = '';
   let sessionToken = '';
 
   const auth = () => app!.get(AuthController);
@@ -98,6 +101,7 @@ async function main() {
   const account = () => app!.get(AccountController);
   const broker = () => app!.get(BrokerController);
   const quality = () => app!.get(QualityController);
+  const stock = () => app!.get(StockController);
 
   try {
     app = await bootstrapNestApp();
@@ -783,6 +787,298 @@ async function main() {
       assertSuccess(res, 'edit quality');
     });
 
+    // ─── Section 8b: Stock / Inventory (Stage 3) ────────────────
+    skip('TC-200', 'Sidebar link', 'UI navigation');
+    skip('TC-201', 'No company selected', 'UI empty-state');
+    skip('TC-202', 'No quality master', 'UI empty-state with Add Quality button');
+    skip('TC-203', 'Dashboard link', 'UI navigation');
+
+    await runTest('TC-210', 'Empty stock list', async () => {
+      const res = await stock().handleList({ companyId: companyAId });
+      assertSuccess(res, 'stock list');
+      assert(Array.isArray(res.data), 'stock list should be array');
+    });
+
+    await runTest('TC-230', 'Auto stock ID preview', async () => {
+      const res = await stock().handlePreviewId(companyAId);
+      assertSuccess(res, 'preview stock id');
+      const id = res.data as string;
+      assert(/^DM-\d{4}-\d{6}$/.test(id), `expected DM-YYYY-XXXXXX format, got ${id}`);
+    });
+
+    await runTest('TC-237', 'Minimal create stock', async () => {
+      const res = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId,
+          caratWeight: 1.25,
+          registrationDate: '2026-01-15',
+          shape: 'Oval',
+        },
+      });
+      assertSuccess(res, 'create stock');
+      const packet = res.data as { id: number; stockIdNumber: string; shape: string };
+      stockPacketId = packet.id;
+      stockIdNumber = packet.stockIdNumber;
+      assert(packet.shape === 'Oval', 'shape not saved');
+      cloneLikeIpc(res.data);
+    });
+
+    await runTest('TC-260', 'Media links on create', async () => {
+      const res = await stock().handleUpdate({
+        id: stockPacketId,
+        companyId: companyAId,
+        data: {
+          imageLink: 'https://example.com/diamond.jpg',
+          videoLink: 'https://example.com/diamond.mp4',
+        },
+      });
+      assertSuccess(res, 'update media links');
+      const packet = res.data as { imageLink: string; videoLink: string };
+      assert(packet.imageLink === 'https://example.com/diamond.jpg', 'image link missing');
+      assert(packet.videoLink === 'https://example.com/diamond.mp4', 'video link missing');
+    });
+
+    await runTest('TC-212', 'Search stock by ID', async () => {
+      const res = await stock().handleList({
+        companyId: companyAId,
+        search: stockIdNumber.slice(0, 8),
+      });
+      assertSuccess(res, 'search stock');
+      const rows = res.data as { stockIdNumber: string }[];
+      assert(rows.some((r) => r.stockIdNumber === stockIdNumber), 'search should find stock');
+    });
+
+    await runTest('TC-215', 'Status filter', async () => {
+      const res = await stock().handleList({ companyId: companyAId, status: 'AVAILABLE' });
+      assertSuccess(res, 'status filter');
+      const rows = res.data as { currentStatus: string }[];
+      assert(rows.every((r) => r.currentStatus === 'AVAILABLE'), 'filter should return only AVAILABLE');
+    });
+
+    await runTest('TC-216', 'Category filter', async () => {
+      const res = await stock().handleList({ companyId: companyAId, category: 'NON_CERTIFIED' });
+      assertSuccess(res, 'category filter');
+      const rows = res.data as { category: string }[];
+      assert(rows.every((r) => r.category === 'NON_CERTIFIED'), 'filter should return only NON_CERTIFIED');
+    });
+
+    await runTest('TC-274', 'Timeline on create', async () => {
+      const res = await stock().handleTimeline({ id: stockPacketId, companyId: companyAId });
+      assertSuccess(res, 'timeline');
+      const rows = res.data as { movementType: string; newStatus: string }[];
+      assert(rows.length >= 1, 'timeline should have creation movement');
+      assert(rows.some((m) => m.movementType === 'STOCK_CREATION'), 'missing STOCK_CREATION');
+    });
+
+    await runTest('TC-283', 'Status change with timeline', async () => {
+      const res = await stock().handleUpdate({
+        id: stockPacketId,
+        companyId: companyAId,
+        data: { currentStatus: 'HOLD', statusRemarks: 'QA hold' },
+      });
+      assertSuccess(res, 'status change');
+      assert((res.data as { currentStatus: string }).currentStatus === 'HOLD', 'status not HOLD');
+      const timeline = await stock().handleTimeline({ id: stockPacketId, companyId: companyAId });
+      assertSuccess(timeline, 'timeline after status change');
+      const rows = timeline.data as { movementType: string; remarks: string | null }[];
+      assert(
+        rows.some((m) => m.movementType === 'MANUAL_ADJUSTMENT' && m.remarks === 'QA hold'),
+        'missing manual adjustment movement',
+      );
+    });
+
+    await runTest('TC-242', 'Certified without certificate', async () => {
+      const res = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId,
+          caratWeight: 0.5,
+          registrationDate: '2026-01-15',
+          category: 'CERTIFIED',
+        },
+      });
+      assertFailure(res, 'certified without cert', 'certificate number');
+    });
+
+    await runTest('TC-243', 'Certified with certificate', async () => {
+      const res = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId,
+          caratWeight: 0.75,
+          registrationDate: '2026-01-15',
+          category: 'CERTIFIED',
+          certificateType: 'GIA',
+          certificateNumber: `CERT-${suffix}`,
+        },
+      });
+      assertSuccess(res, 'certified stock');
+      await stock().handleDelete({ id: (res.data as { id: number }).id, companyId: companyAId });
+    });
+
+    await runTest('TC-245', 'Duplicate certificate number', async () => {
+      const cert = `DUP-CERT-${suffix}`;
+      const first = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId,
+          caratWeight: 0.5,
+          registrationDate: '2026-01-15',
+          category: 'CERTIFIED',
+          certificateNumber: cert,
+        },
+      });
+      assertSuccess(first, 'first cert stock');
+      const dup = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId,
+          caratWeight: 0.5,
+          registrationDate: '2026-01-15',
+          category: 'CERTIFIED',
+          certificateNumber: cert,
+        },
+      });
+      assertFailure(dup, 'duplicate cert', 'already in use');
+      await stock().handleDelete({ id: (first.data as { id: number }).id, companyId: companyAId });
+    });
+
+    await runTest('TC-232', 'Manual stock ID', async () => {
+      const manualId = `TST-${suffix}`;
+      const res = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          stockIdNumber: manualId,
+          qualityId,
+          caratWeight: 0.9,
+          registrationDate: '2026-01-15',
+        },
+      });
+      assertSuccess(res, 'manual id stock');
+      assert((res.data as { stockIdNumber: string }).stockIdNumber === manualId, 'manual id not saved');
+      await stock().handleDelete({ id: (res.data as { id: number }).id, companyId: companyAId });
+    });
+
+    await runTest('TC-233', 'Duplicate stock ID', async () => {
+      const res = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          stockIdNumber: stockIdNumber,
+          qualityId,
+          caratWeight: 0.5,
+          registrationDate: '2026-01-15',
+        },
+      });
+      assertFailure(res, 'duplicate stock id', 'already exists');
+    });
+
+    await runTest('TC-255', 'Custom shape in shape list', async () => {
+      const res = await stock().handleListShapes(companyAId);
+      assertSuccess(res, 'shape list');
+      const shapes = res.data as string[];
+      assert(shapes.some((s) => s.toLowerCase() === 'oval'), 'Oval shape should be in list');
+    });
+
+    await runTest('TC-281', 'Stock ID cannot change on update', async () => {
+      const res = await stock().handleUpdate({
+        id: stockPacketId,
+        companyId: companyAId,
+        data: { stockIdNumber: 'CHANGED-ID' },
+      });
+      assertFailure(res, 'change stock id', 'cannot be changed');
+    });
+
+    await runTest('TC-286', 'Edit sold stock blocked', async () => {
+      const tempQuality = await quality().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityName: `SoldTest ${suffix}`,
+          itemCode: `SOLD-${suffix}`,
+          hsnNumber: '71023910',
+        },
+      });
+      assertSuccess(tempQuality, 'temp quality for sold test');
+      const tempQualityId = (tempQuality.data as { id: number }).id;
+      const created = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId: tempQualityId,
+          caratWeight: 0.55,
+          registrationDate: '2026-01-15',
+        },
+      });
+      assertSuccess(created, 'create stock for sold test');
+      const soldId = (created.data as { id: number }).id;
+      const markSold = await stock().handleUpdate({
+        id: soldId,
+        companyId: companyAId,
+        data: { currentStatus: 'SOLD' },
+      });
+      assertSuccess(markSold, 'mark sold');
+      const edit = await stock().handleUpdate({
+        id: soldId,
+        companyId: companyAId,
+        data: { color: 'D' },
+      });
+      assertFailure(edit, 'edit sold', 'cannot edit');
+    });
+
+    await runTest('TC-294', 'Archive sold stock blocked', async () => {
+      const tempQuality = await quality().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityName: `ArchSold ${suffix}`,
+          itemCode: `ASOLD-${suffix}`,
+          hsnNumber: '71023910',
+        },
+      });
+      assertSuccess(tempQuality, 'temp quality for archive-sold test');
+      const tempQualityId = (tempQuality.data as { id: number }).id;
+      const created = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          qualityId: tempQualityId,
+          caratWeight: 0.6,
+          registrationDate: '2026-01-15',
+        },
+      });
+      assertSuccess(created, 'create stock for archive-sold test');
+      const soldId = (created.data as { id: number }).id;
+      await stock().handleUpdate({
+        id: soldId,
+        companyId: companyAId,
+        data: { currentStatus: 'SOLD' },
+      });
+      const res = await stock().handleDelete({ id: soldId, companyId: companyAId });
+      assertFailure(res, 'archive sold', 'sold');
+    });
+
+    await runTest('TC-290', 'Archive stock packet', async () => {
+      const res = await stock().handleDelete({ id: stockPacketId, companyId: companyAId });
+      assertSuccess(res, 'archive stock');
+      const list = await stock().handleList({ companyId: companyAId });
+      const rows = list.data as { id: number }[];
+      assert(!rows.some((r) => r.id === stockPacketId), 'archived stock still in list');
+    });
+
+    await runTest('TC-292', 'Reuse stock ID after archive', async () => {
+      const res = await stock().handleCreate({
+        companyId: companyAId,
+        data: {
+          stockIdNumber: stockIdNumber,
+          qualityId,
+          caratWeight: 1.0,
+          registrationDate: '2026-01-16',
+        },
+      });
+      assertSuccess(res, 'reuse stock id');
+      stockPacketId = (res.data as { id: number }).id;
+    });
+
+    skip('TC-300', 'Stock form dropdowns', 'UI custom Select components');
+    skip('TC-301', 'Stock list filter dropdowns', 'UI custom Select components');
+
     await runTest('TC-109', 'Search', async () => {
       const res = await quality().handleList({ companyId: companyAId, search: 'VS1' });
       assertSuccess(res, 'search qualities');
@@ -791,6 +1087,15 @@ async function main() {
     });
 
     await runTest('TC-110', 'Permanent delete', async () => {
+      const list = await stock().handleList({ companyId: companyAId });
+      assertSuccess(list, 'list stock for cleanup');
+      for (const row of list.data as { id: number; currentStatus: string }[]) {
+        if (row.currentStatus !== 'SOLD') {
+          const archived = await stock().handleDelete({ id: row.id, companyId: companyAId });
+          assertSuccess(archived, `archive stock ${row.id}`);
+        }
+      }
+      stockPacketId = 0;
       const res = await quality().handleDelete({ id: qualityId, companyId: companyAId });
       assertSuccess(res, 'delete quality');
     });
@@ -818,6 +1123,10 @@ async function main() {
       });
       assertSuccess(createB, 'create company B');
       companyBId = (createB.data as { id: number }).id;
+      const stockB = await stock().handleList({ companyId: companyBId });
+      assertSuccess(stockB, 'stock list B');
+      const idsB = (stockB.data as { stockIdNumber: string }[]).map((s) => s.stockIdNumber);
+      assert(!idsB.includes(stockIdNumber), 'Company A stock visible in Company B');
       const acctA = await account().handleList({ companyId: companyAId, isBroker: false });
       const acctB = await account().handleList({ companyId: companyBId, isBroker: false });
       assertSuccess(acctA, 'list A');
@@ -855,6 +1164,9 @@ async function main() {
     await runTest('TC-028', 'Delete company (no transactions)', async () => {
       await broker().handleDelete({ id: brokerId, companyId: companyAId });
       await account().handleDelete({ id: accountId, companyId: companyAId });
+      if (stockPacketId) {
+        await stock().handleDelete({ id: stockPacketId, companyId: companyAId });
+      }
       const del = await company().handleDelete(companyAId);
       assertSuccess(del, 'delete company A');
       const get = await company().handleGet(companyAId);

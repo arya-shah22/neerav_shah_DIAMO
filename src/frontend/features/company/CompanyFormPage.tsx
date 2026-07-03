@@ -10,7 +10,7 @@ import { Save, ArrowLeft, Building2, MapPin, Landmark } from 'lucide-react';
 import { companySchema, CompanyFormData } from './company.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { loadCompanyContext } from '../../services/company-context';
-import { Button, Input, useToast } from '../../components/ui';
+import { Button, Input, FormSelect, useToast } from '../../components/ui';
 
 const LIST_ROUTE = '/masters/business/companies';
 
@@ -25,7 +25,6 @@ export const CompanyFormPage: React.FC = () => {
   const { showToast } = useToast();
   const isEdit = !!id;
 
-  const [activeTab, setActiveTab] = useState<'general' | 'address' | 'bank'>('general');
   const [statesList, setStatesList] = useState<StateCodeObj[]>([]);
 
   // IPC Hooks
@@ -38,6 +37,7 @@ export const CompanyFormPage: React.FC = () => {
     register,
     handleSubmit,
     reset,
+    control,
     formState: { errors },
   } = useForm<CompanyFormData>({
     resolver: zodResolver(companySchema),
@@ -143,30 +143,6 @@ export const CompanyFormPage: React.FC = () => {
     }
   };
 
-  const hasGeneralErrors = !!(errors.companyName || errors.companyCode || errors.panNumber || errors.gstinNumber || errors.tanNumber || errors.udyamMsme || errors.iecCode);
-  const hasAddressErrors = !!(errors.addressLine1 || errors.addressLine2 || errors.city || errors.stateCode || errors.pincode || errors.email || errors.mobile || errors.phone);
-  const hasBankErrors = !!(errors.bankAccountNumber || errors.bankName || errors.bankBranch || errors.bankIfsc || errors.bankSwift);
-
-  const tabItemStyle = (tab: typeof activeTab, hasErr: boolean) => ({
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '12px 20px',
-    border: 'none',
-    background: activeTab === tab ? 'var(--color-bg)' : 'transparent',
-    borderBottom: activeTab === tab ? '2px solid var(--color-accent)' : '2px solid transparent',
-    color: activeTab === tab ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-    fontWeight: activeTab === tab ? 600 : 500,
-    fontSize: '14px',
-    cursor: 'pointer',
-    outline: 'none',
-    transition: 'all 0.2s',
-    borderTopLeftRadius: 'var(--radius-md)',
-    borderTopRightRadius: 'var(--radius-md)',
-    boxShadow: activeTab === tab ? '0 -2px 10px rgba(0,0,0,0.02)' : 'none',
-    borderRight: hasErr ? '2px dotted #ef4444' : undefined,
-  });
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
       {/* Header */}
@@ -201,35 +177,15 @@ export const CompanyFormPage: React.FC = () => {
       </div>
 
       <form onSubmit={handleSubmit(onSubmit)} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', overflow: 'hidden' }}>
-        {/* Tabs Bar */}
-        <div style={{ display: 'flex', background: 'var(--color-row-alt)', borderBottom: '1px solid var(--color-border)', paddingLeft: '8px' }}>
-          <button
-            type="button"
-            onClick={() => setActiveTab('general')}
-            style={tabItemStyle('general', hasGeneralErrors)}
-          >
-            <Building2 size={16} /> General Info
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('address')}
-            style={tabItemStyle('address', hasAddressErrors)}
-          >
-            <MapPin size={16} /> Contact & Address
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab('bank')}
-            style={tabItemStyle('bank', hasBankErrors)}
-          >
-            <Landmark size={16} /> Bank Details
-          </button>
-        </div>
-
-        {/* Tab Content */}
-        <div style={{ padding: '30px' }}>
-          {/* TAB 1: GENERAL INFO */}
-          {activeTab === 'general' && (
+        <div style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+          {/* General Info */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Building2 size={16} />
+              <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>
+                General Info
+              </h2>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
               <Input
                 label="Company Name *"
@@ -283,25 +239,18 @@ export const CompanyFormPage: React.FC = () => {
                 error={errors.businessType?.message}
                 {...register('businessType')}
               />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <span style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Status</span>
-                <select
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    outline: 'none',
-                    fontSize: '14px',
-                    background: 'var(--color-surface)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                  {...register('status')}
-                >
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="INACTIVE">INACTIVE</option>
-                  <option value="SUSPENDED">SUSPENDED</option>
-                </select>
-              </div>
+              <FormSelect
+                control={control}
+                name="status"
+                label="Status"
+                options={[
+                  { value: 'ACTIVE', label: 'ACTIVE' },
+                  { value: 'INACTIVE', label: 'INACTIVE' },
+                  { value: 'SUSPENDED', label: 'SUSPENDED' },
+                ]}
+                searchable={false}
+                clearable={false}
+              />
 
               <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '10px' }}>
                 <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '14px' }}>
@@ -322,10 +271,18 @@ export const CompanyFormPage: React.FC = () => {
                 </label>
               </div>
             </div>
-          )}
+          </section>
 
-          {/* TAB 2: ADDRESS & CONTACT */}
-          {activeTab === 'address' && (
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          {/* Contact & Address */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <MapPin size={16} />
+              <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>
+                Contact & Address
+              </h2>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
               <Input
                 label="Address Line 1"
@@ -345,33 +302,17 @@ export const CompanyFormPage: React.FC = () => {
                 error={errors.city?.message}
                 {...register('city')}
               />
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-                  State Code / State
-                </label>
-                <select
-                  style={{
-                    padding: '8px 12px',
-                    borderRadius: 'var(--radius-md)',
-                    border: '1px solid var(--color-border)',
-                    outline: 'none',
-                    fontSize: '14px',
-                    background: 'var(--color-surface)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                  {...register('stateCode')}
-                >
-                  <option value="">Select State</option>
-                  {statesList.map((st) => (
-                    <option key={st.stateCode} value={st.stateCode}>
-                      {st.stateCode} - {st.stateName}
-                    </option>
-                  ))}
-                </select>
-                {errors.stateCode && (
-                  <span style={{ fontSize: '12px', color: '#ef4444' }}>{errors.stateCode.message}</span>
-                )}
-              </div>
+              <FormSelect
+                control={control}
+                name="stateCode"
+                label="State Code / State"
+                placeholder="Select State"
+                error={errors.stateCode?.message}
+                options={statesList.map((st) => ({
+                  value: st.stateCode,
+                  label: `${st.stateCode} - ${st.stateName}`,
+                }))}
+              />
               <Input
                 label="Pincode"
                 placeholder="6-digit Indian Pincode"
@@ -404,10 +345,18 @@ export const CompanyFormPage: React.FC = () => {
                 {...register('website')}
               />
             </div>
-          )}
+          </section>
 
-          {/* TAB 3: BANK DETAILS */}
-          {activeTab === 'bank' && (
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          {/* Bank Details */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Landmark size={16} />
+              <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>
+                Bank Details
+              </h2>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '20px' }}>
               <Input
                 label="Bank Name"
@@ -442,7 +391,7 @@ export const CompanyFormPage: React.FC = () => {
                 {...register('bankSwift')}
               />
             </div>
-          )}
+          </section>
         </div>
 
         {/* Footer Actions */}

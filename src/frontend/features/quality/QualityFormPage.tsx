@@ -10,7 +10,7 @@ import { Save, ArrowLeft } from 'lucide-react';
 import { qualitySchema, QualityFormData } from './quality.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
-import { Button, Input, useToast } from '../../components/ui';
+import { Button, Input, FormSelect, useToast } from '../../components/ui';
 import type { IHsnCode, IQuality } from './quality.types';
 
 const LIST_ROUTE = '/masters/diamond/qualities';
@@ -28,7 +28,7 @@ export const QualityFormPage: React.FC = () => {
   const { invoke: updateQuality, loading: updating } = useIpc('quality:update');
   const { invoke: fetchHsn } = useIpc<IHsnCode[]>('quality:hsn-list');
 
-  const { register, handleSubmit, reset, setValue, watch, formState: { errors } } = useForm<QualityFormData>({
+  const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } = useForm<QualityFormData>({
     resolver: zodResolver(qualitySchema),
     defaultValues: {
       qualityName: '',
@@ -113,14 +113,6 @@ export const QualityFormPage: React.FC = () => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
 
-  const selectStyle: React.CSSProperties = {
-    width: '100%',
-    height: '32px',
-    padding: '0 8px',
-    borderRadius: 'var(--radius-sm)',
-    border: '1px solid var(--color-border)',
-  };
-
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
@@ -138,31 +130,41 @@ export const QualityFormPage: React.FC = () => {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Quality Name *" error={errors.qualityName?.message} {...register('qualityName')} />
           <Input label="Item Code *" error={errors.itemCode?.message} {...register('itemCode')} />
-          <div>
-            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>HSN Code *</label>
-            <select style={selectStyle} {...register('hsnNumber')}>
-              <option value="">Select HSN</option>
-              {hsnCodes.map((h) => (
-                <option key={h.id} value={h.hsnCode}>{h.hsnCode} — {h.description}</option>
-              ))}
-            </select>
-            {errors.hsnNumber && <span style={{ color: 'var(--color-danger)', fontSize: '12px' }}>{errors.hsnNumber.message}</span>}
-          </div>
-          <div>
-            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>UQC</label>
-            <select style={selectStyle} {...register('uqc')}>
-              <option value="CTS">Carats (CTS)</option>
-              <option value="PCS">Pieces (PCS)</option>
-            </select>
-          </div>
-          <div>
-            <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, display: 'block', marginBottom: '6px' }}>Status</label>
-            <select style={selectStyle} {...register('status')}>
-              <option value="ACTIVE">Active</option>
-              <option value="INACTIVE">Inactive</option>
-              <option value="BLOCKED">Blocked</option>
-            </select>
-          </div>
+          <FormSelect
+            control={control}
+            name="hsnNumber"
+            label="HSN Code *"
+            placeholder="Select HSN"
+            error={errors.hsnNumber?.message}
+            required
+            options={hsnCodes.map((h) => ({
+              value: h.hsnCode,
+              label: `${h.hsnCode} — ${h.description}`,
+            }))}
+          />
+          <FormSelect
+            control={control}
+            name="uqc"
+            label="UQC"
+            options={[
+              { value: 'CTS', label: 'Carats (CTS)' },
+              { value: 'PCS', label: 'Pieces (PCS)' },
+            ]}
+            searchable={false}
+            clearable={false}
+          />
+          <FormSelect
+            control={control}
+            name="status"
+            label="Status"
+            options={[
+              { value: 'ACTIVE', label: 'Active' },
+              { value: 'INACTIVE', label: 'Inactive' },
+              { value: 'BLOCKED', label: 'Blocked' },
+            ]}
+            searchable={false}
+            clearable={false}
+          />
         </div>
 
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Rates & Stock Levels</h2>
