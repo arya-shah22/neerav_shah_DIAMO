@@ -231,18 +231,6 @@ export const AccountFormPage: React.FC = () => {
                 searchable={false}
                 clearable={false}
               />
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <input
-                  type="checkbox"
-                  id="isBroker"
-                  {...register('isBroker')}
-                  style={{ width: '16px', height: '16px', accentColor: 'var(--color-accent)' }}
-                />
-                <label htmlFor="isBroker" style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text-primary)' }}>
-                  Is this account a Broker?
-                </label>
-              </div>
             </div>
           </section>
 

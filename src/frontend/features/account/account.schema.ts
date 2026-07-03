@@ -5,7 +5,6 @@ export const accountSchema = z.object({
   accountName: z.string().min(1, 'Account name is required').max(200),
   printName: z.string().max(200).optional().or(z.literal('')),
   status: z.enum(['ACTIVE', 'INACTIVE', 'BLOCKED']).default('ACTIVE'),
-  isBroker: z.boolean().default(false),
   gstinNumber: z.string().max(15).optional().or(z.literal('')),
   panNumber: z.string().max(10).optional().or(z.literal('')),
   gstRegType: z.enum(['REGISTERED', 'COMPOSITION', 'UNREGISTERED', 'SEZ_DEVELOPER', 'SEZ_UNIT']).optional().nullable(),
