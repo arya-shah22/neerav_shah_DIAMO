@@ -588,6 +588,7 @@ model Quality {
   openingBalanceCarats Decimal @default(0.000) @map("opening_balance_carats") @db.Decimal(12, 3)
   openingBalancePcs    Int     @default(0) @map("opening_balance_pcs") @db.UnsignedInt
   openingBalanceRate   Decimal @default(0.00) @map("opening_balance_rate") @db.Decimal(18, 2)
+  isService        Boolean       @default(false) @map("is_service")
   status           AccountStatus @default(ACTIVE)
 
   // Audit

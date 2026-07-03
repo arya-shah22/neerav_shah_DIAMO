@@ -1,4 +1,4 @@
-export type InvoiceType = 'SALE_INVOICE' | 'PURCHASE_INVOICE';
+export type InvoiceType = 'SALE_INVOICE' | 'SALE_RETURN' | 'SALE_DEBIT_NOTE' | 'PURCHASE_INVOICE' | 'PURCHASE_RETURN' | 'PURCHASE_DEBIT_NOTE';
 export type InvoiceStatus = 'DRAFT' | 'SAVED' | 'APPROVED' | 'CANCELLED' | 'DELETED';
 export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
 
@@ -10,6 +10,7 @@ export interface IInvoiceItem {
   pieces?: number;
   rate: number;
   discountPct?: number;
+  stockPacketId?: number;
   grossAmount?: number;
   gstPct?: number;
   cgstAmount?: number;
@@ -48,6 +49,8 @@ export interface IInvoice {
   totalIgst: number;
   roundOff: number;
   netAmount: number;
+  referenceInvoiceId?: number | null;
+  referenceBillNumber?: string | null;
   narration?: string;
   createdAt: string;
   updatedAt: string;

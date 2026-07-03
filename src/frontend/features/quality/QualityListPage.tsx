@@ -56,6 +56,15 @@ export const QualityListPage: React.FC = () => {
       ),
     },
     { key: 'itemCode', header: 'ITEM CODE', mono: true },
+    {
+      key: 'isService',
+      header: 'TYPE',
+      render: (row) => (
+        <Badge variant={row.isService ? 'info' : 'success'}>
+          {row.isService ? 'Service' : 'Inventory'}
+        </Badge>
+      ),
+    },
     { key: 'hsnNumber', header: 'HSN' },
     { key: 'uqc', header: 'UQC', width: '80px' },
     {

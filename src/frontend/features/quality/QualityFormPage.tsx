@@ -46,6 +46,7 @@ export const QualityFormPage: React.FC = () => {
       status: 'ACTIVE',
       gstPct: 3,
       cessPct: 0,
+      isService: false,
     },
   });
 
@@ -90,6 +91,7 @@ export const QualityFormPage: React.FC = () => {
           status: q.status,
           gstPct: latestGst ? Number(latestGst.gstPct) : 3,
           cessPct: latestGst ? Number(latestGst.cessPct) : 0,
+          isService: !!q.isService,
         });
       }
     };
@@ -132,16 +134,47 @@ export const QualityFormPage: React.FC = () => {
           <Input label="Item Code *" error={errors.itemCode?.message} {...register('itemCode')} />
           <FormSelect
             control={control}
-            name="hsnNumber"
-            label="HSN Code *"
-            placeholder="Select HSN"
-            error={errors.hsnNumber?.message}
-            required
-            options={hsnCodes.map((h) => ({
-              value: h.hsnCode,
-              label: `${h.hsnCode} — ${h.description}`,
-            }))}
+            name="isService"
+            label="Quality Type *"
+            options={[
+              { value: 'false', label: 'Inventory (Stock Packet)' },
+              { value: 'true', label: 'Service (Job Work Charges / Fees)' },
+            ]}
+            toValue={(v) => v === 'true'}
+            searchable={false}
+            clearable={false}
           />
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px', color: 'var(--color-primary)' }}>
+              HSN Code *
+            </label>
+            <input
+              type="text"
+              list="hsn-list"
+              placeholder="Type or select HSN"
+              style={{
+                width: '100%',
+                padding: '10px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                color: 'var(--color-primary)',
+              }}
+              {...register('hsnNumber')}
+            />
+            <datalist id="hsn-list">
+              {hsnCodes.map((h) => (
+                <option key={h.hsnCode} value={h.hsnCode}>
+                  {h.hsnCode} — {h.description}
+                </option>
+              ))}
+            </datalist>
+            {errors.hsnNumber && (
+              <span style={{ fontSize: '11px', color: 'var(--color-danger)', marginTop: '4px', display: 'block' }}>
+                {errors.hsnNumber.message}
+              </span>
+            )}
+          </div>
           <FormSelect
             control={control}
             name="uqc"
@@ -167,18 +200,24 @@ export const QualityFormPage: React.FC = () => {
           />
         </div>
 
-        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Rates & Stock Levels</h2>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Rates & Taxes</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Purchase Rate" type="number" step="0.01" {...register('purchaseRate', { valueAsNumber: true })} />
           <Input label="Sale Rate" type="number" step="0.01" {...register('saleRate', { valueAsNumber: true })} />
           <Input label="MRP" type="number" step="0.01" {...register('mrp', { valueAsNumber: true })} />
-          <Input label="Min Level" type="number" step="0.001" {...register('minLevel', { valueAsNumber: true })} />
-          <Input label="Max Level" type="number" step="0.001" {...register('maxLevel', { valueAsNumber: true })} />
+          
+          {!watch('isService') && (
+            <>
+              <Input label="Min Level" type="number" step="0.001" {...register('minLevel', { valueAsNumber: true })} />
+              <Input label="Max Level" type="number" step="0.001" {...register('maxLevel', { valueAsNumber: true })} />
+            </>
+          )}
+
           <Input label="GST %" type="number" step="0.01" {...register('gstPct', { valueAsNumber: true })} disabled={isEdit} />
           <Input label="Cess %" type="number" step="0.01" {...register('cessPct', { valueAsNumber: true })} disabled={isEdit} />
         </div>
 
-        {!isEdit && (
+        {!isEdit && !watch('isService') && (
           <>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Opening Balance</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>

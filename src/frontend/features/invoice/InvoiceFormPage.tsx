@@ -28,28 +28,108 @@ interface AccountObj {
 interface QualityObj {
   id: number;
   qualityName: string;
+  isService?: boolean;
   gstPct?: number;
+}
+
+interface IStockPacket {
+  id: number;
+  stockIdNumber: string;
+  qualityId: number;
+  caratWeight: any;
+  pieceCount: number;
+  costPerCarat?: any;
+  currentStatus: string;
 }
 
 export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const { id: editId } = useParams<{ id: string }>();
+  const isSale = type.startsWith('SALE');
   const isEditMode = !!editId;
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { activeCompany, companyId, isReady } = useActiveCompany();
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
-  const isSale = type === 'SALE_INVOICE';
+
+  const getInfo = () => {
+    switch (type) {
+      case 'SALE_RETURN':
+        return {
+          title: 'Sale Return Credit Note',
+          listRoute: '/transactions/sale-returns',
+          isCustomer: true,
+          needReference: true,
+          referenceType: 'SALE_INVOICE' as InvoiceType,
+        };
+      case 'SALE_DEBIT_NOTE':
+        return {
+          title: 'Sale Debit Note',
+          listRoute: '/transactions/sale-debit-notes',
+          isCustomer: true,
+          needReference: true,
+          referenceType: 'SALE_INVOICE' as InvoiceType,
+        };
+      case 'PURCHASE_RETURN':
+        return {
+          title: 'Purchase Return Debit Note',
+          listRoute: '/transactions/purchase-returns',
+          isCustomer: false,
+          needReference: true,
+          referenceType: 'PURCHASE_INVOICE' as InvoiceType,
+        };
+      case 'PURCHASE_DEBIT_NOTE':
+        return {
+          title: 'Purchase Credit Note',
+          listRoute: '/transactions/purchase-credit-notes',
+          isCustomer: false,
+          needReference: true,
+          referenceType: 'PURCHASE_INVOICE' as InvoiceType,
+        };
+      case 'PURCHASE_INVOICE':
+        return {
+          title: 'Purchase Invoice',
+          listRoute: '/transactions/purchases',
+          isCustomer: false,
+          needReference: false,
+          referenceType: undefined,
+        };
+      default:
+        return {
+          title: 'Sales Invoice',
+          listRoute: '/transactions/sales',
+          isCustomer: true,
+          needReference: false,
+          referenceType: undefined,
+        };
+    }
+  };
+
+  const { title, listRoute, isCustomer, needReference, referenceType } = getInfo();
 
   const [parties, setParties] = useState<AccountObj[]>([]);
   const [brokers, setBrokers] = useState<AccountObj[]>([]);
   const [qualities, setQualities] = useState<QualityObj[]>([]);
   const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [editLoaded, setEditLoaded] = useState(false);
+  const [parentInvoices, setParentInvoices] = useState<IInvoice[]>([]);
 
   const { invoke: fetchAccounts } = useIpc<AccountObj[]>('account:list');
   const { invoke: fetchQualities } = useIpc<QualityObj[]>('quality:list');
   const { invoke: fetchPreviewNo } = useIpc<string>('invoice:preview-number');
   const { invoke: fetchInvoice } = useIpc<IInvoice>('invoice:get');
+  const { invoke: fetchParentInvoices } = useIpc<IInvoice[]>('invoice:list');
+  const { invoke: fetchStockPackets } = useIpc<IStockPacket[]>('stock:list');
+  
+  const [availablePackets, setAvailablePackets] = useState<IStockPacket[]>([]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    fetchStockPackets({ companyId }).then((res) => {
+      if (res.success && res.data) {
+        setAvailablePackets(res.data);
+      }
+    });
+  }, [companyId, fetchStockPackets]);
   const { invoke: createInvoice, loading: savingCreate } = useIpc('invoice:create');
   const { invoke: updateInvoice, loading: savingUpdate } = useIpc('invoice:update');
   const saving = savingCreate || savingUpdate;
@@ -59,6 +139,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     defaultValues: {
       financialYearId: activeFinancialYear?.id || 0,
       invoiceType: type,
+      referenceInvoiceId: null,
+      referenceBillNumber: null,
       isManualBillNumber: false,
       billNumber: '',
       invoiceDate: new Date().toISOString().split('T')[0],
@@ -112,9 +194,16 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       if (qlyRes.success && qlyRes.data) {
         setQualities(qlyRes.data);
       }
+
+      if (needReference && referenceType) {
+        const parentRes = await fetchParentInvoices({ companyId, type: referenceType });
+        if (parentRes.success && parentRes.data) {
+          setParentInvoices(parentRes.data);
+        }
+      }
     };
     loadData();
-  }, [companyId, fetchAccounts, fetchQualities, activeFinancialYear, setValue]);
+  }, [companyId, fetchAccounts, fetchQualities, activeFinancialYear, setValue, needReference, referenceType, fetchParentInvoices]);
 
   // Load Preview Voucher Number (only in create mode)
   useEffect(() => {
@@ -137,6 +226,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         const inv = res.data;
         setValue('financialYearId', inv.financialYearId);
         setValue('invoiceType', inv.invoiceType);
+        setValue('referenceInvoiceId', inv.referenceInvoiceId);
+        setValue('referenceBillNumber', inv.referenceBillNumber);
         setValue('billNumber', inv.billNumber || '');
         setValue('isManualBillNumber', inv.billNumber !== inv.voucherNumber);
         setValue('invoiceDate', new Date(inv.invoiceDate).toISOString().split('T')[0]);
@@ -158,6 +249,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             pieces: it.pieces || 1,
             rate: Number(it.rate),
             discountPct: Number(it.discountPct) || 0,
+            stockPacketId: it.stockPacketId ?? undefined,
           })));
         }
         setPreviewVoucherNo(inv.voucherNumber);
@@ -173,6 +265,39 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       setValue('billNumber', previewVoucherNo);
     }
   }, [watchedIsManual, previewVoucherNo, setValue]);
+
+  const handleSelectReference = (refIdStr: string) => {
+    const refId = refIdStr ? Number(refIdStr) : null;
+    if (!refId) {
+      setValue('referenceInvoiceId', null);
+      setValue('referenceBillNumber', null);
+      return;
+    }
+    const matched = parentInvoices.find((inv) => inv.id === refId);
+    if (matched) {
+      setValue('referenceInvoiceId', matched.id);
+      setValue('referenceBillNumber', matched.voucherNumber);
+      setValue('customerId', matched.customerId);
+      setValue('brokerId', matched.brokerId ?? null);
+      setValue('brokeragePct', Number(matched.brokeragePct) || 0);
+      const dueDays = matched.dueDate ? Math.round((new Date(matched.dueDate).getTime() - new Date(matched.invoiceDate).getTime()) / (24 * 60 * 60 * 1000)) : 0;
+      setValue('creditDays', dueDays);
+      setValue('narration', `Ref: ${matched.voucherNumber}. `);
+      if (matched.items && matched.items.length > 0) {
+        setValue('items', matched.items.map((it) => ({
+          qualityId: it.qualityId,
+          hsnNumber: it.hsnNumber || '7113',
+          quantity: 0,
+          carats: Number(it.carats),
+          pieces: it.pieces || 1,
+          rate: Number(it.rate),
+          discountPct: Number(it.discountPct) || 0,
+          stockPacketId: it.stockPacketId || undefined,
+        })));
+      }
+      showToast(`Referenced invoice ${matched.voucherNumber} details loaded successfully`, 'success');
+    }
+  };
 
   // Find active party object to check state code
   const selectedPartyObj = parties.find((p) => p.id === watchedCustomerId);
@@ -260,14 +385,12 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       res = await createInvoice({ companyId, data });
     }
     if (res.success) {
-      showToast(isEditMode ? 'Invoice updated successfully' : 'Invoice created successfully', 'success');
-      navigate(isSale ? '/transactions/sales' : '/transactions/purchases');
+      showToast(isEditMode ? 'Transaction updated successfully' : 'Transaction created successfully', 'success');
+      navigate(listRoute);
     } else {
-      showToast(res.error || 'Failed to save invoice', 'error');
+      showToast(res.error || 'Failed to save transaction', 'error');
     }
   };
-
-  const listRoute = isSale ? '/transactions/sales' : '/transactions/purchases';
 
   if (!isReady || !activeFinancialYear) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company and financial year first.</p>;
@@ -278,7 +401,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
         <Button variant="ghost" onClick={() => navigate(listRoute)}><ArrowLeft size={18} /></Button>
         <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-          {isEditMode ? (isSale ? 'Edit Sales Invoice' : 'Edit Purchase Invoice') : (isSale ? 'New Sales Invoice' : 'New Purchase Invoice')}
+          {isEditMode ? `Edit ${title}` : `New ${title}`}
         </h1>
       </div>
 
@@ -286,7 +409,33 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         onSubmit={handleSubmit(onSubmit)}
         style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
       >
-        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Invoice Header</h2>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Header Information</h2>
+
+        {needReference && (
+          <div style={{ marginBottom: '20px', background: 'var(--color-row-alt)', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
+            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px', color: 'var(--color-primary)' }}>
+              Link Reference {isCustomer ? 'Sales Invoice' : 'Purchase Invoice'} *
+            </label>
+            <select
+              style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-primary)' }}
+              value={watch('referenceInvoiceId') || ''}
+              onChange={(e) => handleSelectReference(e.target.value)}
+              disabled={isEditMode}
+            >
+              <option value="">-- Search and Select Parent Invoice --</option>
+              {parentInvoices.map((parent) => (
+                <option key={parent.id} value={parent.id}>
+                  {parent.voucherNumber} ({parent.customer?.accountName}) — Date: {new Date(parent.invoiceDate).toLocaleDateString('en-IN')} — Net: ₹{Number(parent.netAmount).toLocaleString('en-IN')}
+                </option>
+              ))}
+            </select>
+            {watch('referenceBillNumber') && (
+              <span style={{ display: 'block', fontSize: '12px', color: 'var(--color-accent)', marginTop: '8px', fontWeight: 500 }}>
+                Linked Invoice Number: <strong>{watch('referenceBillNumber')}</strong>
+              </span>
+            )}
+          </div>
+        )}
         
         {/* Bill Number Config Row */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
@@ -307,7 +456,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
           <FormSelect
             control={control}
             name="customerId"
-            label={isSale ? "Customer *" : "Supplier *"}
+            label={isCustomer ? "Customer *" : "Supplier *"}
             placeholder="Select party"
             options={parties.map((p) => ({ value: String(p.id), label: p.accountName }))}
             toValue={Number}
@@ -320,7 +469,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             options={brokers.map((b) => ({ value: String(b.id), label: b.accountName }))}
             toValue={(v) => (v ? Number(v) : null)}
           />
-          <Input label="Invoice Date *" type="date" {...register('invoiceDate')} />
+          <Input label="Date *" type="date" {...register('invoiceDate')} />
           <div>
             <Input label="Due Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
             <span style={{ fontSize: '11px', color: 'var(--color-accent)', display: 'block', marginTop: '4px', fontWeight: 500 }}>
@@ -349,40 +498,138 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             </tr>
           </thead>
           <tbody>
-            {fields.map((field, index) => (
-              <tr key={field.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '8px' }}>
-                  <FormSelect
-                    control={control}
-                    name={`items.${index}.qualityId`}
-                    options={qualities.map((q) => ({ value: String(q.id), label: q.qualityName }))}
-                    toValue={Number}
-                  />
-                </td>
-                <td style={{ padding: '8px' }}>
-                  <Input type="number" step="0.01" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
-                </td>
-                <td style={{ padding: '8px' }}>
-                  <Input type="number" step="0.001" {...register(`items.${index}.carats`, { valueAsNumber: true })} />
-                </td>
-                <td style={{ padding: '8px' }}>
-                  <Input type="number" {...register(`items.${index}.pieces`, { valueAsNumber: true })} />
-                </td>
-                <td style={{ padding: '8px' }}>
-                  <Input type="number" step="0.01" {...register(`items.${index}.rate`, { valueAsNumber: true })} />
-                </td>
-                <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600, fontSize: '14px' }}>
-                  ₹{(itemTotals[index]?.gross || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </td>
-                <td style={{ padding: '8px', textAlign: 'center' }}>
-                  {fields.length > 1 && (
-                    <Button variant="ghost" size="sm" onClick={() => remove(index)}>
-                      <Trash2 size={14} color="var(--color-danger)" />
-                    </Button>
+            {fields.map((field, index) => {
+              const watchedQualityId = watch(`items.${index}.qualityId`);
+              const qualityObj = qualities.find((q) => q.id === Number(watchedQualityId));
+              const isServiceQuality = qualityObj?.isService || false;
+
+              return (
+                <React.Fragment key={field.id}>
+                  <tr style={{ borderBottom: isServiceQuality ? '1px solid var(--color-border)' : 'none' }}>
+                    <td style={{ padding: '8px' }}>
+                      <FormSelect
+                        control={control}
+                        name={`items.${index}.qualityId`}
+                        options={qualities.map((q) => ({ value: String(q.id), label: q.qualityName }))}
+                        toValue={Number}
+                      />
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      {isServiceQuality ? (
+                        <Input type="number" step="0.01" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
+                      ) : (
+                        <div style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: '13px' }}>—</div>
+                      )}
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <Input type="number" step="0.001" {...register(`items.${index}.carats`, { valueAsNumber: true })} />
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <Input type="number" {...register(`items.${index}.pieces`, { valueAsNumber: true })} />
+                    </td>
+                    <td style={{ padding: '8px' }}>
+                      <Input type="number" step="0.01" {...register(`items.${index}.rate`, { valueAsNumber: true })} />
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600, fontSize: '14px' }}>
+                      ₹{(itemTotals[index]?.gross || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    </td>
+                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                      {fields.length > 1 && (
+                        <Button variant="ghost" size="sm" onClick={() => remove(index)}>
+                          <Trash2 size={14} color="var(--color-danger)" />
+                        </Button>
+                      )}
+                    </td>
+                  </tr>
+
+                  {!isServiceQuality && watchedQualityId && (
+                    <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-row-alt)' }}>
+                      <td colSpan={7} style={{ padding: '8px 16px 12px 16px' }}>
+                        {isSale ? (
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                            <div style={{ flex: 1, maxWidth: '300px' }}>
+                              <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--color-accent)' }}>
+                                Select Stock Packet *
+                              </label>
+                              <select
+                                style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: '13px', color: 'var(--color-primary)' }}
+                                {...register(`items.${index}.stockPacketId`, { valueAsNumber: true })}
+                                onChange={(e) => {
+                                  const pktId = Number(e.target.value);
+                                  const pkt = availablePackets.find((p) => p.id === pktId);
+                                  if (pkt) {
+                                    setValue(`items.${index}.carats`, Number(pkt.caratWeight));
+                                    setValue(`items.${index}.pieces`, Number(pkt.pieceCount));
+                                    if (pkt.costPerCarat != null) {
+                                      setValue(`items.${index}.rate`, Number(pkt.costPerCarat));
+                                    }
+                                  }
+                                }}
+                              >
+                                <option value="">-- Choose Stock Packet --</option>
+                                {availablePackets
+                                  .filter((p) => p.qualityId === Number(watchedQualityId) && (['AVAILABLE', 'CREATED', 'PURCHASED'].includes(p.currentStatus) || p.id === Number(watch(`items.${index}.stockPacketId`))))
+                                  .map((p) => (
+                                    <option key={p.id} value={p.id}>
+                                      {p.stockIdNumber} ({Number(p.caratWeight).toFixed(3)} CTS — {p.pieceCount} Pcs)
+                                    </option>
+                                  ))}
+                              </select>
+                            </div>
+                            {(() => {
+                              const pktVal = watch(`items.${index}.stockPacketId`);
+                              const pkt = availablePackets.find((p) => p.id === Number(pktVal));
+                              return pkt ? (
+                                <span style={{ fontSize: '12px', color: 'var(--color-success)', fontWeight: 500, marginTop: '16px' }}>
+                                  Available: <strong>{Number(pkt.caratWeight).toFixed(3)} CTS</strong> / {pkt.pieceCount} Pcs
+                                </span>
+                              ) : null;
+                            })()}
+                          </div>
+                        ) : (
+                          <div>
+                            <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)', display: 'block', marginBottom: '12px' }}>
+                              Stock Packet Registration Details
+                            </span>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                              <Input label="Stock Packet ID" placeholder="PKT-0001 (Auto if empty)" {...register(`items.${index}.stockIdNumber`)} />
+                              <FormSelect
+                                control={control}
+                                name={`items.${index}.category`}
+                                label="Category"
+                                options={[
+                                  { value: 'NON_CERTIFIED', label: 'Non-Certified' },
+                                  { value: 'CERTIFIED', label: 'Certified' }
+                                ]}
+                              />
+                              <Input label="Shape" placeholder="e.g. Round" {...register(`items.${index}.shape`)} />
+                              <Input label="Color" placeholder="e.g. D" {...register(`items.${index}.color`)} />
+                              <Input label="Clarity" placeholder="e.g. VS1" {...register(`items.${index}.clarity`)} />
+                              <Input label="Cut" placeholder="e.g. EX" {...register(`items.${index}.cut`)} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                              <Input label="Polish" placeholder="e.g. EX" {...register(`items.${index}.polish`)} />
+                              <Input label="Symmetry" placeholder="e.g. EX" {...register(`items.${index}.symmetry`)} />
+                              <Input label="Length (mm)" type="number" step="0.01" {...register(`items.${index}.lengthMm`, { valueAsNumber: true })} />
+                              <Input label="Width (mm)" type="number" step="0.01" {...register(`items.${index}.widthMm`, { valueAsNumber: true })} />
+                              <Input label="Depth (mm)" type="number" step="0.01" {...register(`items.${index}.depthMm`, { valueAsNumber: true })} />
+                              <Input label="Depth %" type="number" step="0.1" {...register(`items.${index}.totalDepthPct`, { valueAsNumber: true })} />
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px' }}>
+                              <Input label="Table %" type="number" step="0.1" {...register(`items.${index}.tablePct`, { valueAsNumber: true })} />
+                              <Input label="Certificate Type" placeholder="e.g. GIA" {...register(`items.${index}.certificateType`)} />
+                              <Input label="Certificate Number" placeholder="e.g. 12345" {...register(`items.${index}.certificateNumber`)} />
+                              <Input label="Image URL" placeholder="e.g. http://..." {...register(`items.${index}.imageLink`)} />
+                              <Input label="Video URL" placeholder="e.g. http://..." {...register(`items.${index}.videoLink`)} />
+                            </div>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
                   )}
-                </td>
-              </tr>
-            ))}
+                </React.Fragment>
+              );
+            })}
           </tbody>
         </table>
 

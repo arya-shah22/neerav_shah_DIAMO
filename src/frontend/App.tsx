@@ -315,10 +315,31 @@ const App: React.FC = () => {
                 <Route path="/transactions/sales/new" element={<InvoiceFormPage type="SALE_INVOICE" />} />
                 <Route path="/transactions/sales/:id" element={<InvoiceViewPage type="SALE_INVOICE" />} />
                 <Route path="/transactions/sales/:id/edit" element={<InvoiceFormPage type="SALE_INVOICE" />} />
+
+                <Route path="/transactions/sale-returns" element={<InvoiceListPage type="SALE_RETURN" />} />
+                <Route path="/transactions/sale-returns/new" element={<InvoiceFormPage type="SALE_RETURN" />} />
+                <Route path="/transactions/sale-returns/:id" element={<InvoiceViewPage type="SALE_RETURN" />} />
+                <Route path="/transactions/sale-returns/:id/edit" element={<InvoiceFormPage type="SALE_RETURN" />} />
+
+                <Route path="/transactions/sale-debit-notes" element={<InvoiceListPage type="SALE_DEBIT_NOTE" />} />
+                <Route path="/transactions/sale-debit-notes/new" element={<InvoiceFormPage type="SALE_DEBIT_NOTE" />} />
+                <Route path="/transactions/sale-debit-notes/:id" element={<InvoiceViewPage type="SALE_DEBIT_NOTE" />} />
+                <Route path="/transactions/sale-debit-notes/:id/edit" element={<InvoiceFormPage type="SALE_DEBIT_NOTE" />} />
+
                 <Route path="/transactions/purchases" element={<InvoiceListPage type="PURCHASE_INVOICE" />} />
                 <Route path="/transactions/purchases/new" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
                 <Route path="/transactions/purchases/:id" element={<InvoiceViewPage type="PURCHASE_INVOICE" />} />
                 <Route path="/transactions/purchases/:id/edit" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
+
+                <Route path="/transactions/purchase-returns" element={<InvoiceListPage type="PURCHASE_RETURN" />} />
+                <Route path="/transactions/purchase-returns/new" element={<InvoiceFormPage type="PURCHASE_RETURN" />} />
+                <Route path="/transactions/purchase-returns/:id" element={<InvoiceViewPage type="PURCHASE_RETURN" />} />
+                <Route path="/transactions/purchase-returns/:id/edit" element={<InvoiceFormPage type="PURCHASE_RETURN" />} />
+
+                <Route path="/transactions/purchase-credit-notes" element={<InvoiceListPage type="PURCHASE_DEBIT_NOTE" />} />
+                <Route path="/transactions/purchase-credit-notes/new" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
+                <Route path="/transactions/purchase-credit-notes/:id" element={<InvoiceViewPage type="PURCHASE_DEBIT_NOTE" />} />
+                <Route path="/transactions/purchase-credit-notes/:id/edit" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

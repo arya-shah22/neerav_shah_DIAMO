@@ -29,7 +29,24 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { companyId, isReady } = useActiveCompany();
-  const isSale = type === 'SALE_INVOICE';
+
+  const getInfo = () => {
+    switch (type) {
+      case 'SALE_RETURN':
+        return { label: 'Sale Return Credit Note', listRoute: '/transactions/sale-returns', editRoute: `/transactions/sale-returns/${id}/edit`, isCustomer: true };
+      case 'SALE_DEBIT_NOTE':
+        return { label: 'Sale Debit Note', listRoute: '/transactions/sale-debit-notes', editRoute: `/transactions/sale-debit-notes/${id}/edit`, isCustomer: true };
+      case 'PURCHASE_RETURN':
+        return { label: 'Purchase Return Debit Note', listRoute: '/transactions/purchase-returns', editRoute: `/transactions/purchase-returns/${id}/edit`, isCustomer: false };
+      case 'PURCHASE_DEBIT_NOTE':
+        return { label: 'Purchase Credit Note', listRoute: '/transactions/purchase-credit-notes', editRoute: `/transactions/purchase-credit-notes/${id}/edit`, isCustomer: false };
+      case 'PURCHASE_INVOICE':
+        return { label: 'Purchase Invoice', listRoute: '/transactions/purchases', editRoute: `/transactions/purchases/${id}/edit`, isCustomer: false };
+      default:
+        return { label: 'Sales Invoice', listRoute: '/transactions/sales', editRoute: `/transactions/sales/${id}/edit`, isCustomer: true };
+    }
+  };
+  const { label, listRoute, editRoute, isCustomer } = getInfo();
 
   const { data: invoice, loading, invoke: fetchInvoice } = useIpc<IInvoice>('invoice:get');
 
@@ -40,19 +57,16 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
 
   useEffect(() => { refresh(); }, [refresh]);
 
-  const listRoute = isSale ? '/transactions/sales' : '/transactions/purchases';
-  const editRoute = isSale ? `/transactions/sales/${id}/edit` : `/transactions/purchases/${id}/edit`;
-
   if (!isReady) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
 
   if (loading && !invoice) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>Loading invoice details...</p>;
+    return <p style={{ color: 'var(--color-text-secondary)' }}>Loading details...</p>;
   }
 
   if (!invoice) {
-    return <p style={{ color: 'var(--color-danger)' }}>Invoice not found.</p>;
+    return <p style={{ color: 'var(--color-danger)' }}>Transaction not found.</p>;
   }
 
   const statusVariant = invoice.status === 'APPROVED' ? 'success' : invoice.status === 'DRAFT' ? 'warning' : 'info';
@@ -72,22 +86,22 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
               <Badge variant={statusVariant}>{invoice.status}</Badge>
             </div>
             <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-              {isSale ? 'Sales Invoice' : 'Purchase Invoice'} — Bill #{invoice.billNumber}
+              {label} — Bill #{invoice.billNumber}
             </p>
           </div>
         </div>
         <Button variant="primary" onClick={() => navigate(editRoute)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Edit2 size={16} /> Edit Invoice
+          <Edit2 size={16} /> Edit Details
         </Button>
       </div>
 
       {/* Invoice Header Details */}
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
-        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>Invoice Details</h2>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>Transaction Details</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-          <DetailRow label={isSale ? 'Customer' : 'Supplier'} value={invoice.customer?.accountName} />
+          <DetailRow label={isCustomer ? 'Customer' : 'Supplier'} value={invoice.customer?.accountName} />
           <DetailRow label="Broker" value={invoice.broker?.accountName || '—'} />
-          <DetailRow label="Invoice Date" value={new Date(invoice.invoiceDate).toLocaleDateString('en-IN')} />
+          <DetailRow label="Date" value={new Date(invoice.invoiceDate).toLocaleDateString('en-IN')} />
           <DetailRow label="Due Date" value={invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-IN') : '—'} />
           <DetailRow label="GSTIN" value={invoice.customerGstin || '—'} />
           <DetailRow label="State Code" value={invoice.customerStateCode || '—'} />

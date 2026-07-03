@@ -15,7 +15,67 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { companyId, isReady } = useActiveCompany();
-  const isSale = type === 'SALE_INVOICE';
+
+  const getInfo = () => {
+    switch (type) {
+      case 'SALE_RETURN':
+        return {
+          title: 'Sale Return Credit Notes',
+          newLabel: 'New Sale Return',
+          baseRoute: '/transactions/sale-returns',
+          isCustomer: true,
+          emptyTitle: 'No Sale Returns Recorded',
+          emptyDesc: 'Create a Sale Return Credit Note to receive returned polished diamonds.',
+        };
+      case 'SALE_DEBIT_NOTE':
+        return {
+          title: 'Sale Debit Notes',
+          newLabel: 'New Sale Debit Note',
+          baseRoute: '/transactions/sale-debit-notes',
+          isCustomer: true,
+          emptyTitle: 'No Sale Debit Notes Recorded',
+          emptyDesc: 'Create a Sale Debit Note to charge price adjustments or supplementary fees.',
+        };
+      case 'PURCHASE_RETURN':
+        return {
+          title: 'Purchase Return Debit Notes',
+          newLabel: 'New Purchase Return',
+          baseRoute: '/transactions/purchase-returns',
+          isCustomer: false,
+          emptyTitle: 'No Purchase Returns Recorded',
+          emptyDesc: 'Create a Purchase Return Debit Note to log diamonds returned to supplier.',
+        };
+      case 'PURCHASE_DEBIT_NOTE':
+        return {
+          title: 'Purchase Credit Notes',
+          newLabel: 'New Purchase Credit Note',
+          baseRoute: '/transactions/purchase-credit-notes',
+          isCustomer: false,
+          emptyTitle: 'No Purchase Credit Notes Recorded',
+          emptyDesc: 'Create a Purchase Credit Note to log supplier price discounts or rate differences.',
+        };
+      case 'PURCHASE_INVOICE':
+        return {
+          title: 'Purchase Invoices',
+          newLabel: 'New Purchase',
+          baseRoute: '/transactions/purchases',
+          isCustomer: false,
+          emptyTitle: 'No Purchases Recorded',
+          emptyDesc: 'Create a Purchase parcel receipt to track inbound diamond inventory.',
+        };
+      default:
+        return {
+          title: 'Sales Invoices',
+          newLabel: 'New Sale',
+          baseRoute: '/transactions/sales',
+          isCustomer: true,
+          emptyTitle: 'No Sales Recorded',
+          emptyDesc: 'Create a polished diamond sales invoice to track outbound sales.',
+        };
+    }
+  };
+
+  const { title, newLabel, baseRoute, isCustomer, emptyTitle, emptyDesc } = getInfo();
 
   const { data: invoices, loading, invoke: fetchInvoices } = useIpc<IInvoice[]>('invoice:list');
   const { invoke: deleteInvoice } = useIpc('invoice:delete');
@@ -30,23 +90,22 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
   }, [refresh]);
 
   const handleDelete = async (id: number, voucherNumber: string) => {
-    if (!companyId || !confirm(`Permanently delete invoice "${voucherNumber}"? All ledger and stock movements will be reversed.`)) return;
+    if (!companyId || !confirm(`Permanently delete transaction "${voucherNumber}"? All ledger and stock movements will be reversed.`)) return;
     const res = await deleteInvoice({ id, companyId });
     if (res.success) {
-      showToast('Invoice deleted', 'success');
+      showToast('Transaction deleted', 'success');
       await refresh();
     } else {
       showToast(res.error || 'Delete failed', 'error');
     }
   };
 
-  const baseRoute = isSale ? '/transactions/sales' : '/transactions/purchases';
   const formRoute = `${baseRoute}/new`;
 
   const columns: Column<IInvoice>[] = [
     {
       key: 'voucherNumber',
-      header: 'INVOICE NUMBER',
+      header: 'VOUCHER NUMBER',
       sortable: true,
       render: (row) => (
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -62,7 +121,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     },
     {
       key: 'customerId',
-      header: isSale ? 'CUSTOMER' : 'SUPPLIER',
+      header: isCustomer ? 'CUSTOMER' : 'SUPPLIER',
       render: (row) => row.customer?.accountName || '—',
     },
     {
@@ -98,7 +157,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
           <Button
             variant="ghost"
             size="sm"
-            title="View Invoice"
+            title="View Details"
             onClick={() => navigate(`${baseRoute}/${row.id}`)}
             style={{ padding: '4px 6px' }}
           >
@@ -107,7 +166,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
           <Button
             variant="ghost"
             size="sm"
-            title="Edit Invoice"
+            title="Edit Details"
             onClick={() => navigate(`${baseRoute}/${row.id}/edit`)}
             style={{ padding: '4px 6px' }}
           >
@@ -116,7 +175,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
           <Button
             variant="ghost"
             size="sm"
-            title="Delete Invoice"
+            title="Delete Details"
             onClick={() => handleDelete(row.id, row.voucherNumber)}
             style={{ padding: '4px 6px' }}
           >
@@ -136,14 +195,14 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-            {isSale ? 'Sales Invoices' : 'Purchase Invoices'}
+            {title}
           </h1>
           <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)' }}>
-            Manage {isSale ? 'polished diamond sales' : 'rough diamond purchase parcels'}
+            Manage and trace {title.toLowerCase()}
           </p>
         </div>
         <Button variant="primary" onClick={() => navigate(formRoute)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Plus size={16} /> New {isSale ? 'Sale' : 'Purchase'}
+          <Plus size={16} /> {newLabel}
         </Button>
       </div>
 
@@ -152,8 +211,8 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         data={invoices || []}
         keyField="id"
         loading={loading}
-        emptyTitle={isSale ? "No Sales Recorded" : "No Purchases Recorded"}
-        emptyDescription={isSale ? "Click 'New Sale' to create your first polished diamond sales invoice." : "Click 'New Purchase' to create your first rough diamond purchase parcel receipt."}
+        emptyTitle={emptyTitle}
+        emptyDescription={emptyDesc}
       />
     </div>
   );

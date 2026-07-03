@@ -23,6 +23,8 @@ import {
   Users,
   Handshake,
   Package,
+  Undo2,
+  FileUp,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -46,7 +48,11 @@ const NAV_ITEMS: NavItem[] = [
   { path: '/masters/diamond/qualities', label: 'Qualities', icon: <Gem size={18} />, group: 'Masters' },
   { path: '/inventory/stock', label: 'Stock Inventory', icon: <Package size={18} />, group: 'Transactions' },
   { path: '/transactions/sales', label: 'Sale Book', icon: <ShoppingCart size={18} />, group: 'Transactions' },
+  { path: '/transactions/sale-returns', label: 'Sale Return Credit Note', icon: <Undo2 size={18} />, group: 'Transactions' },
+  { path: '/transactions/sale-debit-notes', label: 'Sale Debit Note', icon: <FileUp size={18} />, group: 'Transactions' },
   { path: '/transactions/purchases', label: 'Purchase Book', icon: <ShoppingBag size={18} />, group: 'Transactions' },
+  { path: '/transactions/purchase-returns', label: 'Purchase Return Debit Note', icon: <Undo2 size={18} />, group: 'Transactions' },
+  { path: '/transactions/purchase-credit-notes', label: 'Purchase Credit Note', icon: <FileUp size={18} />, group: 'Transactions' },
   { path: '/transactions/challans', label: 'Challan Book', icon: <FileText size={18} />, group: 'Transactions' },
   { path: '/transactions/jobs', label: 'Job Book', icon: <Briefcase size={18} />, group: 'Transactions' },
   { path: '/vouchers/cash-bank', label: 'Cash / Bank', icon: <Coins size={18} />, group: 'Vouchers' },

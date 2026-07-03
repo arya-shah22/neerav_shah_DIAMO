@@ -12,6 +12,44 @@ export class QualityService {
   private readonly prisma!: PrismaService;
 
   async list(companyId: number, search?: string) {
+    const defaultServices = [
+      { name: 'Rough to 4P', code: 'SRV-R4P', hsn: '9986' },
+      { name: 'Rough to Polish', code: 'SRV-RPL', hsn: '9986' },
+      { name: 'Makeable to Polish', code: 'SRV-MPL', hsn: '9986' }
+    ];
+    for (const s of defaultServices) {
+      const existing = await this.prisma.quality.findFirst({
+        where: { companyId, qualityName: s.name, isDeleted: false }
+      });
+      if (!existing) {
+        try {
+          await this.prisma.$transaction(async (tx) => {
+            const q = await tx.quality.create({
+              data: {
+                companyId,
+                qualityName: s.name,
+                itemCode: s.code,
+                hsnNumber: s.hsn,
+                uqc: UqcType.CTS,
+                isService: true,
+                status: AccountStatus.ACTIVE,
+              }
+            });
+            await tx.qualityGstHistory.create({
+              data: {
+                qualityId: q.id,
+                applyDate: new Date(),
+                gstPct: 18.00,
+                cessPct: 0
+              }
+            });
+          });
+        } catch (e) {
+          // Ignore unique constraint issues if another thread creates it concurrently
+        }
+      }
+    }
+
     return this.prisma.quality.findMany({
       where: {
         companyId,
@@ -55,9 +93,23 @@ export class QualityService {
           openingBalanceCarats: Number(data.openingBalanceCarats) || 0,
           openingBalancePcs: Number(data.openingBalancePcs) || 0,
           openingBalanceRate: Number(data.openingBalanceRate) || 0,
+          isService: Boolean(data.isService),
           status: (data.status as AccountStatus) || AccountStatus.ACTIVE,
         },
       });
+
+      if (data.hsnNumber) {
+        await tx.hsnCode.upsert({
+          where: { hsnCode: data.hsnNumber as string },
+          update: {},
+          create: {
+            hsnCode: data.hsnNumber as string,
+            description: `Custom HSN: ${data.hsnNumber}`,
+            gstPct: Number(data.gstPct) || 3.00,
+            cessPct: Number(data.cessPct) || 0
+          }
+        });
+      }
 
       if (data.gstPct != null) {
         await tx.qualityGstHistory.create({
@@ -98,6 +150,19 @@ export class QualityService {
       throw new BadRequestException('Min level cannot exceed max level');
     }
 
+    if (data.hsnNumber) {
+      await this.prisma.hsnCode.upsert({
+        where: { hsnCode: data.hsnNumber as string },
+        update: {},
+        create: {
+          hsnCode: data.hsnNumber as string,
+          description: `Custom HSN: ${data.hsnNumber}`,
+          gstPct: Number(data.gstPct) || Number(existing.gstHistory?.[0]?.gstPct) || 3.00,
+          cessPct: Number(data.cessPct) || Number(existing.gstHistory?.[0]?.cessPct) || 0
+        }
+      });
+    }
+
     return this.prisma.quality.update({
       where: { id },
       data: {
@@ -110,6 +175,7 @@ export class QualityService {
         mrp: data.mrp != null ? Number(data.mrp) : undefined,
         minLevel: data.minLevel != null ? Number(data.minLevel) : undefined,
         maxLevel: data.maxLevel != null ? Number(data.maxLevel) : undefined,
+        isService: data.isService != null ? Boolean(data.isService) : undefined,
         status: data.status as AccountStatus,
         version: { increment: 1 },
       },

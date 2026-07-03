@@ -37,5 +37,6 @@ export interface IQuality {
   openingBalancePcs: number;
   openingBalanceRate: number;
   status: AccountStatus;
+  isService?: boolean;
   gstHistory?: IQualityGstHistory[];
 }

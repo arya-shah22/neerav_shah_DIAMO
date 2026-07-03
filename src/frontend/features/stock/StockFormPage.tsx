@@ -82,7 +82,9 @@ export const StockFormPage: React.FC = () => {
   useEffect(() => {
     if (!companyId) return;
     fetchQualities({ companyId }).then((res) => {
-      if (res.success && res.data) setQualities(res.data);
+      if (res.success && res.data) {
+        setQualities(res.data.filter((q) => !q.isService));
+      }
     });
     loadShapes();
   }, [companyId, fetchQualities, loadShapes]);

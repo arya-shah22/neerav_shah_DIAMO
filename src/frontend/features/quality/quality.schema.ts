@@ -16,6 +16,7 @@ export const qualitySchema = z.object({
   status: z.enum(['ACTIVE', 'INACTIVE', 'BLOCKED']).default('ACTIVE'),
   gstPct: z.number().min(0).max(100).optional(),
   cessPct: z.number().min(0).max(100).default(0),
+  isService: z.boolean().default(false),
 });
 
 export type QualityFormData = z.infer<typeof qualitySchema>;
