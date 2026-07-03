@@ -27,6 +27,7 @@ export class AccountService {
       include: {
         accountGroup: { select: { id: true, groupName: true, nature: true } },
         brokerProfile: true,
+        broker: { select: { id: true, accountName: true } },
       },
     });
   }
@@ -58,25 +59,89 @@ export class AccountService {
       include: {
         accountGroup: { select: { id: true, groupName: true, nature: true } },
         brokerProfile: true,
+        broker: { select: { id: true, accountName: true } },
       },
     });
     if (!account) throw new BadRequestException('Account not found');
     return account;
   }
 
-  async create(companyId: number, data: Record<string, unknown>) {
-    await this.validateUniqueName(companyId, data.accountName as string);
-    await this.validateGroup(companyId, data.accountGroupId as number);
+  async create(companyId: number, data: Record<string, any>) {
+    const addAllFirms = Boolean(data.addAllFirms);
+    const targetCompanyIds = Array.isArray(data.targetCompanyIds) ? data.targetCompanyIds.map(Number) : [];
 
-    return this.prisma.account.create({
-      data: this.mapAccountData(companyId, data),
-      include: {
-        accountGroup: { select: { id: true, groupName: true } },
-      },
+    // Get the name of the selected account group to match across other companies
+    const currentGroup = await this.prisma.accountGroup.findFirst({
+      where: { id: Number(data.accountGroupId), companyId, isDeleted: false },
     });
+    if (!currentGroup) throw new BadRequestException('Selected Account Group not found');
+
+    let companiesToProcess = [companyId];
+    if (addAllFirms) {
+      const allCompanies = await this.prisma.company.findMany({
+        where: { isDeleted: false },
+        select: { id: true },
+      });
+      companiesToProcess = allCompanies.map((c) => c.id);
+    } else if (targetCompanyIds.length > 0) {
+      companiesToProcess = Array.from(new Set([companyId, ...targetCompanyIds]));
+    }
+
+    let primaryAccount = null;
+
+    for (const targetCoId of companiesToProcess) {
+      let targetGroupId = Number(data.accountGroupId);
+
+      // Find matching group in the target company by name
+      if (targetCoId !== companyId) {
+        const targetGroup = await this.prisma.accountGroup.findFirst({
+          where: { companyId: targetCoId, groupName: currentGroup.groupName, isDeleted: false },
+        });
+        if (!targetGroup) {
+          console.warn(`Group ${currentGroup.groupName} not found in company ${targetCoId}, skipping creation`);
+          continue;
+        }
+        targetGroupId = targetGroup.id;
+      }
+
+      // Check if account name is unique in this target company
+      const dup = await this.prisma.account.findFirst({
+        where: { companyId: targetCoId, accountName: (data.accountName as string).trim(), isDeleted: false },
+      });
+      if (dup) {
+        console.warn(`Account ${(data.accountName as string).trim()} already exists in company ${targetCoId}, skipping`);
+        if (targetCoId === companyId) {
+          primaryAccount = dup;
+        }
+        continue;
+      }
+
+      const accData = {
+        ...this.mapAccountFields({ ...data, accountGroupId: targetGroupId }),
+        companyId: targetCoId,
+        isBroker: Boolean(data.isBroker) || false,
+      };
+
+      const created = await this.prisma.account.create({
+        data: accData,
+        include: {
+          accountGroup: { select: { id: true, groupName: true } },
+        },
+      });
+
+      if (targetCoId === companyId) {
+        primaryAccount = created;
+      }
+    }
+
+    if (!primaryAccount) {
+      throw new BadRequestException('Account already exists or failed to create in the active company');
+    }
+
+    return primaryAccount;
   }
 
-  async update(id: number, companyId: number, data: Record<string, unknown>) {
+  async update(id: number, companyId: number, data: Record<string, any>) {
     const existing = await this.get(id, companyId);
 
     if (data.accountName && data.accountName !== existing.accountName) {
@@ -96,6 +161,18 @@ export class AccountService {
         accountGroup: { select: { id: true, groupName: true } },
         brokerProfile: true,
       },
+    });
+  }
+
+  async updateStatus(id: number, companyId: number, status: AccountStatus) {
+    const existing = await this.prisma.account.findFirst({
+      where: { id, companyId, isDeleted: false },
+    });
+    if (!existing) throw new BadRequestException('Account not found');
+
+    return this.prisma.account.update({
+      where: { id },
+      data: { status },
     });
   }
 
@@ -136,15 +213,7 @@ export class AccountService {
     if (!group) throw new BadRequestException('Invalid account group');
   }
 
-  private mapAccountData(companyId: number, data: Record<string, unknown>) {
-    return {
-      companyId,
-      ...this.mapAccountFields(data),
-      isBroker: Boolean(data.isBroker) || false,
-    };
-  }
-
-  private mapAccountFields(data: Record<string, unknown>) {
+  private mapAccountFields(data: Record<string, any>) {
     return {
       accountGroupId: data.accountGroupId as number,
       accountName: data.accountName as string,
@@ -154,6 +223,8 @@ export class AccountService {
       gstinNumber: (data.gstinNumber as string) || null,
       panNumber: (data.panNumber as string) || null,
       gstRegType: (data.gstRegType as GstRegType) || null,
+      gstPct: data.gstPct != null ? Number(data.gstPct) : null,
+      brokerId: data.brokerId ? Number(data.brokerId) : null,
       udyamMsme: (data.udyamMsme as string) || null,
       tdsLedgerId: data.tdsLedgerId ? Number(data.tdsLedgerId) : null,
       tdsPct: data.tdsPct != null ? Number(data.tdsPct) : null,

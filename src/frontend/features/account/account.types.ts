@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 export type AccountStatus = 'ACTIVE' | 'INACTIVE' | 'BLOCKED';
-export type GstRegType = 'REGULAR' | 'COMPOSITION' | 'UNREGISTERED' | 'SEZ' | 'DEEMED_EXPORT';
+export type GstRegType = 'REGISTERED' | 'COMPOSITION' | 'UNREGISTERED' | 'SEZ_DEVELOPER' | 'SEZ_UNIT';
 export type DebitCreditType = 'DEBIT' | 'CREDIT';
 
 export interface IAccountGroupRef {
@@ -23,6 +23,8 @@ export interface IAccount {
   gstinNumber: string | null;
   panNumber: string | null;
   gstRegType: GstRegType | null;
+  gstPct: number | null;
+  brokerId: number | null;
   udyamMsme: string | null;
   tdsLedgerId: number | null;
   tdsPct: number | null;

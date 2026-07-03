@@ -24,6 +24,7 @@ export const CompanyListPage: React.FC = () => {
 
   const { data: companies, loading, invoke: fetchCompanies } = useIpc<ICompany[]>('company:list');
   const { invoke: deleteCompany } = useIpc<void>('company:delete');
+  const { invoke: updateCompany } = useIpc<any>('company:update');
 
   const refresh = useCallback(async () => {
     const res = await fetchCompanies();
@@ -46,6 +47,18 @@ export const CompanyListPage: React.FC = () => {
       await loadCompanyContext();
     } else {
       showToast(res.error || 'Failed to delete company', 'error');
+    }
+  };
+
+  const handleToggleStatus = async (row: ICompany) => {
+    const newStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const res = await updateCompany({ id: row.id, data: { ...row, status: newStatus } });
+    if (res.success) {
+      showToast(`Status updated to ${newStatus}`, 'success');
+      await refresh();
+      await loadCompanyContext();
+    } else {
+      showToast(res.error || 'Failed to update status', 'error');
     }
   };
 
@@ -91,7 +104,19 @@ export const CompanyListPage: React.FC = () => {
       sortable: true,
       render: (row) => {
         const variant = row.status === 'ACTIVE' ? 'success' : row.status === 'INACTIVE' ? 'warning' : 'danger';
-        return <Badge variant={variant}>{row.status}</Badge>;
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleStatus(row);
+            }}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            title="Click to toggle status"
+          >
+            <Badge variant={variant}>{row.status}</Badge>
+          </button>
+        );
       },
     },
     {

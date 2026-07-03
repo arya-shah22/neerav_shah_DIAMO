@@ -58,6 +58,15 @@ export class AccountController {
     }
   }
 
+  async handleUpdateStatus(payload: { id: number; companyId: number; status: any }): Promise<IApiResponse> {
+    try {
+      const data = await this.service.updateStatus(payload.id, payload.companyId, payload.status);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to update status') };
+    }
+  }
+
   async handleDelete(payload: { id: number; companyId: number }): Promise<IApiResponse> {
     try {
       await this.service.delete(payload.id, payload.companyId);

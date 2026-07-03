@@ -89,6 +89,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'account:get', (payload) => accountController.handleGet(payload));
   ipcHandle(ipcMain, 'account:create', (payload) => accountController.handleCreate(payload));
   ipcHandle(ipcMain, 'account:update', (payload) => accountController.handleUpdate(payload));
+  ipcHandle(ipcMain, 'account:update-status', (payload) => accountController.handleUpdateStatus(payload));
   ipcHandle(ipcMain, 'account:delete', (payload) => accountController.handleDelete(payload));
 
   // ─── Stage 2: Broker ─────────────────────────────────────

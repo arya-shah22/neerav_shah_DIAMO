@@ -479,6 +479,8 @@ model Account {
   udyamMsme         String?        @map("udyam_msme") @db.VarChar(30)
   tdsLedgerId       Int?           @map("tds_ledger_id") @db.UnsignedInt
   tdsPct            Decimal?       @map("tds_pct") @db.Decimal(5, 2)
+  gstPct            Decimal?       @map("gst_pct") @db.Decimal(5, 2)
+  brokerId          Int?           @map("broker_id") @db.UnsignedInt
 
   // Credit Terms
   creditDays        Int            @default(0) @map("credit_days") @db.UnsignedInt
@@ -521,6 +523,8 @@ model Account {
   company           Company        @relation(fields: [companyId], references: [id])
   accountGroup      AccountGroup   @relation(fields: [accountGroupId], references: [id])
   brokerProfile     BrokerProfile?
+  broker            Account?       @relation("AccountBroker", fields: [brokerId], references: [id])
+  referredAccounts  Account[]      @relation("AccountBroker")
 
   // Transaction Relations (as customer/supplier/party)
   saleInvoicesAsCustomer    SaleInvoice[]    @relation("CustomerOnSale")
