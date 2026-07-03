@@ -46,7 +46,7 @@ export function FormSelect<T extends FieldValues>({
         <Select
           label={label}
           options={options}
-          value={toString(field.value)}
+          value={toString(field.value) || (name === 'status' ? 'ACTIVE' : '')}
           onChange={(next) => field.onChange(toValue(next))}
           placeholder={placeholder}
           error={error}
