@@ -76,6 +76,9 @@ export class AccountService {
     });
     if (!currentGroup) throw new BadRequestException('Selected Account Group not found');
 
+    // Auto-detect if this is a broker based on group name
+    const isBroker = currentGroup.groupName === 'Brokers';
+
     let companiesToProcess = [companyId];
     if (addAllFirms) {
       const allCompanies = await this.prisma.company.findMany({
@@ -119,7 +122,7 @@ export class AccountService {
       const accData = {
         ...this.mapAccountFields({ ...data, accountGroupId: targetGroupId }),
         companyId: targetCoId,
-        isBroker: Boolean(data.isBroker) || false,
+        isBroker,
       };
 
       const created = await this.prisma.account.create({
@@ -128,6 +131,17 @@ export class AccountService {
           accountGroup: { select: { id: true, groupName: true } },
         },
       });
+
+      if (isBroker) {
+        await this.prisma.brokerProfile.create({
+          data: {
+            accountId: created.id,
+            brokeragePct: 0,
+            addLess: 'LESS',
+            tdsPct: 5,
+          },
+        });
+      }
 
       if (targetCoId === companyId) {
         primaryAccount = created;
@@ -151,10 +165,30 @@ export class AccountService {
       await this.validateGroup(companyId, data.accountGroupId as number);
     }
 
+    // Auto-detect isBroker based on updated group
+    const currentGroup = await this.prisma.accountGroup.findFirst({
+      where: { id: Number(data.accountGroupId || existing.accountGroupId), companyId, isDeleted: false },
+    });
+    const isBroker = currentGroup ? currentGroup.groupName === 'Brokers' : existing.isBroker;
+
+    if (isBroker) {
+      await this.prisma.brokerProfile.upsert({
+        where: { accountId: id },
+        create: {
+          accountId: id,
+          brokeragePct: 0,
+          addLess: 'LESS',
+          tdsPct: 5,
+        },
+        update: {},
+      });
+    }
+
     return this.prisma.account.update({
       where: { id },
       data: {
         ...this.mapAccountFields(data),
+        isBroker,
         version: { increment: 1 },
       },
       include: {
@@ -219,7 +253,6 @@ export class AccountService {
       accountName: data.accountName as string,
       printName: (data.printName as string) || null,
       status: (data.status as AccountStatus) || AccountStatus.ACTIVE,
-      isBroker: Boolean(data.isBroker),
       gstinNumber: (data.gstinNumber as string) || null,
       panNumber: (data.panNumber as string) || null,
       gstRegType: (data.gstRegType as GstRegType) || null,
