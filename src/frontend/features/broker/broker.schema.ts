@@ -13,13 +13,15 @@ export const brokerSchema = z.object({
   stateCode: z.string().max(2).optional().or(z.literal('')),
   pincode: z.string().max(10).optional().or(z.literal('')),
   mobile: z.string().max(15).optional().or(z.literal('')),
-  email: z.string().email('Invalid email').optional().or(z.literal('')),
+  email: z.string().email('Invalid email').optional().or(z.literal('')).nullable().transform(val => val === '' ? null : val),
   bankAccountNumber: z.string().max(30).optional().or(z.literal('')),
   bankName: z.string().max(100).optional().or(z.literal('')),
   bankIfsc: z.string().max(11).optional().or(z.literal('')),
   brokeragePct: z.number().min(0).max(100).default(0),
   addLess: z.enum(['ADD', 'LESS']).default('LESS'),
   tdsPct: z.number().min(0).max(100).default(5),
+  addAllFirms: z.boolean().default(true),
+  targetCompanyIds: z.array(z.number()).optional().default([]),
 });
 
 export type BrokerFormData = z.infer<typeof brokerSchema>;

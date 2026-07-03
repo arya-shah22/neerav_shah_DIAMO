@@ -70,61 +70,97 @@ export class BrokerService {
     return brokersGroup.id;
   }
 
-  async create(companyId: number, data: Record<string, unknown>) {
+  async create(companyId: number, data: Record<string, any>) {
     const accountName = String(data.accountName ?? '').trim();
     if (!accountName) {
       throw new BadRequestException('Broker name is required');
     }
 
-    await this.accountService.assertAccountNameAvailable(companyId, accountName);
+    const addAllFirms = Boolean(data.addAllFirms);
+    const targetCompanyIds = Array.isArray(data.targetCompanyIds) ? data.targetCompanyIds.map(Number) : [];
 
-    const accountGroupId = data.accountGroupId
-      ? Number(data.accountGroupId)
-      : await this.resolveBrokersGroupId(companyId);
+    let companiesToProcess = [companyId];
+    if (addAllFirms) {
+      const allCompanies = await this.prisma.company.findMany({
+        where: { isDeleted: false },
+        select: { id: true },
+      });
+      companiesToProcess = allCompanies.map((c) => c.id);
+    } else if (targetCompanyIds.length > 0) {
+      companiesToProcess = Array.from(new Set([companyId, ...targetCompanyIds]));
+    }
 
-    return this.prisma.$transaction(async (tx) => {
-      const account = await tx.account.create({
-        data: {
-          companyId,
-          accountGroupId,
-          accountName,
-          printName: emptyToNull(data.printName),
-          status: (data.status as 'ACTIVE') || 'ACTIVE',
-          isBroker: true,
-          gstinNumber: emptyToNull(data.gstinNumber),
-          panNumber: emptyToNull(data.panNumber),
-          creditDays: Number(data.creditDays) || 0,
-          creditLimit: Number(data.creditLimit) || 0,
-          addressLine1: emptyToNull(data.addressLine1),
-          addressLine2: emptyToNull(data.addressLine2),
-          city: emptyToNull(data.city),
-          stateCode: emptyToNull(data.stateCode),
-          pincode: emptyToNull(data.pincode),
-          mobile: emptyToNull(data.mobile),
-          phone: emptyToNull(data.phone),
-          email: emptyToNull(data.email),
-          bankAccountNumber: emptyToNull(data.bankAccountNumber),
-          bankName: emptyToNull(data.bankName),
-          bankBranch: emptyToNull(data.bankBranch),
-          bankIfsc: emptyToNull(data.bankIfsc),
-        },
+    let primaryAccount = null;
+
+    for (const targetCoId of companiesToProcess) {
+      const accountGroupId = await this.resolveBrokersGroupId(targetCoId);
+
+      // Check if account name is unique in this company
+      const dup = await this.prisma.account.findFirst({
+        where: { companyId: targetCoId, accountName, isDeleted: false },
+      });
+      if (dup) {
+        console.warn(`Broker "${accountName}" already exists in company ${targetCoId}, skipping creation`);
+        if (targetCoId === companyId) {
+          primaryAccount = dup;
+        }
+        continue;
+      }
+
+      const created = await this.prisma.$transaction(async (tx) => {
+        const account = await tx.account.create({
+          data: {
+            companyId: targetCoId,
+            accountGroupId,
+            accountName,
+            printName: emptyToNull(data.printName),
+            status: (data.status as 'ACTIVE') || 'ACTIVE',
+            isBroker: true,
+            gstinNumber: emptyToNull(data.gstinNumber),
+            panNumber: emptyToNull(data.panNumber),
+            creditDays: Number(data.creditDays) || 0,
+            creditLimit: Number(data.creditLimit) || 0,
+            addressLine1: emptyToNull(data.addressLine1),
+            addressLine2: emptyToNull(data.addressLine2),
+            city: emptyToNull(data.city),
+            stateCode: emptyToNull(data.stateCode),
+            pincode: emptyToNull(data.pincode),
+            mobile: emptyToNull(data.mobile),
+            phone: emptyToNull(data.phone),
+            email: emptyToNull(data.email),
+            bankAccountNumber: emptyToNull(data.bankAccountNumber),
+            bankName: emptyToNull(data.bankName),
+            bankBranch: emptyToNull(data.bankBranch),
+            bankIfsc: emptyToNull(data.bankIfsc),
+          },
+        });
+
+        await tx.brokerProfile.create({
+          data: {
+            accountId: account.id,
+            brokeragePct: Number(data.brokeragePct) || 0,
+            addLess: (data.addLess as AddLessType) || AddLessType.LESS,
+            tdsLedgerId: data.tdsLedgerId ? Number(data.tdsLedgerId) : null,
+            tdsPct: data.tdsPct != null ? Number(data.tdsPct) : 5,
+          },
+        });
+
+        return tx.account.findUnique({
+          where: { id: account.id },
+          include: { accountGroup: true, brokerProfile: true },
+        });
       });
 
-      await tx.brokerProfile.create({
-        data: {
-          accountId: account.id,
-          brokeragePct: Number(data.brokeragePct) || 0,
-          addLess: (data.addLess as AddLessType) || AddLessType.LESS,
-          tdsLedgerId: data.tdsLedgerId ? Number(data.tdsLedgerId) : null,
-          tdsPct: data.tdsPct != null ? Number(data.tdsPct) : 5,
-        },
-      });
+      if (targetCoId === companyId) {
+        primaryAccount = created;
+      }
+    }
 
-      return tx.account.findUnique({
-        where: { id: account.id },
-        include: { accountGroup: true, brokerProfile: true },
-      });
-    });
+    if (!primaryAccount) {
+      throw new BadRequestException('Broker already exists or failed to create in the active company');
+    }
+
+    return primaryAccount;
   }
 
   async update(id: number, companyId: number, data: Record<string, unknown>) {

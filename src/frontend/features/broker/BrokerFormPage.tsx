@@ -20,18 +20,28 @@ interface StateCodeObj {
   stateName: string;
 }
 
+interface CompanyObj {
+  id: number;
+  companyName: string;
+}
+
 export const BrokerFormPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { companyId, isReady } = useActiveCompany();
   const isEdit = !!id;
+
   const [statesList, setStatesList] = useState<StateCodeObj[]>([]);
+  const [companies, setCompanies] = useState<CompanyObj[]>([]);
+  const [addAllFirms, setAddAllFirms] = useState(true);
+  const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
 
   const { invoke: fetchBroker } = useIpc<IBroker>('broker:get');
   const { invoke: createBroker, loading: creating } = useIpc('broker:create');
   const { invoke: updateBroker, loading: updating } = useIpc('broker:update');
   const { invoke: fetchStates } = useIpc<StateCodeObj[]>('company:states');
+  const { invoke: fetchCompanies } = useIpc<CompanyObj[]>('company:list');
 
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm<BrokerFormData>({
     resolver: zodResolver(brokerSchema),
@@ -55,14 +65,21 @@ export const BrokerFormPage: React.FC = () => {
       brokeragePct: 0,
       addLess: 'LESS',
       tdsPct: 5,
+      addAllFirms: true,
+      targetCompanyIds: [],
     },
   });
 
   useEffect(() => {
     if (!companyId) return;
     const load = async () => {
-      const statesRes = await fetchStates();
+      const [statesRes, companiesRes] = await Promise.all([
+        fetchStates(),
+        fetchCompanies(),
+      ]);
+
       if (statesRes.success && statesRes.data) setStatesList(statesRes.data);
+      if (companiesRes.success && companiesRes.data) setCompanies(companiesRes.data);
 
       if (isEdit && id) {
         const res = await fetchBroker({ id: Number(id), companyId });
@@ -88,18 +105,34 @@ export const BrokerFormPage: React.FC = () => {
             brokeragePct: b.brokerProfile?.brokeragePct ?? 0,
             addLess: b.brokerProfile?.addLess || 'LESS',
             tdsPct: b.brokerProfile?.tdsPct ?? 5,
+            addAllFirms: false,
+            targetCompanyIds: [],
           });
         }
       }
     };
     load();
-  }, [companyId, id, isEdit, fetchBroker, fetchStates, reset]);
+  }, [companyId, id, isEdit, fetchBroker, fetchStates, fetchCompanies, reset]);
+
+  const toggleCompanySelection = (id: number) => {
+    setSelectedCompanies((prev) =>
+      prev.includes(id) ? prev.filter((coId) => coId !== id) : [...prev, id]
+    );
+  };
 
   const onSubmit = async (data: BrokerFormData) => {
     if (!companyId) return;
+
+    const submissionData = {
+      ...data,
+      addAllFirms: isEdit ? false : addAllFirms,
+      targetCompanyIds: isEdit ? [] : selectedCompanies,
+    };
+
     const res = isEdit
-      ? await updateBroker({ id: Number(id), companyId, data })
-      : await createBroker({ companyId, data });
+      ? await updateBroker({ id: Number(id), companyId, data: submissionData })
+      : await createBroker({ companyId, data: submissionData });
+
     if (res.success) {
       showToast(isEdit ? 'Broker updated' : 'Broker created', 'success');
       navigate(LIST_ROUTE);
@@ -147,6 +180,68 @@ export const BrokerFormPage: React.FC = () => {
           <Input label="PAN" {...register('panNumber')} />
         </div>
 
+        {/* MULTI-FIRM/COMPANY ASSIGNMENT */}
+        {!isEdit && (
+          <>
+            <div style={{ borderTop: '1px solid var(--color-border)', margin: '24px 0' }} />
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Firm Assignment</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <input
+                  type="checkbox"
+                  id="addAllFirms"
+                  checked={addAllFirms}
+                  onChange={(e) => {
+                    setAddAllFirms(e.target.checked);
+                    if (e.target.checked) setSelectedCompanies([]);
+                  }}
+                  style={{ width: '16px', height: '16px', accentColor: 'var(--color-accent)' }}
+                />
+                <label htmlFor="addAllFirms" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                  Add this broker in all firms / companies (Auto-Tick)
+                </label>
+              </div>
+
+              {!addAllFirms && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', paddingLeft: '24px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>
+                    Select Companies to add this Broker to:
+                  </span>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                    {companies.map((c) => {
+                      const isActive = c.id === companyId;
+                      return (
+                        <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <input
+                            type="checkbox"
+                            id={`co-${c.id}`}
+                            checked={isActive || selectedCompanies.includes(c.id)}
+                            disabled={isActive}
+                            onChange={() => toggleCompanySelection(c.id)}
+                            style={{ width: '14px', height: '14px' }}
+                          />
+                          <label
+                            htmlFor={`co-${c.id}`}
+                            style={{
+                              fontSize: '14px',
+                              color: isActive ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                              fontWeight: isActive ? 600 : 400
+                            }}
+                          >
+                            {c.companyName} {isActive && '(Current)'}
+                          </label>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        <div style={{ borderTop: '1px solid var(--color-border)', margin: '24px 0' }} />
+
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Brokerage & TDS</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Brokerage %" type="number" step="0.01" {...register('brokeragePct', { valueAsNumber: true })} />
@@ -163,6 +258,8 @@ export const BrokerFormPage: React.FC = () => {
           />
           <Input label="TDS %" type="number" step="0.01" {...register('tdsPct', { valueAsNumber: true })} />
         </div>
+
+        <div style={{ borderTop: '1px solid var(--color-border)', margin: '24px 0' }} />
 
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Address & Bank</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>

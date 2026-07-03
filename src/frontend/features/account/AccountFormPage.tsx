@@ -263,22 +263,31 @@ export const AccountFormPage: React.FC = () => {
                         Select Companies to add this Account to:
                       </span>
                       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
-                        {companies
-                          .filter((c) => c.id !== companyId)
-                          .map((c) => (
+                        {companies.map((c) => {
+                          const isActive = c.id === companyId;
+                          return (
                             <div key={c.id} style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                               <input
                                 type="checkbox"
                                 id={`co-${c.id}`}
-                                checked={selectedCompanies.includes(c.id)}
+                                checked={isActive || selectedCompanies.includes(c.id)}
+                                disabled={isActive}
                                 onChange={() => toggleCompanySelection(c.id)}
                                 style={{ width: '14px', height: '14px' }}
                               />
-                              <label htmlFor={`co-${c.id}`} style={{ fontSize: '14px', color: 'var(--color-text-primary)' }}>
-                                {c.companyName}
+                              <label
+                                htmlFor={`co-${c.id}`}
+                                style={{
+                                  fontSize: '14px',
+                                  color: isActive ? 'var(--color-text-secondary)' : 'var(--color-text-primary)',
+                                  fontWeight: isActive ? 600 : 400
+                                }}
+                              >
+                                {c.companyName} {isActive && '(Current)'}
                               </label>
                             </div>
-                          ))}
+                          );
+                        })}
                       </div>
                     </div>
                   )}
