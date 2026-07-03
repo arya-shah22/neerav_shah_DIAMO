@@ -16,7 +16,7 @@ export const accountSchema = z.object({
   addressLine1: z.string().max(200).optional().or(z.literal('')),
   addressLine2: z.string().max(200).optional().or(z.literal('')),
   city: z.string().max(100).optional().or(z.literal('')),
-  stateCode: z.string().max(2).optional().or(z.literal('')),
+  stateCode: z.string().max(100).optional().or(z.literal('')),
   pincode: z.string().max(10).optional().or(z.literal('')),
   country: z.string().max(50).default('India'),
   mobile: z.string().max(15).optional().or(z.literal('')),

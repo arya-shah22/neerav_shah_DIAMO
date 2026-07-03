@@ -8,6 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { AccountService } from '../account/account.service';
 import { AccountGroupService } from '../account-group/account-group.service';
 import { AddLessType } from '@prisma/client';
+import { findOrCreateStateCode } from '../../utils/state-resolver';
 
 function emptyToNull(value: unknown): string | null {
   if (value == null) return null;
@@ -78,6 +79,11 @@ export class BrokerService {
 
     const addAllFirms = Boolean(data.addAllFirms);
     const targetCompanyIds = Array.isArray(data.targetCompanyIds) ? data.targetCompanyIds.map(Number) : [];
+
+    // Resolve state name to state code if custom name is provided
+    if (data.stateCode) {
+      data.stateCode = await findOrCreateStateCode(this.prisma, data.stateCode);
+    }
 
     let companiesToProcess = [companyId];
     if (addAllFirms) {
@@ -165,6 +171,12 @@ export class BrokerService {
 
   async update(id: number, companyId: number, data: Record<string, unknown>) {
     const existing = await this.get(id, companyId);
+    
+    // Resolve state name to state code if custom name is provided
+    if (data.stateCode) {
+      data.stateCode = await findOrCreateStateCode(this.prisma, String(data.stateCode));
+    }
+
     const accountName = data.accountName ? String(data.accountName).trim() : existing.accountName;
 
     if (accountName !== existing.accountName) {

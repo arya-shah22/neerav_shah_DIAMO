@@ -6,6 +6,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AccountStatus, GstRegType, DebitCreditType } from '@prisma/client';
 import { hardDeleteAccount } from '../../utils/hard-delete';
+import { findOrCreateStateCode } from '../../utils/state-resolver';
 
 @Injectable()
 export class AccountService {
@@ -69,6 +70,11 @@ export class AccountService {
   async create(companyId: number, data: Record<string, any>) {
     const addAllFirms = Boolean(data.addAllFirms);
     const targetCompanyIds = Array.isArray(data.targetCompanyIds) ? data.targetCompanyIds.map(Number) : [];
+
+    // Resolve state name to state code if custom name is provided
+    if (data.stateCode) {
+      data.stateCode = await findOrCreateStateCode(this.prisma, data.stateCode);
+    }
 
     // Get the name of the selected account group to match across other companies
     const currentGroup = await this.prisma.accountGroup.findFirst({
@@ -157,6 +163,11 @@ export class AccountService {
 
   async update(id: number, companyId: number, data: Record<string, any>) {
     const existing = await this.get(id, companyId);
+
+    // Resolve state name to state code if custom name is provided
+    if (data.stateCode) {
+      data.stateCode = await findOrCreateStateCode(this.prisma, data.stateCode);
+    }
 
     if (data.accountName && data.accountName !== existing.accountName) {
       await this.validateUniqueName(companyId, data.accountName as string, id);

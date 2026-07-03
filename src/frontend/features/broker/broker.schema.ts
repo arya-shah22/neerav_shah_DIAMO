@@ -10,7 +10,7 @@ export const brokerSchema = z.object({
   creditLimit: z.number().min(0).default(0),
   addressLine1: z.string().max(200).optional().or(z.literal('')),
   city: z.string().max(100).optional().or(z.literal('')),
-  stateCode: z.string().max(2).optional().or(z.literal('')),
+  stateCode: z.string().max(100).optional().or(z.literal('')),
   pincode: z.string().max(10).optional().or(z.literal('')),
   mobile: z.string().max(15).optional().or(z.literal('')),
   email: z.string().email('Invalid email').optional().or(z.literal('')).nullable().transform(val => val === '' ? null : val),

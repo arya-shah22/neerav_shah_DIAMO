@@ -92,7 +92,7 @@ export const companySchema = z.object({
     .transform((val) => val || null),
   stateCode: z
     .string()
-    .max(2)
+    .max(100)
     .nullable()
     .optional()
     .or(z.literal(''))

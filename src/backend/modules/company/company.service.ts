@@ -6,6 +6,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CompanyStatus } from '@prisma/client';
 import { AccountGroupService } from '../account-group/account-group.service';
+import { findOrCreateStateCode } from '../../utils/state-resolver';
 import { assertCompanyCanBeDeleted, hardDeleteCompanyMasters } from '../../utils/hard-delete';
 
 @Injectable()
@@ -67,6 +68,11 @@ export class CompanyService {
         where: { isDefault: true },
         data: { isDefault: false },
       });
+    }
+
+    // Resolve state name to state code if custom name is provided
+    if (data.stateCode) {
+      data.stateCode = await findOrCreateStateCode(this.prisma, data.stateCode);
     }
 
     const company = await this.prisma.company.create({
@@ -133,6 +139,11 @@ export class CompanyService {
         where: { id: { not: id }, isDefault: true },
         data: { isDefault: false },
       });
+    }
+
+    // Resolve state name to state code if custom name is provided
+    if (data.stateCode) {
+      data.stateCode = await findOrCreateStateCode(this.prisma, String(data.stateCode));
     }
 
     return this.prisma.company.update({
