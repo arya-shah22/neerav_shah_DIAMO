@@ -36,8 +36,13 @@ export function FormSelect<T extends FieldValues>({
   maxVisibleItems = 10,
   creatable = false,
   toValue = (v) => v,
-  toString = (v) => (v == null || v === '' ? '' : String(v)),
+  toString,
 }: FormSelectProps<T>) {
+  const stringify =
+    toString && toString !== Object.prototype.toString
+      ? toString
+      : (v: unknown) => (v == null || v === '' ? '' : String(v));
+
   return (
     <Controller
       control={control}
@@ -46,7 +51,7 @@ export function FormSelect<T extends FieldValues>({
         <Select
           label={label}
           options={options}
-          value={toString(field.value) || (name === 'status' ? 'ACTIVE' : '')}
+          value={stringify(field.value) || (name === 'status' ? 'ACTIVE' : '')}
           onChange={(next) => field.onChange(toValue(next))}
           placeholder={placeholder}
           error={error}
