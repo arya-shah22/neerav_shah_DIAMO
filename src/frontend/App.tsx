@@ -17,6 +17,7 @@ import { BrokerListPage, BrokerFormPage } from './features/broker';
 import { QualityListPage, QualityFormPage } from './features/quality';
 import { StockListPage, StockFormPage, StockDetailPage } from './features/stock';
 import { InvoiceListPage, InvoiceFormPage, InvoiceViewPage } from './features/invoice';
+import { ChallanListPage, ChallanFormPage } from './features/challan';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -340,6 +341,27 @@ const App: React.FC = () => {
                 <Route path="/transactions/purchase-credit-notes/new" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
                 <Route path="/transactions/purchase-credit-notes/:id" element={<InvoiceViewPage type="PURCHASE_DEBIT_NOTE" />} />
                 <Route path="/transactions/purchase-credit-notes/:id/edit" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
+
+                {/* Stage 6: Challan and Order Books */}
+                <Route path="/transactions/challans/trading" element={<ChallanListPage purpose="TRADING_JHANGHAD" />} />
+                <Route path="/transactions/challans/trading/new" element={<ChallanFormPage purpose="TRADING_JHANGHAD" />} />
+                <Route path="/transactions/challans/trading/:id" element={<ChallanFormPage purpose="TRADING_JHANGHAD" viewMode />} />
+                <Route path="/transactions/challans/trading/:id/edit" element={<ChallanFormPage purpose="TRADING_JHANGHAD" />} />
+
+                <Route path="/transactions/challans/job-work" element={<ChallanListPage purpose="JOB_WORK" />} />
+                <Route path="/transactions/challans/job-work/new" element={<ChallanFormPage purpose="JOB_WORK" />} />
+                <Route path="/transactions/challans/job-work/:id" element={<ChallanFormPage purpose="JOB_WORK" viewMode />} />
+                <Route path="/transactions/challans/job-work/:id/edit" element={<ChallanFormPage purpose="JOB_WORK" />} />
+
+                <Route path="/transactions/orders/sales" element={<ChallanListPage purpose="SALE_ORDER" />} />
+                <Route path="/transactions/orders/sales/new" element={<ChallanFormPage purpose="SALE_ORDER" />} />
+                <Route path="/transactions/orders/sales/:id" element={<ChallanFormPage purpose="SALE_ORDER" viewMode />} />
+                <Route path="/transactions/orders/sales/:id/edit" element={<ChallanFormPage purpose="SALE_ORDER" />} />
+
+                <Route path="/transactions/orders/purchases" element={<ChallanListPage purpose="PURCHASE_ORDER" />} />
+                <Route path="/transactions/orders/purchases/new" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
+                <Route path="/transactions/orders/purchases/:id" element={<ChallanFormPage purpose="PURCHASE_ORDER" viewMode />} />
+                <Route path="/transactions/orders/purchases/:id/edit" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

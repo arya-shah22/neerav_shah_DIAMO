@@ -13,6 +13,7 @@ import { BrokerController } from '../backend/modules/broker/broker.controller';
 import { QualityController } from '../backend/modules/quality/quality.controller';
 import { StockController } from '../backend/modules/stock/stock.controller';
 import { InvoiceController } from '../backend/modules/invoice/invoice.controller';
+import { ChallanController } from '../backend/modules/challan/challan.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -42,6 +43,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const qualityController = nestApp.get(QualityController);
   const stockController = nestApp.get(StockController);
   const invoiceController = nestApp.get(InvoiceController);
+  const challanController = nestApp.get(ChallanController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -128,4 +130,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'invoice:create', (payload) => invoiceController.handleCreate(payload));
   ipcHandle(ipcMain, 'invoice:update', (payload) => invoiceController.handleUpdate(payload));
   ipcHandle(ipcMain, 'invoice:delete', (payload) => invoiceController.handleDelete(payload));
+
+  // ─── Stage 6: Challans ───────────────────────────────────
+  ipcHandle(ipcMain, 'challan:list', (payload) => challanController.handleList(payload));
+  ipcHandle(ipcMain, 'challan:get', (payload) => challanController.handleGet(payload));
+  ipcHandle(ipcMain, 'challan:preview-number', (payload) => challanController.handlePreviewNumber(payload));
+  ipcHandle(ipcMain, 'challan:create', (payload) => challanController.handleCreate(payload));
+  ipcHandle(ipcMain, 'challan:update', (payload) => challanController.handleUpdate(payload));
+  ipcHandle(ipcMain, 'challan:delete', (payload) => challanController.handleDelete(payload));
+  ipcHandle(ipcMain, 'challan:update-status', (payload) => challanController.handleUpdateStatus(payload));
 }

@@ -14,6 +14,7 @@ import { BrokerModule } from './modules/broker/broker.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { StockModule } from './modules/stock/stock.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
+import { ChallanModule } from './modules/challan/challan.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
     QualityModule,
     StockModule,
     InvoiceModule,
+    ChallanModule,
   ],
   controllers: [],
   providers: [
