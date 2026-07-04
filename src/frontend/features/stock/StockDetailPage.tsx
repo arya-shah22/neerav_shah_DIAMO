@@ -94,6 +94,7 @@ export const StockDetailPage: React.FC = () => {
               <DetailRow label="Status" value={<Badge variant={STOCK_STATUS_BADGE_VARIANT[packet.currentStatus]}>{STOCK_STATUS_LABELS[packet.currentStatus]}</Badge>} />
               <DetailRow label="Category" value={packet.category === 'CERTIFIED' ? 'Certified' : 'Non-Certified'} />
               <DetailRow label="Registration" value={new Date(packet.registrationDate).toLocaleDateString('en-IN')} />
+              <DetailRow label="Carat Weight" value={packet.caratWeight != null ? `${Number(packet.caratWeight).toFixed(3)} ct` : '—'} />
               <DetailRow label="Shape" value={packet.shape} />
               <DetailRow label="Color" value={packet.color} />
               <DetailRow label="Clarity" value={packet.clarity} />

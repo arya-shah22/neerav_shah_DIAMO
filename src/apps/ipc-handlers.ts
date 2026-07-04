@@ -119,6 +119,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'stock:timeline', (payload) => stockController.handleTimeline(payload));
   ipcHandle(ipcMain, 'stock:preview-id', (companyId: number) => stockController.handlePreviewId(companyId));
   ipcHandle(ipcMain, 'stock:shapes-list', (companyId: number) => stockController.handleListShapes(companyId));
+  ipcHandle(ipcMain, 'stock:import-csv', (payload) => stockController.handleImportCsv(payload));
 
   // ─── Stage 4: Invoices ───────────────────────────────────
   ipcHandle(ipcMain, 'invoice:list', (payload) => invoiceController.handleList(payload));

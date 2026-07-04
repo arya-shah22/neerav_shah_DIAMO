@@ -120,4 +120,23 @@ export class StockController {
       return { success: false, error: formatApiError(error, 'Failed to delete stock packet') };
     }
   }
+
+  async handleImportCsv(payload: {
+    companyId: number;
+    qualityId: number;
+    rows: any[];
+    userId?: number;
+  }): Promise<IApiResponse> {
+    try {
+      const result = await this.service.importCsv(
+        payload.companyId,
+        payload.qualityId,
+        payload.rows,
+        payload.userId,
+      );
+      return { success: true, data: result };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'CSV Import failed') };
+    }
+  }
 }

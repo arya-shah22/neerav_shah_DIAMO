@@ -50,11 +50,31 @@ export const StockListPage: React.FC = () => {
   const { invoke: updateStock, loading: updatingStatus } = useIpc('stock:update');
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const [qualities, setQualities] = useState<IQuality[]>([]);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [selectedQualityId, setSelectedQualityId] = useState<string>('');
+  const [parsedRows, setParsedRows] = useState<any[]>([]);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<{
+    importedCount: number;
+    skippedCount: number;
+    skippedDetails: Array<{ row: number; stockId: string; reason: string }>;
+  } | null>(null);
+  const { invoke: importCsv } = useIpc<{
+    importedCount: number;
+    skippedCount: number;
+    skippedDetails: Array<{ row: number; stockId: string; reason: string }>;
+  }>('stock:import-csv');
 
   useEffect(() => {
     if (!companyId) return;
     fetchQualities({ companyId }).then((res) => {
-      if (res.success && res.data) setQualities(res.data);
+      if (res.success && res.data) {
+        const inventoryQualities = res.data.filter((q) => !q.isService);
+        setQualities(inventoryQualities);
+        if (inventoryQualities.length > 0) {
+          setSelectedQualityId(String(inventoryQualities[0].id));
+        }
+      }
     });
   }, [companyId, fetchQualities]);
 
@@ -79,6 +99,200 @@ export const StockListPage: React.FC = () => {
     } else {
       showToast(res.error || 'Delete failed', 'error');
     }
+  };
+
+  const downloadTemplate = () => {
+    const headers = [
+      'Stock ID',
+      'Category',
+      'Shape',
+      'Carats',
+      'Pieces',
+      'Color',
+      'Clarity',
+      'Cut',
+      'Polish',
+      'Symmetry',
+      'Length (mm)',
+      'Width (mm)',
+      'Depth (mm)',
+      'Depth %',
+      'Table %',
+      'Cert Type',
+      'Cert Number',
+      'Rate',
+      'Total Cost'
+    ];
+    const example = [
+      'DM-2026-EX001',
+      'Certified',
+      'Round',
+      '1.05',
+      '1',
+      'White',
+      'VS1',
+      'EX',
+      'EX',
+      'EX',
+      '6.5',
+      '6.5',
+      '4.0',
+      '61.5',
+      '57',
+      'GIA',
+      '123456789',
+      '5000',
+      '5250'
+    ];
+    const csvContent = [headers.join(','), example.join(',')].join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'stock_template.csv');
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = event.target?.result as string;
+      if (!text) return;
+
+      try {
+        const parsed = parseCSV(text);
+        setParsedRows(parsed);
+      } catch (err: any) {
+        showToast('Failed to parse CSV file', 'error');
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImportSubmit = async () => {
+    if (!companyId) return;
+    if (!selectedQualityId) {
+      showToast('Please select a quality master', 'error');
+      return;
+    }
+    if (parsedRows.length === 0) {
+      showToast('Please select a valid CSV file with data rows', 'error');
+      return;
+    }
+
+    setImporting(true);
+    const res = await importCsv({
+      companyId,
+      qualityId: Number(selectedQualityId),
+      rows: parsedRows,
+    });
+    setImporting(false);
+
+    if (res.success && res.data) {
+      setImportResult(res.data);
+      if (res.data.importedCount > 0) {
+        showToast(`Successfully imported ${res.data.importedCount} stock packets`, 'success');
+      }
+      if (res.data.skippedCount > 0) {
+        showToast(`${res.data.skippedCount} rows skipped. Check details in dialog.`, 'warning');
+      }
+      await refresh();
+    } else {
+      showToast(res.error || 'Import failed', 'error');
+    }
+  };
+
+  const closeImportModal = () => {
+    setIsImportModalOpen(false);
+    setParsedRows([]);
+    setImportResult(null);
+  };
+
+  const downloadStockCsv = () => {
+    if (!stock || stock.length === 0) {
+      showToast('No stock packets to download', 'info');
+      return;
+    }
+
+    const headers = [
+      'Stock ID',
+      'Quality',
+      'Shape',
+      'Carats',
+      'Pieces',
+      'Color',
+      'Clarity',
+      'Cut',
+      'Polish',
+      'Symmetry',
+      'Length (mm)',
+      'Width (mm)',
+      'Depth (mm)',
+      'Depth %',
+      'Table %',
+      'Cert Type',
+      'Cert Number',
+      'Rate',
+      'Total Cost',
+      'Status',
+      'Registration Date'
+    ];
+
+    const rows = stock.map((pkt) => [
+      pkt.stockIdNumber,
+      pkt.quality?.qualityName || '',
+      pkt.shape || '',
+      pkt.caratWeight,
+      pkt.pieceCount,
+      pkt.color || '',
+      pkt.clarity || '',
+      pkt.cut || '',
+      pkt.polish || '',
+      pkt.symmetry || '',
+      pkt.lengthMm || '',
+      pkt.widthMm || '',
+      pkt.depthMm || '',
+      pkt.totalDepthPct || '',
+      pkt.tablePct || '',
+      pkt.certificateType || '',
+      pkt.certificateNumber || '',
+      pkt.costPerCarat,
+      pkt.totalCost,
+      pkt.currentStatus,
+      new Date(pkt.registrationDate).toLocaleDateString('en-IN')
+    ]);
+
+    const csvContent = [
+      headers.join(','),
+      ...rows.map((row) =>
+        row
+          .map((val) => {
+            const strVal = String(val == null ? '' : val);
+            if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
+              return `"${strVal.replace(/"/g, '""')}"`;
+            }
+            return strVal;
+          })
+          .join(',')
+      )
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `stock_inventory_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    showToast('Stock inventory CSV downloaded successfully', 'success');
   };
 
   const closeStatusModal = () => {
@@ -252,9 +466,17 @@ export const StockListPage: React.FC = () => {
             Stock packets for {activeCompany?.companyName}
           </p>
         </div>
-        <Button variant="primary" onClick={() => navigate(ROUTES.new)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Plus size={16} /> New Stock Packet
-        </Button>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <Button variant="secondary" onClick={downloadStockCsv} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            Download Stock CSV
+          </Button>
+          <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            Import CSV
+          </Button>
+          <Button variant="primary" onClick={() => navigate(ROUTES.new)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Plus size={16} /> New Stock Packet
+          </Button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
@@ -358,6 +580,241 @@ export const StockListPage: React.FC = () => {
           />
         </div>
       </Modal>
+
+      <Modal
+        isOpen={isImportModalOpen}
+        onClose={closeImportModal}
+        title="Import Stock Packets via CSV"
+        size="md"
+        footer={(
+          <>
+            <Button variant="ghost" onClick={closeImportModal} disabled={importing}>
+              Cancel
+            </Button>
+            <Button
+              variant="primary"
+              onClick={handleImportSubmit}
+              loading={importing}
+              disabled={parsedRows.length === 0 || !selectedQualityId}
+            >
+              Import Stock
+            </Button>
+          </>
+        )}
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <p style={{ margin: 0, fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)' }}>
+              Bulk register stock packets using a CSV template.
+            </p>
+            <Button variant="secondary" size="sm" onClick={downloadTemplate}>
+              Download Sample CSV
+            </Button>
+          </div>
+
+          <Select
+            label="Target Quality Master *"
+            value={selectedQualityId}
+            onChange={(v) => setSelectedQualityId(v || '')}
+            options={qualities.map((q) => ({ value: String(q.id), label: q.qualityName }))}
+            placeholder="Select target quality"
+            searchable={true}
+            clearable={false}
+          />
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+            <label style={{ fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              Select CSV File *
+            </label>
+            <input
+              type="file"
+              accept=".csv"
+              onChange={handleFileChange}
+              style={{
+                padding: '8px',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--color-bg-input)',
+                cursor: 'pointer',
+              }}
+            />
+          </div>
+
+          {parsedRows.length > 0 && (
+            <div style={{ padding: '8px 12px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', fontSize: 'var(--text-small)' }}>
+              <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+                {parsedRows.filter(r => r.stockIdNumber?.trim()).length} rows detected with Stock IDs
+              </span>
+              {parsedRows.filter(r => !r.stockIdNumber?.trim()).length > 0 && (
+                <span style={{ color: 'var(--color-text-muted)', marginLeft: '8px' }}>
+                  ({parsedRows.filter(r => !r.stockIdNumber?.trim()).length} empty/invalid rows will be skipped)
+                </span>
+              )}
+            </div>
+          )}
+
+          {importResult && (
+            <div style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div style={{ padding: '12px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                <div>
+                  <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)' }}>Successfully Imported:</span>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-success)' }}>{importResult.importedCount}</div>
+                </div>
+                <div>
+                  <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)' }}>Skipped Rows:</span>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: importResult.skippedCount > 0 ? 'var(--color-warning)' : 'var(--color-text-secondary)' }}>{importResult.skippedCount}</div>
+                </div>
+              </div>
+
+              {importResult.skippedCount > 0 && (
+                <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
+                  <div style={{ padding: '6px 12px', background: 'var(--color-bg-header)', fontSize: 'var(--text-small)', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>
+                    Skipped Rows Log
+                  </div>
+                  <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '4px', background: 'var(--color-bg-card)' }}>
+                    {importResult.skippedDetails.map((detail, idx) => (
+                      <div key={idx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
+                        <span>
+                          <strong>Row {detail.row}:</strong> {detail.stockId || '(Empty Stock ID)'}
+                        </span>
+                        <span style={{ color: 'var(--color-danger)' }}>{detail.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </Modal>
     </div>
   );
 };
+
+function parseCSV(text: string): any[] {
+  const lines = text.split(/\r?\n/);
+  if (lines.length === 0) return [];
+  
+  const headers = parseCSVLine(lines[0]);
+  const result: any[] = [];
+  
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    const values = parseCSVLine(line);
+    const row: any = {};
+    headers.forEach((header, index) => {
+      const value = values[index]?.trim() || '';
+      const normalizedHeader = header.trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
+      
+      switch (normalizedHeader) {
+        case 'stockid':
+        case 'stockidnumber':
+          row.stockIdNumber = value;
+          break;
+        case 'category':
+          const cat = value.toUpperCase().replace('-', '_');
+          if (cat === 'CERTIFIED' || cat === 'NON_CERTIFIED') {
+            row.category = cat;
+          } else if (value.toLowerCase().includes('non')) {
+            row.category = 'NON_CERTIFIED';
+          } else if (value.toLowerCase().includes('cert')) {
+            row.category = 'CERTIFIED';
+          } else {
+            row.category = 'NON_CERTIFIED';
+          }
+          break;
+        case 'shape':
+          row.shape = value;
+          break;
+        case 'carats':
+        case 'carat':
+        case 'weight':
+          row.caratWeight = value;
+          break;
+        case 'pieces':
+        case 'piece':
+        case 'pcs':
+        case 'piececount':
+          row.pieceCount = value;
+          break;
+        case 'color':
+          row.color = value;
+          break;
+        case 'clarity':
+          row.clarity = value;
+          break;
+        case 'cut':
+          row.cut = value;
+          break;
+        case 'polish':
+          row.polish = value;
+          break;
+        case 'symmetry':
+          row.symmetry = value;
+          break;
+        case 'length':
+        case 'lengthmm':
+          row.lengthMm = value;
+          break;
+        case 'width':
+        case 'widthmm':
+          row.widthMm = value;
+          break;
+        case 'depth':
+        case 'depthmm':
+          row.depthMm = value;
+          break;
+        case 'depthpct':
+        case 'totaldepthpct':
+          row.totalDepthPct = value;
+          break;
+        case 'tablepct':
+          row.tablePct = value;
+          break;
+        case 'certtype':
+        case 'certificatetype':
+          row.certificateType = value;
+          break;
+        case 'certnumber':
+        case 'certificatenumber':
+          row.certificateNumber = value;
+          break;
+        case 'rate':
+        case 'costpercarat':
+          row.costPerCarat = value;
+          break;
+        case 'totalcost':
+          row.totalCost = value;
+          break;
+      }
+    });
+    result.push(row);
+  }
+  return result;
+}
+
+function parseCSVLine(line: string): string[] {
+  const result: string[] = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      result.push(current);
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  result.push(current);
+  return result.map(val => {
+    if (val.startsWith('"') && val.endsWith('"')) {
+      return val.slice(1, -1);
+    }
+    return val;
+  });
+}

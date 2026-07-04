@@ -537,6 +537,128 @@ export class StockService {
       },
     });
   }
+
+  async importCsv(
+    companyId: number,
+    qualityId: number,
+    rows: any[],
+    userId?: number,
+  ) {
+    await this.validateQuality(companyId, qualityId);
+
+    const imported: string[] = [];
+    const skipped: Array<{ row: number; stockId: string; reason: string }> = [];
+
+    for (let index = 0; index < rows.length; index++) {
+      const row = rows[index];
+      const stockIdNumber = row.stockIdNumber?.trim();
+      const rowNum = index + 2;
+
+      if (!stockIdNumber) {
+        skipped.push({
+          row: rowNum,
+          stockId: '',
+          reason: 'Missing Stock ID',
+        });
+        continue;
+      }
+
+      const existing = await this.prisma.stockPacket.findFirst({
+        where: { companyId, stockIdNumber, isDeleted: false },
+      });
+      if (existing) {
+        skipped.push({
+          row: rowNum,
+          stockId: stockIdNumber,
+          reason: `Duplicate Stock ID "${stockIdNumber}" already exists`,
+        });
+        continue;
+      }
+
+      const certNumber = row.certificateNumber?.trim();
+      if (certNumber) {
+        const certExists = await this.prisma.stockPacket.findFirst({
+          where: { companyId, certificateNumber: certNumber, isDeleted: false },
+        });
+        if (certExists) {
+          skipped.push({
+            row: rowNum,
+            stockId: stockIdNumber,
+            reason: `Certificate Number "${certNumber}" already exists`,
+          });
+          continue;
+        }
+      }
+
+      try {
+        const caratWeight = Number(row.caratWeight) || 0;
+        const pieceCount = Number(row.pieceCount) || 1;
+        const costPerCarat = Number(row.costPerCarat) || 0;
+        const totalCost = row.totalCost != null && row.totalCost !== '' ? Number(row.totalCost) : caratWeight * costPerCarat;
+
+        await this.prisma.$transaction(async (tx) => {
+          const packet = await tx.stockPacket.create({
+            data: {
+              companyId,
+              qualityId,
+              stockIdNumber,
+              category: (row.category as StockCategory) || StockCategory.NON_CERTIFIED,
+              registrationDate: new Date(),
+              shape: emptyToNull(row.shape),
+              caratWeight,
+              pieceCount,
+              color: emptyToNull(row.color),
+              clarity: emptyToNull(row.clarity),
+              cut: emptyToNull(row.cut),
+              polish: emptyToNull(row.polish),
+              symmetry: emptyToNull(row.symmetry),
+              lengthMm: toDecimalOrNull(row.lengthMm),
+              widthMm: toDecimalOrNull(row.widthMm),
+              depthMm: toDecimalOrNull(row.depthMm),
+              totalDepthPct: toDecimalOrNull(row.totalDepthPct),
+              tablePct: toDecimalOrNull(row.tablePct),
+              certificateType: emptyToNull(row.certificateType),
+              certificateNumber: emptyToNull(row.certificateNumber),
+              costPerCarat,
+              totalCost,
+              currentStatus: StockStatus.AVAILABLE,
+              currentOwnership: 'COMPANY',
+              createdBy: userId ?? null,
+            },
+          });
+
+          await tx.stockMovement.create({
+            data: {
+              stockPacketId: packet.id,
+              movementDate: new Date(),
+              movementType: MovementType.STOCK_CREATION,
+              previousStatus: StockStatus.CREATED,
+              newStatus: StockStatus.AVAILABLE,
+              carats: caratWeight,
+              pieces: pieceCount,
+              remarks: 'Imported via CSV',
+              userId: userId ?? null,
+            },
+          });
+        });
+
+        imported.push(stockIdNumber);
+      } catch (err: any) {
+        skipped.push({
+          row: rowNum,
+          stockId: stockIdNumber,
+          reason: err.message || 'Validation or database error',
+        });
+      }
+    }
+
+    return {
+      success: true,
+      importedCount: imported.length,
+      skippedCount: skipped.length,
+      skippedDetails: skipped,
+    };
+  }
 }
 
 function emptyToNull(value: unknown): string | null {
