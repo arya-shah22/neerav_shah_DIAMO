@@ -1,8 +1,8 @@
 // ═══════════════════════════════════════════════════════════════
-// DIAMO ERP — Sidebar Navigation
+// DIAMO ERP — Sidebar Navigation with Collapsible Submenus
 // ═══════════════════════════════════════════════════════════════
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard,
@@ -23,52 +23,200 @@ import {
   Users,
   Handshake,
   Package,
-  Undo2,
-  FileUp,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 interface SidebarProps {
   collapsed: boolean;
 }
 
-interface NavItem {
+interface NavSubItem {
   path: string;
   label: string;
-  icon: React.ReactNode;
-  group: string;
+  icon?: React.ReactNode;
 }
 
-const NAV_ITEMS: NavItem[] = [
-  { path: '/dashboard', label: 'Dashboard', icon: <LayoutDashboard size={18} />, group: 'Main' },
-  { path: '/masters/business/companies', label: 'Companies', icon: <Building2 size={18} />, group: 'Masters' },
-  { path: '/masters/business/financial-years', label: 'Financial Years', icon: <Calendar size={18} />, group: 'Masters' },
-  { path: '/masters/accounting/account-groups', label: 'Account Groups', icon: <FolderTree size={18} />, group: 'Masters' },
-  { path: '/masters/accounting/accounts', label: 'Accounts', icon: <Users size={18} />, group: 'Masters' },
-  { path: '/masters/business/brokers', label: 'Brokers', icon: <Handshake size={18} />, group: 'Masters' },
-  { path: '/masters/diamond/qualities', label: 'Qualities', icon: <Gem size={18} />, group: 'Masters' },
-  { path: '/inventory/stock', label: 'Stock Inventory', icon: <Package size={18} />, group: 'Transactions' },
-  { path: '/transactions/sales', label: 'Sale Book', icon: <ShoppingCart size={18} />, group: 'Transactions' },
-  { path: '/transactions/sale-returns', label: 'Sale Return Credit Note', icon: <Undo2 size={18} />, group: 'Transactions' },
-  { path: '/transactions/sale-debit-notes', label: 'Sale Debit Note', icon: <FileUp size={18} />, group: 'Transactions' },
-  { path: '/transactions/purchases', label: 'Purchase Book', icon: <ShoppingBag size={18} />, group: 'Transactions' },
-  { path: '/transactions/purchase-returns', label: 'Purchase Return Debit Note', icon: <Undo2 size={18} />, group: 'Transactions' },
-  { path: '/transactions/purchase-credit-notes', label: 'Purchase Credit Note', icon: <FileUp size={18} />, group: 'Transactions' },
-  { path: '/transactions/challans/trading', label: 'Jhanghad (Trading)', icon: <FileText size={18} />, group: 'Transactions' },
-  { path: '/transactions/challans/job-work', label: 'Job Work Issue', icon: <FileText size={18} />, group: 'Transactions' },
-  { path: '/transactions/orders/sales', label: 'Sales Order', icon: <FileText size={18} />, group: 'Transactions' },
-  { path: '/transactions/orders/purchases', label: 'Purchase Order', icon: <FileText size={18} />, group: 'Transactions' },
-  { path: '/transactions/jobs', label: 'Job Book', icon: <Briefcase size={18} />, group: 'Transactions' },
-  { path: '/vouchers/cash-bank', label: 'Cash / Bank', icon: <Coins size={18} />, group: 'Vouchers' },
-  { path: '/vouchers/journal', label: 'Journal Voucher', icon: <Landmark size={18} />, group: 'Vouchers' },
-  { path: '/vouchers/ledger', label: 'Ledger', icon: <BookOpen size={18} />, group: 'Vouchers' },
-  { path: '/reports', label: 'Reports', icon: <BarChart3 size={18} />, group: 'System' },
-  { path: '/settings', label: 'Settings', icon: <Settings size={18} />, group: 'System' },
-  { path: '/admin', label: 'Admin', icon: <Shield size={18} />, group: 'System' },
-];
+interface NestedGroup {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  subItems: NavSubItem[];
+}
+
+interface NavItem {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  path?: string; // Direct link
+  subItems?: NavSubItem[]; // Direct sub-items
+  nestedGroups?: NestedGroup[]; // Nested collapsible groups
+}
 
 export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   const location = useLocation();
-  let currentGroup = '';
+  const currentPath = location.pathname;
+
+  // Toggle states
+  const [openMenus, setOpenMenus] = useState<Record<string, boolean>>({});
+
+  // Auto-expand menus based on current URL path on load/route change
+  useEffect(() => {
+    const nextOpen: Record<string, boolean> = { ...openMenus };
+    
+    if (currentPath.startsWith('/masters')) {
+      nextOpen['masters'] = true;
+    }
+    if (
+      currentPath.startsWith('/inventory') ||
+      currentPath.startsWith('/transactions') ||
+      currentPath.startsWith('/vouchers')
+    ) {
+      nextOpen['transactions'] = true;
+    }
+    
+    // Sub-nested groups under transactions
+    if (
+      currentPath.startsWith('/transactions/sales') ||
+      currentPath.startsWith('/transactions/sale-')
+    ) {
+      nextOpen['sale'] = true;
+    }
+    if (
+      currentPath.startsWith('/transactions/purchases') ||
+      currentPath.startsWith('/transactions/purchase-')
+    ) {
+      nextOpen['purchase'] = true;
+    }
+    if (
+      currentPath.startsWith('/transactions/challans') ||
+      currentPath.startsWith('/transactions/orders')
+    ) {
+      nextOpen['challan'] = true;
+    }
+
+    if (currentPath.startsWith('/settings') || currentPath.startsWith('/admin')) {
+      nextOpen['system'] = true;
+    }
+
+    setOpenMenus(nextOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPath]);
+
+  const toggleMenu = (key: string) => {
+    setOpenMenus(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const navStructure: NavItem[] = [
+    {
+      key: 'dashboard',
+      label: 'Dashboard',
+      icon: <LayoutDashboard size={18} />,
+      path: '/dashboard',
+    },
+    {
+      key: 'masters',
+      label: 'Account & Masters',
+      icon: <Users size={18} />,
+      subItems: [
+        { path: '/masters/business/companies', label: 'Companies', icon: <Building2 size={16} /> },
+        { path: '/masters/business/financial-years', label: 'Financial Years', icon: <Calendar size={16} /> },
+        { path: '/masters/accounting/account-groups', label: 'Account Groups', icon: <FolderTree size={16} /> },
+        { path: '/masters/accounting/accounts', label: 'Accounts', icon: <Users size={16} /> },
+        { path: '/masters/business/brokers', label: 'Brokers', icon: <Handshake size={16} /> },
+        { path: '/masters/diamond/qualities', label: 'Qualities', icon: <Gem size={16} /> },
+      ],
+    },
+    {
+      key: 'transactions',
+      label: 'Transactions',
+      icon: <Package size={18} />,
+      subItems: [
+        { path: '/inventory/stock', label: 'Stock Inventory', icon: <Package size={16} /> },
+      ],
+      nestedGroups: [
+        {
+          key: 'sale',
+          label: 'Sale Book',
+          icon: <ShoppingCart size={16} />,
+          subItems: [
+            { path: '/transactions/sales', label: 'Sale Invoice' },
+            { path: '/transactions/sale-returns', label: 'Sale Return / CN' },
+            { path: '/transactions/sale-debit-notes', label: 'Sale Debit Note' },
+          ],
+        },
+        {
+          key: 'purchase',
+          label: 'Purchase Book',
+          icon: <ShoppingBag size={16} />,
+          subItems: [
+            { path: '/transactions/purchases', label: 'Purchase Invoice' },
+            { path: '/transactions/purchase-returns', label: 'Purchase Return / DN' },
+            { path: '/transactions/purchase-credit-notes', label: 'Purchase Credit Note' },
+          ],
+        },
+        {
+          key: 'challan',
+          label: 'Challan Book',
+          icon: <FileText size={16} />,
+          subItems: [
+            { path: '/transactions/challans/trading', label: 'Jhanghad (Trading)' },
+            { path: '/transactions/challans/job-work', label: 'Job Work Issue' },
+            { path: '/transactions/orders/sales', label: 'Sales Order' },
+            { path: '/transactions/orders/purchases', label: 'Purchase Order' },
+          ],
+        },
+      ],
+      // We can append direct links at the end of transactions as well
+    },
+    {
+      key: 'reports',
+      label: 'Reports',
+      icon: <BarChart3 size={18} />,
+      path: '/reports',
+    },
+    {
+      key: 'system',
+      label: 'System & settings',
+      icon: <Settings size={18} />,
+      subItems: [
+        { path: '/settings', label: 'Settings', icon: <Settings size={16} /> },
+        { path: '/admin', label: 'Admin Access', icon: <Shield size={16} /> },
+      ],
+    },
+  ];
+
+  // Helper to render NavLink with consistent premium styling
+  const renderLink = (path: string, label: string, icon?: React.ReactNode, paddingLeft: string = 'var(--spacing-md)') => {
+    const isActive = currentPath.startsWith(path);
+    return (
+      <NavLink
+        key={path}
+        to={path}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+          padding: `10px var(--spacing-md) 10px ${paddingLeft}`,
+          color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
+          background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
+          borderLeft: isActive ? '3px solid var(--color-accent)' : '3px solid transparent',
+          fontSize: '13px',
+          fontWeight: isActive ? 600 : 400,
+          textDecoration: 'none',
+          transition: 'all var(--transition-fast)',
+          cursor: 'pointer',
+        }}
+        title={collapsed ? label : undefined}
+      >
+        {icon}
+        {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+      </NavLink>
+    );
+  };
 
   return (
     <aside style={{
@@ -81,6 +229,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       transition: 'width var(--transition-normal), min-width var(--transition-normal)',
       overflow: 'hidden',
     }}>
+      {/* Brand Logo Header */}
       <div style={{
         height: '48px',
         display: 'flex',
@@ -103,55 +252,111 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         )}
       </div>
 
+      {/* Navigation Links Menu */}
       <nav style={{
         flex: 1,
         overflowY: 'auto',
         overflowX: 'hidden',
-        padding: 'var(--spacing-sm) 0',
+        padding: '12px 0',
       }}>
-        {NAV_ITEMS.map((item) => {
-          const showGroupHeader = item.group !== currentGroup;
-          if (showGroupHeader) currentGroup = item.group;
-          const isActive = location.pathname.startsWith(item.path);
+        {navStructure.map(item => {
+          // Direct top-level link
+          if (item.path) {
+            return renderLink(item.path, item.label, item.icon);
+          }
+
+          // Collapsible top-level module
+          const isMenuOpen = !!openMenus[item.key];
 
           return (
-            <React.Fragment key={item.path}>
-              {showGroupHeader && !collapsed && (
-                <div style={{
-                  fontSize: 'var(--text-small)',
-                  fontWeight: 600,
-                  color: 'rgba(255,255,255,0.35)',
-                  textTransform: 'uppercase',
-                  letterSpacing: '1px',
-                  padding: 'var(--spacing-md) var(--spacing-md) var(--spacing-xs)',
-                }}>
-                  {item.group}
-                </div>
-              )}
-
-              <NavLink
-                to={item.path}
+            <div key={item.key} style={{ display: 'flex', flexDirection: 'column' }}>
+              {/* Parent Toggle Button */}
+              <button
+                onClick={() => toggleMenu(item.key)}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
-                  gap: 'var(--spacing-sm)',
-                  padding: collapsed ? 'var(--spacing-sm) 0' : 'var(--spacing-sm) var(--spacing-md)',
-                  justifyContent: collapsed ? 'center' : 'flex-start',
-                  color: isActive ? '#FFFFFF' : 'rgba(255,255,255,0.6)',
-                  background: isActive ? 'rgba(59,130,246,0.15)' : 'transparent',
-                  borderLeft: isActive ? '3px solid var(--color-accent)' : '3px solid transparent',
-                  fontSize: 'var(--text-label)',
-                  fontWeight: isActive ? 600 : 400,
-                  textDecoration: 'none',
-                  transition: 'all var(--transition-fast)',
+                  justifyContent: 'space-between',
+                  width: '100%',
+                  padding: '10px var(--spacing-md)',
+                  color: 'rgba(255,255,255,0.7)',
+                  background: 'transparent',
+                  border: 'none',
+                  borderLeft: '3px solid transparent',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  textAlign: 'left',
                   cursor: 'pointer',
+                  transition: 'all var(--transition-fast)',
                 }}
-                title={collapsed ? item.label : undefined}
               >
-                {item.icon}
-                {!collapsed && <span>{item.label}</span>}
-              </NavLink>
-            </React.Fragment>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {item.icon}
+                  {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                </div>
+                {!collapsed && (
+                  isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                )}
+              </button>
+
+              {/* Children sub-items (visible only when expanded and sidebar is not collapsed) */}
+              {isMenuOpen && !collapsed && (
+                <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.1)' }}>
+                  {/* Render standard sub-items */}
+                  {item.subItems?.map(sub => renderLink(sub.path, sub.label, sub.icon, '32px'))}
+
+                  {/* Render nested groups (Sale, Purchase, Challan) */}
+                  {item.nestedGroups?.map(group => {
+                    const isGroupOpen = !!openMenus[group.key];
+                    return (
+                      <div key={group.key} style={{ display: 'flex', flexDirection: 'column' }}>
+                        {/* Nested group toggle header */}
+                        <button
+                          onClick={() => toggleMenu(group.key)}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            width: '100%',
+                            padding: '8px var(--spacing-md) 8px 32px',
+                            color: 'rgba(255,255,255,0.55)',
+                            background: 'transparent',
+                            border: 'none',
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            {group.icon}
+                            <span>{group.label}</span>
+                          </div>
+                          {isGroupOpen ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+                        </button>
+
+                        {/* Double-nested terminal page links */}
+                        {isGroupOpen && (
+                          <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.08)' }}>
+                            {group.subItems.map(sub => renderLink(sub.path, sub.label, undefined, '48px'))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+
+                  {/* Append other direct links for Transactions (Jobs, Vouchers etc.) at first-level under Transactions parent */}
+                  {item.key === 'transactions' && (
+                    <>
+                      {renderLink('/transactions/jobs', 'Job Book', <Briefcase size={16} />, '32px')}
+                      {renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
+                      {renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
+                      {renderLink('/vouchers/ledger', 'Ledger', <BookOpen size={16} />, '32px')}
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
           );
         })}
       </nav>
