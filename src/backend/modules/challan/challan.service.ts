@@ -161,6 +161,10 @@ export class ChallanService {
           });
           if (!packet) throw new BadRequestException(`Stock packet ID ${stockPacketId} not found`);
 
+          if (packet.currentStatus !== StockStatus.AVAILABLE) {
+            throw new BadRequestException(`Stock packet ${packet.stockIdNumber} is not AVAILABLE (Current status: ${packet.currentStatus})`);
+          }
+
           // Update stock status based on purpose
           let newStatus: StockStatus = StockStatus.AVAILABLE;
           if (purpose === 'TRADING_JHANGHAD') {
