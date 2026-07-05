@@ -14,6 +14,7 @@ import { QualityController } from '../backend/modules/quality/quality.controller
 import { StockController } from '../backend/modules/stock/stock.controller';
 import { InvoiceController } from '../backend/modules/invoice/invoice.controller';
 import { ChallanController } from '../backend/modules/challan/challan.controller';
+import { JobController } from '../backend/modules/job/job.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -44,6 +45,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const stockController = nestApp.get(StockController);
   const invoiceController = nestApp.get(InvoiceController);
   const challanController = nestApp.get(ChallanController);
+  const jobController = nestApp.get(JobController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -139,4 +141,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'challan:update', (payload) => challanController.handleUpdate(payload));
   ipcHandle(ipcMain, 'challan:delete', (payload) => challanController.handleDelete(payload));
   ipcHandle(ipcMain, 'challan:update-status', (payload) => challanController.handleUpdateStatus(payload));
+
+  // ─── Stage 8: Job Book ────────────────────────────────────
+  ipcHandle(ipcMain, 'job:list', (payload) => jobController.handleList(payload));
+  ipcHandle(ipcMain, 'job:get', (payload) => jobController.handleGet(payload));
+  ipcHandle(ipcMain, 'job:create', (payload) => jobController.handleCreate(payload));
+  ipcHandle(ipcMain, 'job:delete', (payload) => jobController.handleDelete(payload));
 }

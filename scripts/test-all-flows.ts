@@ -8,7 +8,8 @@ import { PrismaService } from '../src/backend/database/prisma.service';
 import { StockService } from '../src/backend/modules/stock/stock.service';
 import { InvoiceService } from '../src/backend/modules/invoice/invoice.service';
 import { ChallanService } from '../src/backend/modules/challan/challan.service';
-import { StockStatus, ChallanStatus } from '@prisma/client';
+import { JobService } from '../src/backend/modules/job/job.service';
+import { StockStatus, ChallanStatus, JobType } from '@prisma/client';
 
 async function runAllTests() {
   console.log('🚀 Bootstrapping DIAMO ERP integration test runner...');
@@ -19,6 +20,7 @@ async function runAllTests() {
   const stockService = app.get(StockService);
   const invoiceService = app.get(InvoiceService);
   const challanService = app.get(ChallanService);
+  const jobService = app.get(JobService);
 
   try {
     console.log('⚡ STEP 1: Setting up mock environments (Company & FY)...');
@@ -50,6 +52,10 @@ async function runAllTests() {
 
     await prisma.saleInvoiceItem.deleteMany({ where: { stockPacketId: { in: oldPacketIds } } });
     await prisma.saleInvoice.deleteMany({ where: { companyId: company.id } });
+
+    await prisma.jobCostEntry.deleteMany({ where: { stockPacketId: { in: oldPacketIds } } });
+    await prisma.jobVoucherItem.deleteMany({ where: { stockPacketId: { in: oldPacketIds } } });
+    await prisma.jobVoucher.deleteMany({ where: { companyId: company.id } });
 
     await prisma.stockPacket.deleteMany({ where: { companyId: company.id } });
 
@@ -343,8 +349,61 @@ async function runAllTests() {
     }
     console.log(`   ➔ Verified packet ${csvPacket2.stockIdNumber} reverted to AVAILABLE`);
 
+    console.log('⚡ STEP 9: Testing Job Book Cost Capitalization...');
+    
+    // Create stock packet for processing costing test
+    const jobTestPacket = await prisma.stockPacket.create({
+      data: {
+        companyId: company.id,
+        qualityId: quality.id,
+        stockIdNumber: 'JOB-TEST-101',
+        caratWeight: 4.000,
+        pieceCount: 2,
+        costPerCarat: 10000,
+        totalCost: 40000, // Raw Cost
+        currentStatus: StockStatus.JOB_WORK, // Sent to job worker
+        registrationDate: new Date(),
+      }
+    });
+
+    // Create a Job Work Expense voucher billing 5000 per carat labor rate
+    const jobExpenseVoucher = await jobService.create(company.id, {
+      financialYearId: fy.id,
+      jobType: JobType.JOB_EXPENSE,
+      partyId: customer.id,
+      billNumber: 'BILL-LAB-999',
+      voucherDate: new Date().toISOString(),
+      items: [
+        {
+          qualityId: quality.id,
+          carats: 4.000,
+          pieces: 2,
+          rate: 5000, // 4 carats * 5000 rate = 20,000 labor expense
+          stockPacketId: jobTestPacket.id,
+        }
+      ]
+    });
+    console.log(`   ➔ Job Expense created: ${jobExpenseVoucher.voucherNumber}`);
+
+    // Verify cost capitalization values in database
+    const capitalizedPacket = await prisma.stockPacket.findUnique({ where: { id: jobTestPacket.id } });
+    const expectedCost = 40000 + 20000; // Raw (40K) + Labor (20K) = 60K
+    if (Number(capitalizedPacket?.totalCost) !== expectedCost) {
+      throw new Error(`FAIL: Expected capitalized packet cost to be ${expectedCost}, got ${capitalizedPacket?.totalCost}`);
+    }
+    if (capitalizedPacket?.currentStatus !== StockStatus.AVAILABLE) {
+      throw new Error(`FAIL: Expected packet status to revert to AVAILABLE, got ${capitalizedPacket?.currentStatus}`);
+    }
+    console.log('   ➔ Verified packet cost successfully capitalized: ₹60,000');
+    console.log('   ➔ Verified packet status successfully reverted to AVAILABLE');
+
     console.log('⚡ CLEANUP: Clearing test datasets...');
     
+    // Delete Job records
+    await prisma.jobCostEntry.deleteMany({ where: { jobVoucherId: jobExpenseVoucher.id } });
+    await prisma.jobVoucherItem.deleteMany({ where: { jobVoucherId: jobExpenseVoucher.id } });
+    await prisma.jobVoucher.deleteMany({ where: { id: jobExpenseVoucher.id } });
+
     // Delete Invoice Items & Invoices (all stored in saleInvoice tables)
     await prisma.saleInvoiceItem.deleteMany({ where: { saleInvoiceId: { in: [saleInvoice.id, purchaseInvoice.id] } } });
     await prisma.saleInvoice.deleteMany({ where: { id: { in: [saleInvoice.id, purchaseInvoice.id] } } });

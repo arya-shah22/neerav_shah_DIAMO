@@ -15,6 +15,7 @@ import { QualityModule } from './modules/quality/quality.module';
 import { StockModule } from './modules/stock/stock.module';
 import { InvoiceModule } from './modules/invoice/invoice.module';
 import { ChallanModule } from './modules/challan/challan.module';
+import { JobModule } from './modules/job/job.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { ChallanModule } from './modules/challan/challan.module';
     StockModule,
     InvoiceModule,
     ChallanModule,
+    JobModule,
   ],
   controllers: [],
   providers: [

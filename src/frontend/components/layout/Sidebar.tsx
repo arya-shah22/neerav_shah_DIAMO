@@ -94,6 +94,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
     ) {
       nextOpen['challan'] = true;
     }
+    if (currentPath.startsWith('/transactions/jobs')) {
+      nextOpen['job'] = true;
+    }
 
     if (currentPath.startsWith('/settings') || currentPath.startsWith('/admin')) {
       nextOpen['system'] = true;
@@ -167,6 +170,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
             { path: '/transactions/challans/job-work', label: 'Job Work Issue' },
             { path: '/transactions/orders/sales', label: 'Sales Order' },
             { path: '/transactions/orders/purchases', label: 'Purchase Order' },
+          ],
+        },
+        {
+          key: 'job',
+          label: 'Job Book',
+          icon: <Briefcase size={16} />,
+          subItems: [
+            { path: '/transactions/jobs/income', label: 'Job Income' },
+            { path: '/transactions/jobs/expense', label: 'Job Expense' },
           ],
         },
       ],
@@ -348,7 +360,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                   {/* Append other direct links for Transactions (Jobs, Vouchers etc.) at first-level under Transactions parent */}
                   {item.key === 'transactions' && (
                     <>
-                      {renderLink('/transactions/jobs', 'Job Book', <Briefcase size={16} />, '32px')}
                       {renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
                       {renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
                       {renderLink('/vouchers/ledger', 'Ledger', <BookOpen size={16} />, '32px')}
