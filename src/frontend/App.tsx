@@ -19,6 +19,7 @@ import { StockListPage, StockFormPage, StockDetailPage } from './features/stock'
 import { InvoiceListPage, InvoiceFormPage, InvoiceViewPage } from './features/invoice';
 import { ChallanListPage, ChallanFormPage } from './features/challan';
 import { JobListPage, JobFormPage } from './features/job';
+import { JVBookPage } from './features/journal';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -372,6 +373,9 @@ const App: React.FC = () => {
                 <Route path="/transactions/jobs/expense" element={<JobListPage jobType="JOB_EXPENSE" />} />
                 <Route path="/transactions/jobs/expense/new" element={<JobFormPage jobType="JOB_EXPENSE" />} />
                 <Route path="/transactions/jobs/expense/view/:id" element={<JobFormPage jobType="JOB_EXPENSE" viewMode />} />
+
+                {/* Phase 8: Accounting (JV Book) */}
+                <Route path="/vouchers/journal" element={<JVBookPage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

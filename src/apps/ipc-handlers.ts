@@ -15,6 +15,7 @@ import { StockController } from '../backend/modules/stock/stock.controller';
 import { InvoiceController } from '../backend/modules/invoice/invoice.controller';
 import { ChallanController } from '../backend/modules/challan/challan.controller';
 import { JobController } from '../backend/modules/job/job.controller';
+import { JournalController } from '../backend/modules/journal/journal.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -46,6 +47,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const invoiceController = nestApp.get(InvoiceController);
   const challanController = nestApp.get(ChallanController);
   const jobController = nestApp.get(JobController);
+  const journalController = nestApp.get(JournalController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -147,4 +149,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'job:get', (payload) => jobController.handleGet(payload));
   ipcHandle(ipcMain, 'job:create', (payload) => jobController.handleCreate(payload));
   ipcHandle(ipcMain, 'job:delete', (payload) => jobController.handleDelete(payload));
+
+  // ─── Phase 8: Accounting (JV) ─────────────────────────────
+  ipcHandle(ipcMain, 'journal:list', (payload) => journalController.handleList(payload));
+  ipcHandle(ipcMain, 'journal:create', (payload) => journalController.handleCreate(payload));
+  ipcHandle(ipcMain, 'journal:delete', (payload) => journalController.handleDelete(payload));
 }

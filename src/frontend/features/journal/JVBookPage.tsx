@@ -1,0 +1,492 @@
+// ═══════════════════════════════════════════════════════════════
+// DIAMO ERP — Journal Voucher (JV Book) Page (Stage 7 / Phase 8)
+// ═══════════════════════════════════════════════════════════════
+
+import React, { useCallback, useEffect, useState } from 'react';
+import { Trash2 } from 'lucide-react';
+import { useIpc } from '../../hooks/useIpc';
+import { useActiveCompany } from '../../hooks/useActiveCompany';
+import { Button, Input, Select, useToast } from '../../components/ui';
+import { DataGrid, Column } from '../../components/ui/DataGrid';
+import { IAccount } from '../account/account.types';
+
+export const JVBookPage: React.FC = () => {
+  const { showToast } = useToast();
+  const { companyId } = useActiveCompany();
+
+  // IPC hooks
+  const { invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
+  const { invoke: createJournal } = useIpc('journal:create');
+  const { data: journals, loading, invoke: refreshJournals } = useIpc<any[]>('journal:list');
+  const { invoke: deleteJournal } = useIpc('journal:delete');
+
+  // Form states
+  const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
+  const [drAccountId, setDrAccountId] = useState<number | null>(null);
+  const [crAccountId, setCrAccountId] = useState<number | null>(null);
+  const [amount, setAmount] = useState<number>(0);
+  
+  // Taxes adjustments percentage & amount states
+  const [sgstPct, setSgstPct] = useState<number>(0);
+  const [sgstAmt, setSgstAmt] = useState<number>(0);
+  const [cgstPct, setCgstPct] = useState<number>(0);
+  const [cgstAmt, setCgstAmt] = useState<number>(0);
+  const [igstPct, setIgstPct] = useState<number>(0);
+  const [igstAmt, setIgstAmt] = useState<number>(0);
+  const [tdsPct, setTdsPct] = useState<number>(0);
+  const [tdsAmt, setTdsAmt] = useState<number>(0);
+
+  // Remarks
+  const [remark1, setRemark1] = useState('');
+  const [remark2, setRemark2] = useState('');
+  const [remark3, setRemark3] = useState('');
+
+  // Dropdown list
+  const [accountsList, setAccountsList] = useState<IAccount[]>([]);
+
+  const refreshData = useCallback(async () => {
+    if (!companyId) return;
+    await refreshJournals({ companyId });
+    const accs = await fetchAccounts({ companyId });
+    if (accs.success) {
+      setAccountsList(accs.data || []);
+    }
+  }, [companyId, refreshJournals, fetchAccounts]);
+
+  useEffect(() => {
+    refreshData();
+  }, [refreshData]);
+
+  // Bidirectional calculations
+  const handleAmountChange = (val: number) => {
+    setAmount(val);
+    if (val > 0) {
+      setSgstAmt(Number((val * (sgstPct / 100)).toFixed(2)));
+      setCgstAmt(Number((val * (cgstPct / 100)).toFixed(2)));
+      setIgstAmt(Number((val * (igstPct / 100)).toFixed(2)));
+      setTdsAmt(Number((val * (tdsPct / 100)).toFixed(2)));
+    } else {
+      setSgstAmt(0);
+      setCgstAmt(0);
+      setIgstAmt(0);
+      setTdsAmt(0);
+    }
+  };
+
+  const handlePctChange = (type: 'sgst' | 'cgst' | 'igst' | 'tds', pct: number) => {
+    if (type === 'sgst') {
+      setSgstPct(pct);
+      setSgstAmt(Number((amount * (pct / 100)).toFixed(2)));
+    } else if (type === 'cgst') {
+      setCgstPct(pct);
+      setCgstAmt(Number((amount * (pct / 100)).toFixed(2)));
+    } else if (type === 'igst') {
+      setIgstPct(pct);
+      setIgstAmt(Number((amount * (pct / 100)).toFixed(2)));
+    } else if (type === 'tds') {
+      setTdsPct(pct);
+      setTdsAmt(Number((amount * (pct / 100)).toFixed(2)));
+    }
+  };
+
+  const handleAmtChange = (type: 'sgst' | 'cgst' | 'igst' | 'tds', amt: number) => {
+    if (type === 'sgst') {
+      setSgstAmt(amt);
+      if (amount > 0) {
+        setSgstPct(Number(((amt / amount) * 100).toFixed(4)));
+      }
+    } else if (type === 'cgst') {
+      setCgstAmt(amt);
+      if (amount > 0) {
+        setCgstPct(Number(((amt / amount) * 100).toFixed(4)));
+      }
+    } else if (type === 'igst') {
+      setIgstAmt(amt);
+      if (amount > 0) {
+        setIgstPct(Number(((amt / amount) * 100).toFixed(4)));
+      }
+    } else if (type === 'tds') {
+      setTdsAmt(amt);
+      if (amount > 0) {
+        setTdsPct(Number(((amt / amount) * 100).toFixed(4)));
+      }
+    }
+  };
+
+  // Handlers
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!companyId) return;
+
+    if (!drAccountId || !crAccountId) {
+      showToast('Please select both Debit and Credit accounts', 'error');
+      return;
+    }
+    if (drAccountId === crAccountId) {
+      showToast('Debit and Credit accounts cannot be the same', 'error');
+      return;
+    }
+    if (amount <= 0) {
+      showToast('Amount must be greater than zero', 'error');
+      return;
+    }
+
+    const payload = {
+      financialYearId: 1, // Default FY in backend
+      voucherDate,
+      drAccountId,
+      crAccountId,
+      amount,
+      sgst: sgstPct,
+      cgst: cgstPct,
+      igst: igstPct,
+      tds: tdsPct,
+      remark1,
+      remark2,
+      remark3,
+    };
+
+    const res = await createJournal({ companyId, data: payload });
+    if (res.success) {
+      showToast('Journal Voucher saved successfully', 'success');
+      // Reset form states
+      setDrAccountId(null);
+      setCrAccountId(null);
+      setAmount(0);
+      setSgstPct(0);
+      setSgstAmt(0);
+      setCgstPct(0);
+      setCgstAmt(0);
+      setIgstPct(0);
+      setIgstAmt(0);
+      setTdsPct(0);
+      setTdsAmt(0);
+      setRemark1('');
+      setRemark2('');
+      setRemark3('');
+      await refreshData();
+    } else {
+      showToast(res.error || 'Failed to save voucher', 'error');
+    }
+  };
+
+  const handleDelete = async (id: number, number: string) => {
+    if (!companyId || !confirm(`Delete Journal Voucher ${number}? This will reverse double-entry ledger postings.`)) return;
+    const res = await deleteJournal({ id, companyId });
+    if (res.success) {
+      showToast('Journal Voucher deleted successfully', 'success');
+      await refreshData();
+    } else {
+      showToast(res.error || 'Delete failed', 'error');
+    }
+  };
+
+  const getNarrationField = (narrationStr: string | null, fieldName: string) => {
+    try {
+      if (!narrationStr) return '—';
+      const parsed = JSON.parse(narrationStr);
+      if (parsed[fieldName] !== undefined && parsed[fieldName] !== '') {
+        if (typeof parsed[fieldName] === 'number') {
+          return parsed[fieldName] > 0 ? `${parsed[fieldName]}%` : '0%';
+        }
+        return parsed[fieldName];
+      }
+      return '—';
+    } catch {
+      return '—';
+    }
+  };
+
+  const columns: Column<any>[] = [
+    {
+      key: 'voucherNumber',
+      header: 'VOUCHER NO',
+      render: (row) => <span style={{ fontFamily: 'monospace', fontWeight: 600 }}>{row.voucherNumber}</span>
+    },
+    {
+      key: 'voucherDate',
+      header: 'DATE',
+      render: (row) => new Date(row.voucherDate).toLocaleDateString('en-IN')
+    },
+    {
+      key: 'drAccount',
+      header: 'DR. ACCOUNT',
+      render: (row) => row.lines.find((l: any) => l.debitCreditType === 'DEBIT')?.account?.accountName || '—'
+    },
+    {
+      key: 'crAccount',
+      header: 'CR. ACCOUNT',
+      render: (row) => row.lines.find((l: any) => l.debitCreditType === 'CREDIT')?.account?.accountName || '—'
+    },
+    {
+      key: 'totalDebit',
+      header: 'AMOUNT',
+      render: (row) => `₹ ${Number(row.totalDebit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    },
+    {
+      key: 'totalAmount',
+      header: 'TOTAL AMOUNT',
+      render: (row) => {
+        try {
+          const base = Number(row.totalDebit);
+          if (!row.narration) return `₹ ${base.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+          const parsed = JSON.parse(row.narration);
+          const sgstPct = Number(parsed.sgst) || 0;
+          const cgstPct = Number(parsed.cgst) || 0;
+          const igstPct = Number(parsed.igst) || 0;
+          const tdsPct = Number(parsed.tds) || 0;
+          
+          const sgstAmt = Number((base * (sgstPct / 100)).toFixed(2));
+          const cgstAmt = Number((base * (cgstPct / 100)).toFixed(2));
+          const igstAmt = Number((base * (igstPct / 100)).toFixed(2));
+          const tdsAmt = Number((base * (tdsPct / 100)).toFixed(2));
+          
+          const net = base + sgstAmt + cgstAmt + igstAmt - tdsAmt;
+          return `₹ ${net.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        } catch {
+          return `₹ ${Number(row.totalDebit).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+        }
+      }
+    },
+    {
+      key: 'sgst',
+      header: 'SGST',
+      render: (row) => getNarrationField(row.narration, 'sgst')
+    },
+    {
+      key: 'cgst',
+      header: 'CGST',
+      render: (row) => getNarrationField(row.narration, 'cgst')
+    },
+    {
+      key: 'igst',
+      header: 'IGST',
+      render: (row) => getNarrationField(row.narration, 'igst')
+    },
+    {
+      key: 'tds',
+      header: 'TDS',
+      render: (row) => getNarrationField(row.narration, 'tds')
+    },
+    {
+      key: 'remark1',
+      header: 'REMARK 1',
+      render: (row) => getNarrationField(row.narration, 'remark1')
+    },
+    {
+      key: 'remark2',
+      header: 'REMARK 2',
+      render: (row) => getNarrationField(row.narration, 'remark2')
+    },
+    {
+      key: 'remark3',
+      header: 'REMARK 3',
+      render: (row) => getNarrationField(row.narration, 'remark3')
+    },
+    {
+      key: 'actions',
+      header: 'ACTIONS',
+      width: '80px',
+      render: (row) => (
+        <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id, row.voucherNumber)} title="Delete">
+          <Trash2 size={14} color="var(--color-danger)" />
+        </Button>
+      )
+    }
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+      {/* Header Title */}
+      <div>
+        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+          Journal Voucher (JV) Book
+        </h1>
+        <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+          Record balanced adjustments and tax allocations between ledger accounts.
+        </p>
+      </div>
+
+      {/* Entry Form Grid */}
+      <form onSubmit={handleSave} style={{
+        background: 'var(--color-surface)',
+        padding: '24px',
+        borderRadius: '12px',
+        border: '1px solid var(--color-border)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px',
+      }}>
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px',
+        }}>
+          <Input
+            label="Voucher Date *"
+            type="date"
+            value={voucherDate}
+            onChange={(e) => setVoucherDate(e.target.value)}
+          />
+
+          <Select
+            label="Debit Account (Dr. A/C) *"
+            value={drAccountId ? String(drAccountId) : ''}
+            onChange={(val) => setDrAccountId(Number(val) || null)}
+            options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
+            placeholder="Select debit account"
+          />
+
+          <Select
+            label="Credit Account (Cr. A/C) *"
+            value={crAccountId ? String(crAccountId) : ''}
+            onChange={(val) => setCrAccountId(Number(val) || null)}
+            options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
+            placeholder="Select credit account"
+          />
+
+          <Input
+            label="Amount *"
+            type="number"
+            placeholder="0.00"
+            value={amount || ''}
+            onChange={(e) => handleAmountChange(Number(e.target.value))}
+          />
+        </div>
+
+        {/* Taxes and Adjustments Grid */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+          gap: '16px',
+          background: 'rgba(0,0,0,0.01)',
+          padding: '16px',
+          borderRadius: '8px',
+          border: '1px dashed var(--color-border)',
+        }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <Input
+              label="SGST %"
+              type="number"
+              value={sgstPct || ''}
+              onChange={(e) => handlePctChange('sgst', Number(e.target.value))}
+            />
+            <Input
+              label="SGST Value"
+              type="number"
+              placeholder="0.00"
+              value={sgstAmt || ''}
+              onChange={(e) => handleAmtChange('sgst', Number(e.target.value))}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <Input
+              label="CGST %"
+              type="number"
+              value={cgstPct || ''}
+              onChange={(e) => handlePctChange('cgst', Number(e.target.value))}
+            />
+            <Input
+              label="CGST Value"
+              type="number"
+              placeholder="0.00"
+              value={cgstAmt || ''}
+              onChange={(e) => handleAmtChange('cgst', Number(e.target.value))}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <Input
+              label="IGST %"
+              type="number"
+              value={igstPct || ''}
+              onChange={(e) => handlePctChange('igst', Number(e.target.value))}
+            />
+            <Input
+              label="IGST Value"
+              type="number"
+              placeholder="0.00"
+              value={igstAmt || ''}
+              onChange={(e) => handleAmtChange('igst', Number(e.target.value))}
+            />
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <Input
+              label="TDS %"
+              type="number"
+              value={tdsPct || ''}
+              onChange={(e) => handlePctChange('tds', Number(e.target.value))}
+            />
+            <Input
+              label="TDS Value"
+              type="number"
+              placeholder="0.00"
+              value={tdsAmt || ''}
+              onChange={(e) => handleAmtChange('tds', Number(e.target.value))}
+            />
+          </div>
+        </div>
+
+        {/* Remarks Section */}
+        <div style={{
+          display: 'grid',
+          gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+          gap: '16px',
+        }}>
+          <Input
+            label="Remark 1"
+            placeholder="Internal narration / note 1"
+            value={remark1}
+            onChange={(e) => setRemark1(e.target.value)}
+          />
+          <Input
+            label="Remark 2"
+            placeholder="Internal narration / note 2"
+            value={remark2}
+            onChange={(e) => setRemark2(e.target.value)}
+          />
+          <Input
+            label="Remark 3"
+            placeholder="Internal narration / note 3"
+            value={remark3}
+            onChange={(e) => setRemark3(e.target.value)}
+          />
+        </div>
+
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          background: 'var(--color-surface-hover)',
+          padding: '16px 24px',
+          borderRadius: '8px',
+          border: '1px solid var(--color-border)',
+          marginTop: '8px',
+        }}>
+          <div>
+            <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginRight: '8px' }}>Total Amount:</span>
+            <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-primary)' }}>
+              ₹ {Number(amount + sgstAmt + cgstAmt + igstAmt - tdsAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+          </div>
+          <Button variant="primary" type="submit">Save Voucher</Button>
+        </div>
+      </form>
+
+      {/* Recent Entries Grid */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>Recent Journal Vouchers</h3>
+        <DataGrid
+          columns={columns}
+          data={journals || []}
+          keyField="id"
+          loading={loading}
+          emptyTitle="No recent JV entries found"
+          emptyDescription="Create a Journal Voucher entry to post adjustments."
+        />
+      </div>
+    </div>
+  );
+};
