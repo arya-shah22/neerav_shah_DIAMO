@@ -3,16 +3,18 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Printer } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, Select, useToast } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { IAccount } from '../account/account.types';
+import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
 export const JVBookPage: React.FC = () => {
   const { showToast } = useToast();
   const { companyId } = useActiveCompany();
+  const [printData, setPrintData] = useState<any | null>(null);
 
   // IPC hooks
   const { invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
@@ -286,11 +288,16 @@ export const JVBookPage: React.FC = () => {
     {
       key: 'actions',
       header: 'ACTIONS',
-      width: '80px',
+      width: '120px',
       render: (row) => (
-        <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id, row.voucherNumber)} title="Delete">
-          <Trash2 size={14} color="var(--color-danger)" />
-        </Button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          <Button variant="ghost" size="sm" onClick={() => setPrintData(row)} title="Print A4 Layout">
+            <Printer size={14} color="var(--color-primary)" />
+          </Button>
+          <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id, row.voucherNumber)} title="Delete">
+            <Trash2 size={14} color="var(--color-danger)" />
+          </Button>
+        </div>
       )
     }
   ];
@@ -487,6 +494,14 @@ export const JVBookPage: React.FC = () => {
           emptyDescription="Create a Journal Voucher entry to post adjustments."
         />
       </div>
+
+      {printData && (
+        <PrintTemplate
+          type="JOURNAL"
+          data={printData}
+          onClose={() => setPrintData(null)}
+        />
+      )}
     </div>
   );
 };

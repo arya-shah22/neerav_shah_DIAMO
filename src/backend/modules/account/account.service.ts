@@ -14,7 +14,7 @@ export class AccountService {
   private readonly prisma!: PrismaService;
 
   async list(companyId: number, filters?: { search?: string; groupId?: number; isBroker?: boolean }) {
-    return this.prisma.account.findMany({
+    const accounts = await this.prisma.account.findMany({
       where: {
         companyId,
         isDeleted: false,
@@ -30,6 +30,28 @@ export class AccountService {
         brokerProfile: true,
         broker: { select: { id: true, accountName: true } },
       },
+    });
+
+    const glEntries = await this.prisma.generalLedgerEntry.groupBy({
+      by: ['accountId', 'debitCreditType'],
+      where: { companyId },
+      _sum: { amount: true }
+    });
+
+    return accounts.map(account => {
+      const opening = Number(account.openingBalanceAmount) || 0;
+      const isOpeningDebit = account.openingBalanceType === DebitCreditType.DEBIT;
+
+      const accountGL = glEntries.filter(e => e.accountId === account.id);
+      const debitSum = Number(accountGL.find(e => e.debitCreditType === DebitCreditType.DEBIT)?._sum?.amount) || 0;
+      const creditSum = Number(accountGL.find(e => e.debitCreditType === DebitCreditType.CREDIT)?._sum?.amount) || 0;
+
+      const balance = isOpeningDebit ? (opening + debitSum - creditSum) : (-opening + debitSum - creditSum);
+
+      return {
+        ...account,
+        balance
+      };
     });
   }
 
@@ -85,6 +107,7 @@ export class AccountService {
     // Auto-detect if this is a broker based on group name
     const isBroker = currentGroup.groupName === 'Brokers';
 
+    const canBuySellBoth = Boolean(data.canBuySellBoth);
     let companiesToProcess = [companyId];
     if (addAllFirms) {
       const allCompanies = await this.prisma.company.findMany({
@@ -99,64 +122,120 @@ export class AccountService {
     let primaryAccount = null;
 
     for (const targetCoId of companiesToProcess) {
-      let targetGroupId = Number(data.accountGroupId);
-
-      // Find matching group in the target company by name
-      if (targetCoId !== companyId) {
-        const targetGroup = await this.prisma.accountGroup.findFirst({
-          where: { companyId: targetCoId, groupName: currentGroup.groupName, isDeleted: false },
+      // Helper function to resolve/create group
+      const getOrCreateGroup = async (coId: number, isDebtor: boolean) => {
+        const groupName = isDebtor ? 'Sundry Debtors' : 'Sundry Creditors';
+        const nature = isDebtor ? 'ASSET' : 'LIABILITY';
+        let gp = await this.prisma.accountGroup.findFirst({
+          where: { companyId: coId, groupName, isDeleted: false }
         });
-        if (!targetGroup) {
-          console.warn(`Group ${currentGroup.groupName} not found in company ${targetCoId}, skipping creation`);
-          continue;
+        if (!gp) {
+          gp = await this.prisma.accountGroup.create({
+            data: { companyId: coId, groupName, nature }
+          });
         }
-        targetGroupId = targetGroup.id;
-      }
-
-      // Check if account name is unique in this target company
-      const dup = await this.prisma.account.findFirst({
-        where: { companyId: targetCoId, accountName: (data.accountName as string).trim(), isDeleted: false },
-      });
-      if (dup) {
-        console.warn(`Account ${(data.accountName as string).trim()} already exists in company ${targetCoId}, skipping`);
-        if (targetCoId === companyId) {
-          primaryAccount = dup;
-        }
-        continue;
-      }
-
-      const accData = {
-        ...this.mapAccountFields({ ...data, accountGroupId: targetGroupId }),
-        companyId: targetCoId,
-        isBroker,
+        return gp.id;
       };
 
-      const created = await this.prisma.account.create({
-        data: accData,
-        include: {
-          accountGroup: { select: { id: true, groupName: true } },
-        },
-      });
+      if (canBuySellBoth) {
+        // Create Debtors (Customer) Account
+        const debtorGroupId = await getOrCreateGroup(targetCoId, true);
+        const customerName = `${(data.accountName as string).trim()} (Customer)`;
+        const dupDebtor = await this.prisma.account.findFirst({
+          where: { companyId: targetCoId, accountName: customerName, isDeleted: false },
+        });
 
-      if (isBroker) {
-        await this.prisma.brokerProfile.create({
+        let createdDebtor = dupDebtor;
+        if (!dupDebtor) {
+          createdDebtor = await this.prisma.account.create({
+            data: {
+              ...this.mapAccountFields({ ...data, accountName: customerName, accountGroupId: debtorGroupId }),
+              companyId: targetCoId,
+              isBroker,
+            },
+            include: { accountGroup: { select: { id: true, groupName: true } } },
+          });
+        }
+
+        // Create Creditors (Supplier) Account
+        const creditorGroupId = await getOrCreateGroup(targetCoId, false);
+        const supplierName = `${(data.accountName as string).trim()} (Supplier)`;
+        const dupCreditor = await this.prisma.account.findFirst({
+          where: { companyId: targetCoId, accountName: supplierName, isDeleted: false },
+        });
+
+        let createdCreditor = dupCreditor;
+        if (!dupCreditor) {
+          createdCreditor = await this.prisma.account.create({
+            data: {
+              ...this.mapAccountFields({ ...data, accountName: supplierName, accountGroupId: creditorGroupId }),
+              companyId: targetCoId,
+              isBroker,
+            },
+            include: { accountGroup: { select: { id: true, groupName: true } } },
+          });
+        }
+
+        if (targetCoId === companyId) {
+          primaryAccount = createdDebtor || createdCreditor;
+        }
+      } else {
+        // Single Account Creation logic
+        let targetGroupId = Number(data.accountGroupId);
+        if (targetCoId !== companyId) {
+          const targetGroup = await this.prisma.accountGroup.findFirst({
+            where: { companyId: targetCoId, groupName: currentGroup.groupName, isDeleted: false },
+          });
+          if (!targetGroup) {
+            console.warn(`Group ${currentGroup.groupName} not found in company ${targetCoId}, skipping creation`);
+            continue;
+          }
+          targetGroupId = targetGroup.id;
+        }
+
+        const dup = await this.prisma.account.findFirst({
+          where: { companyId: targetCoId, accountName: (data.accountName as string).trim(), isDeleted: false },
+        });
+        if (dup) {
+          console.warn(`Account ${(data.accountName as string).trim()} already exists in company ${targetCoId}, skipping`);
+          if (targetCoId === companyId) {
+            primaryAccount = dup;
+          }
+          continue;
+        }
+
+        const created = await this.prisma.account.create({
           data: {
-            accountId: created.id,
-            brokeragePct: 0,
-            addLess: 'LESS',
-            tdsPct: 5,
+            ...this.mapAccountFields({ ...data, accountGroupId: targetGroupId }),
+            companyId: targetCoId,
+            isBroker,
+          },
+          include: {
+            accountGroup: { select: { id: true, groupName: true } },
           },
         });
-      }
 
-      if (targetCoId === companyId) {
-        primaryAccount = created;
+        if (isBroker) {
+          await this.prisma.brokerProfile.create({
+            data: {
+              accountId: created.id,
+              brokeragePct: 0,
+              addLess: 'LESS',
+              tdsPct: 5,
+            },
+          });
+        }
+
+        if (targetCoId === companyId) {
+          primaryAccount = created;
+        }
       }
     }
 
     if (!primaryAccount) {
       throw new BadRequestException('Account already exists or failed to create in the active company');
     }
+
 
     return primaryAccount;
   }

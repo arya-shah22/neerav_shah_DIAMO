@@ -16,6 +16,7 @@ import { InvoiceController } from '../backend/modules/invoice/invoice.controller
 import { ChallanController } from '../backend/modules/challan/challan.controller';
 import { JobController } from '../backend/modules/job/job.controller';
 import { JournalController } from '../backend/modules/journal/journal.controller';
+import { CashBankController } from '../backend/modules/cashbank/cashbank.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -48,6 +49,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const challanController = nestApp.get(ChallanController);
   const jobController = nestApp.get(JobController);
   const journalController = nestApp.get(JournalController);
+  const cashBankController = nestApp.get(CashBankController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -154,4 +156,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'journal:list', (payload) => journalController.handleList(payload));
   ipcHandle(ipcMain, 'journal:create', (payload) => journalController.handleCreate(payload));
   ipcHandle(ipcMain, 'journal:delete', (payload) => journalController.handleDelete(payload));
+
+  // ─── Phase 9: Cash & Bank Vouchers ────────────────────────
+  ipcHandle(ipcMain, 'cashbank:list', (payload) => cashBankController.handleList(payload));
+  ipcHandle(ipcMain, 'cashbank:balance', (payload) => cashBankController.handleGetRunningBalance(payload));
+  ipcHandle(ipcMain, 'cashbank:unpaid-purchases', (payload) => cashBankController.handleListUnpaidPurchases(payload));
+  ipcHandle(ipcMain, 'cashbank:unpaid-sales', (payload) => cashBankController.handleListUnpaidSales(payload));
+  ipcHandle(ipcMain, 'cashbank:party-notes', (payload) => cashBankController.handleListPartyNotes(payload));
+  ipcHandle(ipcMain, 'cashbank:create', (payload) => cashBankController.handleCreate(payload));
+  ipcHandle(ipcMain, 'cashbank:delete', (payload) => cashBankController.handleDelete(payload));
 }

@@ -1,11 +1,12 @@
-import React, { useCallback, useEffect } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, FileText, Eye, Edit2 } from 'lucide-react';
+import { Plus, Trash2, FileText, Eye, Edit2, Printer } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Badge, useToast } from '../../components/ui';
 import { IInvoice, InvoiceType } from './invoice.types';
+import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
 interface ListPageProps {
   type: InvoiceType;
@@ -15,6 +16,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { companyId, isReady } = useActiveCompany();
+  const [printData, setPrintData] = useState<IInvoice | null>(null);
 
   const getInfo = () => {
     switch (type) {
@@ -151,9 +153,18 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     {
       key: 'actions',
       header: 'ACTIONS',
-      width: '160px',
+      width: '200px',
       render: (row) => (
         <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+          <Button
+            variant="ghost"
+            size="sm"
+            title="Print A4 Layout"
+            onClick={() => setPrintData(row)}
+            style={{ padding: '4px 6px' }}
+          >
+            <Printer size={15} color="var(--color-primary)" />
+          </Button>
           <Button
             variant="ghost"
             size="sm"
@@ -214,6 +225,14 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         emptyTitle={emptyTitle}
         emptyDescription={emptyDesc}
       />
+
+      {printData && (
+        <PrintTemplate
+          type="INVOICE"
+          data={printData}
+          onClose={() => setPrintData(null)}
+        />
+      )}
     </div>
   );
 };

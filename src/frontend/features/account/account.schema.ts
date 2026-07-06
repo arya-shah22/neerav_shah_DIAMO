@@ -30,6 +30,7 @@ export const accountSchema = z.object({
   openingBalanceType: z.enum(['DEBIT', 'CREDIT']).optional().nullable(),
   addAllFirms: z.boolean().default(true),
   targetCompanyIds: z.array(z.number()).optional().default([]),
+  canBuySellBoth: z.boolean().optional().default(true),
 });
 
 export type AccountFormData = z.infer<typeof accountSchema>;

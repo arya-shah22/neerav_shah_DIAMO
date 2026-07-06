@@ -39,6 +39,9 @@ export const AccountFormPage: React.FC = () => {
   const [companies, setCompanies] = useState<CompanyObj[]>([]);
   const [addAllFirms, setAddAllFirms] = useState(true);
   const [selectedCompanies, setSelectedCompanies] = useState<number[]>([]);
+  
+  // Buy/Sell both flag
+  const [canBuySellBoth, setCanBuySellBoth] = useState(true);
 
   const { invoke: fetchAccount } = useIpc<IAccount>('account:get');
   const { invoke: createAccount, loading: creating } = useIpc('account:create');
@@ -48,7 +51,7 @@ export const AccountFormPage: React.FC = () => {
   const { invoke: fetchBrokers } = useIpc<IAccount[]>('account:list');
   const { invoke: fetchCompanies } = useIpc<CompanyObj[]>('company:list');
 
-  const { register, handleSubmit, reset, control, formState: { errors } } = useForm<AccountFormData>({
+  const { register, handleSubmit, reset, control, watch, formState: { errors } } = useForm<AccountFormData>({
     resolver: zodResolver(accountSchema),
     defaultValues: {
       accountGroupId: undefined,
@@ -82,6 +85,15 @@ export const AccountFormPage: React.FC = () => {
       targetCompanyIds: [],
     },
   });
+
+  const watchedGroupId = watch('accountGroupId');
+  const selectedGroup = groups.find(g => g.id === Number(watchedGroupId));
+  const isDebtorOrCreditor = selectedGroup && (
+    selectedGroup.groupName.toLowerCase().includes('debtor') || 
+    selectedGroup.groupName.toLowerCase().includes('creditor') ||
+    selectedGroup.groupName.toLowerCase().includes('customer') ||
+    selectedGroup.groupName.toLowerCase().includes('supplier')
+  );
 
   useEffect(() => {
     if (!companyId) return;
@@ -150,8 +162,9 @@ export const AccountFormPage: React.FC = () => {
 
     const submissionData = {
       ...data,
-      addAllFirms: isEdit ? false : addAllFirms,
-      targetCompanyIds: isEdit ? [] : selectedCompanies,
+      addAllFirms: addAllFirms,
+      targetCompanyIds: selectedCompanies,
+      canBuySellBoth: isDebtorOrCreditor ? canBuySellBoth : false,
     };
 
     const res = isEdit
@@ -234,8 +247,30 @@ export const AccountFormPage: React.FC = () => {
             </div>
           </section>
 
+          {/* DUAL RELATIONSHIP: BUY/SELL BOTH */}
+          {isDebtorOrCreditor && (
+            <>
+              <div style={{ borderTop: '1px solid var(--color-border)' }} />
+              <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Trade Partnership Type</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <input
+                    type="checkbox"
+                    id="canBuySellBoth"
+                    checked={canBuySellBoth}
+                    onChange={(e) => setCanBuySellBoth(e.target.checked)}
+                    style={{ width: '16px', height: '16px', accentColor: 'var(--color-accent)' }}
+                  />
+                  <label htmlFor="canBuySellBoth" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                    Can this party buy & sell both? (Auto-creates Customer and Supplier ledgers)
+                  </label>
+                </div>
+              </section>
+            </>
+          )}
+
           {/* MULTI-FIRM/COMPANY ASSIGNMENT */}
-          {!isEdit && (
+          {true && (
             <>
               <div style={{ borderTop: '1px solid var(--color-border)' }} />
               <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -298,46 +333,13 @@ export const AccountFormPage: React.FC = () => {
 
           <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
-          {/* GST SECTION */}
+          {/* CONTACT INFO */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>GST & Tax Info</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              
-              {/* 1) GST Registration Type */}
-              <FormSelect
-                control={control}
-                name="gstRegType"
-                label="GST Registration Type"
-                placeholder="Select registration type"
-                options={[
-                  { value: 'REGISTERED', label: 'Regular Registered' },
-                  { value: 'COMPOSITION', label: 'Composition' },
-                  { value: 'UNREGISTERED', label: 'Unregistered' },
-                  { value: 'SEZ_DEVELOPER', label: 'SEZ Developer' },
-                  { value: 'SEZ_UNIT', label: 'SEZ Unit' },
-                ]}
-                toValue={(v) => (v ? v : null)}
-                toString={(v) => (v == null ? '' : String(v))}
-              />
-
-              {/* 2) GST% */}
-              <Input
-                label="GST %"
-                type="number"
-                step="0.01"
-                placeholder="e.g. 0.25, 3.00, 18.00"
-                error={errors.gstPct?.message}
-                {...register('gstPct', { valueAsNumber: true })}
-              />
-
-              {/* 3) GSTN */}
-              <Input label="GSTIN / GSTN" error={errors.gstinNumber?.message} {...register('gstinNumber')} />
-
-              {/* 4) PAN */}
-              <Input label="PAN" error={errors.panNumber?.message} {...register('panNumber')} />
-
-              {/* 5) Udyam / MSME */}
-              <Input label="Udyam / MSME" error={errors.udyamMsme?.message} {...register('udyamMsme')} />
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Contact Details</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <Input label="Mobile" {...register('mobile')} />
+              <Input label="Phone" {...register('phone')} />
+              <Input label="Email" type="email" {...register('email')} />
             </div>
           </section>
 
@@ -345,72 +347,92 @@ export const AccountFormPage: React.FC = () => {
 
           {/* ADDRESS SECTION */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Address & Contact</h2>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Address</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <Input label="Address Line 1" {...register('addressLine1')} />
               <Input label="Address Line 2" {...register('addressLine2')} />
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
               <Input label="City" {...register('city')} />
               <FormSelect
                 control={control}
                 name="stateCode"
                 label="State"
                 placeholder="Select state"
-                creatable={true}
                 options={statesList.map((s) => ({
                   value: s.stateCode,
-                  label: s.stateName,
+                  label: `${s.stateCode} - ${s.stateName}`,
                 }))}
               />
               <Input label="Pincode" {...register('pincode')} />
-              <Input label="Mobile" {...register('mobile')} />
-              <Input label="Phone" {...register('phone')} />
-              <Input label="Email" error={errors.email?.message} {...register('email')} />
+              <Input label="Country" {...register('country')} />
             </div>
           </section>
 
           <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
-          {/* BANK SECTION */}
+          {/* GST & TAX */}
+          <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Tax & GST</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+              <FormSelect
+                control={control}
+                name="gstRegType"
+                label="GST Registration Type"
+                placeholder="Select type"
+                options={[
+                  { value: 'REGISTERED', label: 'Registered' },
+                  { value: 'COMPOSITION', label: 'Composition' },
+                  { value: 'UNREGISTERED', label: 'Unregistered' },
+                  { value: 'SEZ_DEVELOPER', label: 'SEZ Developer' },
+                  { value: 'SEZ_UNIT', label: 'SEZ Unit' },
+                ]}
+              />
+              <Input label="GSTIN" {...register('gstinNumber')} />
+              <Input label="PAN" {...register('panNumber')} />
+            </div>
+          </section>
+
+          <div style={{ borderTop: '1px solid var(--color-border)' }} />
+
+          {/* BANK DETAILS */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Bank Details</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <Input label="Account Number" {...register('bankAccountNumber')} />
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px' }}>
               <Input label="Bank Name" {...register('bankName')} />
               <Input label="Branch" {...register('bankBranch')} />
-              <Input label="IFSC" {...register('bankIfsc')} />
+              <Input label="Account Number" {...register('bankAccountNumber')} />
+              <Input label="IFSC Code" {...register('bankIfsc')} />
             </div>
           </section>
 
           <div style={{ borderTop: '1px solid var(--color-border)' }} />
 
-          {/* CREDIT TERMS & OPENING BALANCE */}
+          {/* OPENING BALANCE */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Credit & Opening Balance</h2>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Opening Balance</h2>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-              <Input label="Due Days" type="number" {...register('creditDays', { valueAsNumber: true })} />
-              <Input label="Credit Limit" type="number" {...register('creditLimit', { valueAsNumber: true })} />
-              <Input label="Opening Balance" type="number" {...register('openingBalanceAmount', { valueAsNumber: true })} />
+              <Input label="Opening Balance" type="number" step="0.01" error={errors.openingBalanceAmount?.message} {...register('openingBalanceAmount', { valueAsNumber: true })} />
               <FormSelect
                 control={control}
                 name="openingBalanceType"
-                label="Opening Balance Type"
-                placeholder="—"
+                label="Balance Type"
+                placeholder="Select Dr / Cr"
                 options={[
-                  { value: 'DEBIT', label: 'Debit' },
-                  { value: 'CREDIT', label: 'Credit' },
+                  { value: 'DEBIT', label: 'Debit (Dr)' },
+                  { value: 'CREDIT', label: 'Credit (Cr)' },
                 ]}
-                searchable={false}
-                toValue={(v) => (v ? v : null)}
-                toString={(v) => (v == null ? '' : String(v))}
               />
             </div>
           </section>
-        </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
-          <Button variant="primary" type="submit" loading={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Save size={16} /> Save Account
-          </Button>
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '12px' }}>
+            <Button variant="ghost" type="button" onClick={() => navigate(LIST_ROUTE)}>Cancel</Button>
+            <Button variant="primary" type="submit" disabled={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Save size={16} /> {isEdit ? 'Update Account' : 'Create Account'}
+            </Button>
+          </div>
+
         </div>
       </form>
     </div>

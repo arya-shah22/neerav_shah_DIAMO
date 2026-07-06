@@ -19,7 +19,7 @@ const ROUTES = {
 export const AccountListPage: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
-  const { activeCompany, companyId, isReady } = useActiveCompany();
+  const { companyId, isReady, activeCompany } = useActiveCompany();
   const [search, setSearch] = useState('');
 
   const { data: accounts, loading, invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
@@ -28,7 +28,7 @@ export const AccountListPage: React.FC = () => {
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
-    await fetchAccounts({ companyId, search: search || undefined, isBroker: false });
+    await fetchAccounts({ companyId, search: search || undefined });
   }, [companyId, fetchAccounts, search]);
 
   useEffect(() => { refresh(); }, [refresh]);
@@ -56,17 +56,42 @@ export const AccountListPage: React.FC = () => {
     }
   };
 
+  const isPremadeAccount = (name: string) => {
+    const lower = name.toLowerCase();
+    return (
+      lower.includes('cash') ||
+      lower.includes('bank') ||
+      lower.includes('cgst') ||
+      lower.includes('sgst') ||
+      lower.includes('igst') ||
+      lower.includes('purchase') ||
+      lower.includes('sales')
+    );
+  };
+
+  const allAccounts = accounts || [];
+  const systemAccounts = allAccounts.filter(a => isPremadeAccount(a.accountName));
+  const userAccounts = allAccounts.filter(a => !isPremadeAccount(a.accountName));
+
   const columns: Column<IAccount>[] = [
     {
       key: 'accountName',
       header: 'ACCOUNT NAME',
       sortable: true,
-      render: (row) => (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <Users size={16} color="var(--color-accent)" />
-          <span style={{ fontWeight: 500 }}>{row.accountName}</span>
-        </div>
-      ),
+      render: (row) => {
+        const isPremade = isPremadeAccount(row.accountName);
+        return (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Users size={16} color="var(--color-accent)" />
+            <span style={{ fontWeight: 500 }}>{row.accountName}</span>
+            {isPremade ? (
+              <Badge variant="info" style={{ fontSize: '9px', opacity: 0.8 }}>System</Badge>
+            ) : (
+              <Badge variant="success" style={{ fontSize: '9px', opacity: 0.8 }}>User</Badge>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'accountGroup',
@@ -82,6 +107,27 @@ export const AccountListPage: React.FC = () => {
       key: 'gstinNumber',
       header: 'GSTIN',
       render: (row) => row.gstinNumber || '—',
+    },
+    {
+      key: 'balance',
+      header: 'RUNNING BALANCE',
+      render: (row) => {
+        const bal = row.balance ?? 0;
+        if (bal > 0) {
+          return (
+            <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+              ₹ {bal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Dr
+            </span>
+          );
+        } else if (bal < 0) {
+          return (
+            <span style={{ fontWeight: 600, color: 'var(--color-danger)' }}>
+              ₹ {Math.abs(bal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr
+            </span>
+          );
+        }
+        return <span style={{ color: 'var(--color-text-secondary)' }}>₹ 0.00</span>;
+      }
     },
     {
       key: 'status',
@@ -145,14 +191,35 @@ export const AccountListPage: React.FC = () => {
         />
       </div>
 
-      <DataGrid
-        columns={columns}
-        data={accounts || []}
-        keyField="id"
-        loading={loading}
-        emptyTitle="No accounts found"
-        emptyDescription="Create your first ledger account to get started."
-      />
+      {/* Section 1: System Pre-made Accounts */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
+          System Pre-made Accounts
+        </h3>
+        <DataGrid
+          columns={columns}
+          data={systemAccounts}
+          keyField="id"
+          loading={loading}
+          emptyTitle="No System accounts"
+          emptyDescription="Compulsory system accounts will generate automatically upon operations."
+        />
+      </div>
+
+      {/* Section 2: User Made Accounts */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
+          User-made Accounts
+        </h3>
+        <DataGrid
+          columns={columns}
+          data={userAccounts}
+          keyField="id"
+          loading={loading}
+          emptyTitle="No User accounts"
+          emptyDescription="Create custom party or ledger accounts to see them here."
+        />
+      </div>
     </div>
   );
 };

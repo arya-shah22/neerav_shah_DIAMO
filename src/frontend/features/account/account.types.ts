@@ -46,4 +46,5 @@ export interface IAccount {
   openingBalanceAmount: number;
   openingBalanceType: DebitCreditType | null;
   accountGroup?: IAccountGroupRef;
+  balance?: number;
 }

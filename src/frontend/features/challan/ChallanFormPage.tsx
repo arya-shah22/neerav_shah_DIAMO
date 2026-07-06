@@ -498,6 +498,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
       <div style={{ background: '#ffffff', minHeight: '100vh', padding: '20px', boxSizing: 'border-box' }}>
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
+            @page { size: A4 landscape; margin: 10mm; }
             body { background: #ffffff; padding: 0; margin: 0; }
             .no-print { display: none !important; }
             .print-page { padding: 0 !important; border: none !important; margin: 0 !important; width: 100% !important; }

@@ -4,13 +4,14 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Trash2, FileText } from 'lucide-react';
+import { Plus, Trash2, FileText, Printer } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Input, useToast } from '../../components/ui';
 import { JobType } from '@prisma/client';
 import { IJobVoucher, JOB_TYPE_LABELS } from './job.types';
+import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
 interface JobListPageProps {
   jobType: JobType;
@@ -21,6 +22,7 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
   const { showToast } = useToast();
   const { companyId } = useActiveCompany();
   const [search, setSearch] = useState('');
+  const [printData, setPrintData] = useState<IJobVoucher | null>(null);
 
   const { data: vouchers, loading, invoke: fetchJobs } = useIpc<IJobVoucher[]>('job:list');
   const { invoke: deleteJob } = useIpc('job:delete');
@@ -112,9 +114,12 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
     {
       key: 'actions',
       header: 'ACTIONS',
-      width: '120px',
+      width: '160px',
       render: (row) => (
         <div style={{ display: 'flex', gap: '4px' }}>
+          <Button variant="ghost" size="sm" onClick={() => setPrintData(row)} title="Print A4 Layout">
+            <Printer size={14} color="var(--color-primary)" />
+          </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate(getViewRoute(row.id))} title="View Details">
             <FileText size={14} />
           </Button>
@@ -160,6 +165,14 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
         emptyTitle="No entries found"
         emptyDescription={`Create your first job entry to get started.`}
       />
+
+      {printData && (
+        <PrintTemplate
+          type="JOB"
+          data={printData}
+          onClose={() => setPrintData(null)}
+        />
+      )}
     </div>
   );
 };

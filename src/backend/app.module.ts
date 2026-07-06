@@ -17,6 +17,7 @@ import { InvoiceModule } from './modules/invoice/invoice.module';
 import { ChallanModule } from './modules/challan/challan.module';
 import { JobModule } from './modules/job/job.module';
 import { JournalModule } from './modules/journal/journal.module';
+import { CashBankModule } from './modules/cashbank/cashbank.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { JournalModule } from './modules/journal/journal.module';
     ChallanModule,
     JobModule,
     JournalModule,
+    CashBankModule,
   ],
   controllers: [],
   providers: [
