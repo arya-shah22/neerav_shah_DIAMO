@@ -194,6 +194,7 @@ enum VoucherType {
   STOCK_ENTRY
   STOCK_ADJUSTMENT
   OPENING
+  LOAN_VOUCHER
 }
 
 enum NumberingMethod {
@@ -282,6 +283,28 @@ enum WidgetType {
   PROGRESS
 }
 
+enum LoanType {
+  GIVEN
+  TAKEN
+}
+
+enum InterestType {
+  SIMPLE
+  COMPOUND
+}
+
+enum CompoundingFrequency {
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+enum LoanStatus {
+  ACTIVE
+  PARTIAL
+  CLOSED
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION 2: CORE INFRASTRUCTURE TABLES (4)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -289,57 +312,57 @@ enum WidgetType {
 /// Legal entity: Stores company-level identity, tax credentials,
 /// bank details, and portal API keys.
 model Company {
-  id                 Int           @id @default(autoincrement()) @db.UnsignedInt
-  companyName        String        @unique @map("company_name") @db.VarChar(150)
-  companyCode        String        @unique @map("company_code") @db.VarChar(3)
-  panNumber          String        @map("pan_number") @db.VarChar(10)
-  gstinNumber        String?       @map("gstin_number") @db.VarChar(15)
-  tanNumber          String?       @map("tan_number") @db.VarChar(10)
-  udyamMsme          String?       @map("udyam_msme") @db.VarChar(30)
-  iecCode            String?       @map("iec_code") @db.VarChar(15)
-  gstEnabled         Boolean       @default(true) @map("gst_enabled")
-  gstRegistrationDate DateTime?   @map("gst_registration_date") @db.Date
-  businessType       String?       @map("business_type") @db.VarChar(50)
-  status             CompanyStatus @default(ACTIVE)
-  isDefault          Boolean       @default(false) @map("is_default")
+  id                  Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyName         String        @unique @map("company_name") @db.VarChar(150)
+  companyCode         String        @unique @map("company_code") @db.VarChar(3)
+  panNumber           String        @map("pan_number") @db.VarChar(10)
+  gstinNumber         String?       @map("gstin_number") @db.VarChar(15)
+  tanNumber           String?       @map("tan_number") @db.VarChar(10)
+  udyamMsme           String?       @map("udyam_msme") @db.VarChar(30)
+  iecCode             String?       @map("iec_code") @db.VarChar(15)
+  gstEnabled          Boolean       @default(true) @map("gst_enabled")
+  gstRegistrationDate DateTime?     @map("gst_registration_date") @db.Date
+  businessType        String?       @map("business_type") @db.VarChar(50)
+  status              CompanyStatus @default(ACTIVE)
+  isDefault           Boolean       @default(false) @map("is_default")
 
   // Address
-  addressLine1       String?       @map("address_line_1") @db.VarChar(255)
-  addressLine2       String?       @map("address_line_2") @db.VarChar(255)
-  city               String?       @db.VarChar(100)
-  stateCode          String?       @map("state_code") @db.VarChar(2)
-  pincode            String?       @db.VarChar(10)
-  country            String?       @default("India") @db.VarChar(100)
-  distanceKm         Decimal?      @map("distance_km") @db.Decimal(8, 2)
+  addressLine1 String?  @map("address_line_1") @db.VarChar(255)
+  addressLine2 String?  @map("address_line_2") @db.VarChar(255)
+  city         String?  @db.VarChar(100)
+  stateCode    String?  @map("state_code") @db.VarChar(2)
+  pincode      String?  @db.VarChar(10)
+  country      String?  @default("India") @db.VarChar(100)
+  distanceKm   Decimal? @map("distance_km") @db.Decimal(8, 2)
 
   // Contact
-  mobile             String?       @db.VarChar(20)
-  phone              String?       @db.VarChar(20)
-  email              String?       @db.VarChar(255)
-  website            String?       @db.VarChar(255)
+  mobile  String? @db.VarChar(20)
+  phone   String? @db.VarChar(20)
+  email   String? @db.VarChar(255)
+  website String? @db.VarChar(255)
 
   // Bank Details
-  bankAccountNumber  String?       @map("bank_account_number") @db.VarChar(30)
-  bankName           String?       @map("bank_name") @db.VarChar(150)
-  bankBranch         String?       @map("bank_branch") @db.VarChar(150)
-  bankIfsc           String?       @map("bank_ifsc") @db.VarChar(11)
-  bankSwift          String?       @map("bank_swift") @db.VarChar(11)
+  bankAccountNumber String? @map("bank_account_number") @db.VarChar(30)
+  bankName          String? @map("bank_name") @db.VarChar(150)
+  bankBranch        String? @map("bank_branch") @db.VarChar(150)
+  bankIfsc          String? @map("bank_ifsc") @db.VarChar(11)
+  bankSwift         String? @map("bank_swift") @db.VarChar(11)
 
   // Portal Credentials (encrypted at application level)
-  ewayPortalUser     String?       @map("eway_portal_user") @db.VarChar(255)
-  ewayPortalPass     String?       @map("eway_portal_pass") @db.VarChar(500)
-  gstrPortalUser     String?       @map("gstr_portal_user") @db.VarChar(255)
-  gstrPortalPass     String?       @map("gstr_portal_pass") @db.VarChar(500)
+  ewayPortalUser String? @map("eway_portal_user") @db.VarChar(255)
+  ewayPortalPass String? @map("eway_portal_pass") @db.VarChar(500)
+  gstrPortalUser String? @map("gstr_portal_user") @db.VarChar(255)
+  gstrPortalPass String? @map("gstr_portal_pass") @db.VarChar(500)
 
   // Audit
-  createdBy          Int?          @map("created_by") @db.UnsignedInt
-  createdAt          DateTime      @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy          Int?          @map("updated_by") @db.UnsignedInt
-  updatedAt          DateTime      @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted          Boolean       @default(false) @map("is_deleted")
-  deletedBy          Int?          @map("deleted_by") @db.UnsignedInt
-  deletedAt          DateTime?     @map("deleted_at") @db.DateTime(3)
-  version            Int           @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
   financialYears         FinancialYear[]
@@ -361,6 +384,7 @@ model Company {
   printTemplates         PrintTemplate[]
   userCompanyAccess      UserCompanyAccess[]
   notificationRecords    NotificationRecord[]
+  Loan                   Loan[]
 
   @@map("companies")
 }
@@ -368,29 +392,29 @@ model Company {
 /// Accounting period with transaction lock dates, tax activation flags,
 /// and year-end carry-forward controls.
 model FinancialYear {
-  id                     Int       @id @default(autoincrement()) @db.UnsignedInt
-  companyId              Int       @map("company_id") @db.UnsignedInt
-  fromDate               DateTime  @map("from_date") @db.Date
-  toDate                 DateTime  @map("to_date") @db.Date
-  isActive               Boolean   @default(false) @map("is_active")
-  isClosed               Boolean   @default(false) @map("is_closed")
+  id                      Int       @id @default(autoincrement()) @db.UnsignedInt
+  companyId               Int       @map("company_id") @db.UnsignedInt
+  fromDate                DateTime  @map("from_date") @db.Date
+  toDate                  DateTime  @map("to_date") @db.Date
+  isActive                Boolean   @default(false) @map("is_active")
+  isClosed                Boolean   @default(false) @map("is_closed")
   lockTransactionUptoDate DateTime? @map("lock_transaction_upto_date") @db.Date
-  gstActive              Boolean   @default(true) @map("gst_active")
-  tcsActive              Boolean   @default(true) @map("tcs_active")
-  accountEffect          Boolean   @default(true) @map("account_effect")
+  gstActive               Boolean   @default(true) @map("gst_active")
+  tcsActive               Boolean   @default(true) @map("tcs_active")
+  accountEffect           Boolean   @default(true) @map("account_effect")
 
   // Audit
-  createdBy              Int?      @map("created_by") @db.UnsignedInt
-  createdAt              DateTime  @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy              Int?      @map("updated_by") @db.UnsignedInt
-  updatedAt              DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted              Boolean   @default(false) @map("is_deleted")
-  deletedBy              Int?      @map("deleted_by") @db.UnsignedInt
-  deletedAt              DateTime? @map("deleted_at") @db.DateTime(3)
-  version                Int       @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company                Company   @relation(fields: [companyId], references: [id])
+  company                Company                 @relation(fields: [companyId], references: [id])
   saleInvoices           SaleInvoice[]
   purchaseInvoices       PurchaseInvoice[]
   challanVouchers        ChallanVoucher[]
@@ -399,6 +423,7 @@ model FinancialYear {
   jobVouchers            JobVoucher[]
   voucherNumberConfigs   VoucherNumberConfig[]
   voucherNumberSequences VoucherNumberSequence[]
+  Loan                   Loan[]
 
   @@unique([companyId, fromDate, toDate], map: "UQ_financial_years_company_dates")
   @@index([companyId, isActive], map: "IX_financial_years_company_active")
@@ -407,9 +432,9 @@ model FinancialYear {
 
 /// Indian state code reference lookup (01–37). Seed data table.
 model StateCode {
-  id        Int    @id @default(autoincrement()) @db.UnsignedInt
-  stateCode String @unique @map("state_code") @db.VarChar(2)
-  stateName String @map("state_name") @db.VarChar(100)
+  id        Int     @id @default(autoincrement()) @db.UnsignedInt
+  stateCode String  @unique @map("state_code") @db.VarChar(2)
+  stateName String  @map("state_name") @db.VarChar(100)
   isUt      Boolean @default(false) @map("is_ut")
 
   @@map("state_codes")
@@ -417,9 +442,9 @@ model StateCode {
 
 /// Harmonized System of Nomenclature code reference. Seed data table.
 model HsnCode {
-  id          Int    @id @default(autoincrement()) @db.UnsignedInt
-  hsnCode     String @unique @map("hsn_code") @db.VarChar(8)
-  description String @map("description") @db.VarChar(255)
+  id          Int     @id @default(autoincrement()) @db.UnsignedInt
+  hsnCode     String  @unique @map("hsn_code") @db.VarChar(8)
+  description String  @map("description") @db.VarChar(255)
   gstPct      Decimal @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
   cessPct     Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
 
@@ -432,29 +457,29 @@ model HsnCode {
 
 /// Chart of accounts hierarchy. Self-referencing tree structure.
 model AccountGroup {
-  id            Int      @id @default(autoincrement()) @db.UnsignedInt
-  companyId     Int      @map("company_id") @db.UnsignedInt
-  groupName     String   @map("group_name") @db.VarChar(150)
-  parentGroupId Int?     @map("parent_group_id") @db.UnsignedInt
-  nature        String   @map("nature") @db.VarChar(30) // Assets, Liabilities, Income, Expense
-  isGlobal      Boolean  @default(false) @map("is_global")
-  sortOrder     Int      @default(0) @map("sort_order") @db.UnsignedInt
+  id            Int     @id @default(autoincrement()) @db.UnsignedInt
+  companyId     Int     @map("company_id") @db.UnsignedInt
+  groupName     String  @map("group_name") @db.VarChar(150)
+  parentGroupId Int?    @map("parent_group_id") @db.UnsignedInt
+  nature        String  @map("nature") @db.VarChar(30) // Assets, Liabilities, Income, Expense
+  isGlobal      Boolean @default(false) @map("is_global")
+  sortOrder     Int     @default(0) @map("sort_order") @db.UnsignedInt
 
   // Audit
-  createdBy     Int?     @map("created_by") @db.UnsignedInt
-  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy     Int?     @map("updated_by") @db.UnsignedInt
-  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted     Boolean  @default(false) @map("is_deleted")
-  deletedBy     Int?     @map("deleted_by") @db.UnsignedInt
-  deletedAt     DateTime? @map("deleted_at") @db.DateTime(3)
-  version       Int      @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company       Company       @relation(fields: [companyId], references: [id])
-  parentGroup   AccountGroup? @relation("GroupHierarchy", fields: [parentGroupId], references: [id])
-  childGroups   AccountGroup[] @relation("GroupHierarchy")
-  accounts      Account[]
+  company     Company        @relation(fields: [companyId], references: [id])
+  parentGroup AccountGroup?  @relation("GroupHierarchy", fields: [parentGroupId], references: [id])
+  childGroups AccountGroup[] @relation("GroupHierarchy")
+  accounts    Account[]
 
   @@unique([companyId, groupName], map: "UQ_account_groups_company_name")
   @@index([companyId, parentGroupId], map: "IX_account_groups_company_parent")
@@ -464,80 +489,83 @@ model AccountGroup {
 /// Unified master for all ledger accounts: Customers, Suppliers,
 /// Banks, Brokers, Expense/Income heads.
 model Account {
-  id                Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId         Int            @map("company_id") @db.UnsignedInt
-  accountGroupId    Int            @map("account_group_id") @db.UnsignedInt
-  accountName       String         @map("account_name") @db.VarChar(150)
-  printName         String?        @map("print_name") @db.VarChar(150)
-  status            AccountStatus  @default(ACTIVE)
-  isBroker          Boolean        @default(false) @map("is_broker")
+  id             Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId      Int           @map("company_id") @db.UnsignedInt
+  accountGroupId Int           @map("account_group_id") @db.UnsignedInt
+  accountName    String        @map("account_name") @db.VarChar(150)
+  printName      String?       @map("print_name") @db.VarChar(150)
+  status         AccountStatus @default(ACTIVE)
+  isBroker       Boolean       @default(false) @map("is_broker")
 
   // Tax & KYC
-  gstinNumber       String?        @map("gstin_number") @db.VarChar(15)
-  panNumber         String?        @map("pan_number") @db.VarChar(10)
-  gstRegType        GstRegType?    @map("gst_reg_type")
-  udyamMsme         String?        @map("udyam_msme") @db.VarChar(30)
-  tdsLedgerId       Int?           @map("tds_ledger_id") @db.UnsignedInt
-  tdsPct            Decimal?       @map("tds_pct") @db.Decimal(5, 2)
-  gstPct            Decimal?       @map("gst_pct") @db.Decimal(5, 2)
-  brokerId          Int?           @map("broker_id") @db.UnsignedInt
+  gstinNumber String?     @map("gstin_number") @db.VarChar(15)
+  panNumber   String?     @map("pan_number") @db.VarChar(10)
+  gstRegType  GstRegType? @map("gst_reg_type")
+  udyamMsme   String?     @map("udyam_msme") @db.VarChar(30)
+  tdsLedgerId Int?        @map("tds_ledger_id") @db.UnsignedInt
+  tdsPct      Decimal?    @map("tds_pct") @db.Decimal(5, 2)
+  gstPct      Decimal?    @map("gst_pct") @db.Decimal(5, 2)
+  brokerId    Int?        @map("broker_id") @db.UnsignedInt
 
   // Credit Terms
-  creditDays        Int            @default(0) @map("credit_days") @db.UnsignedInt
-  creditLimit       Decimal        @default(0.00) @map("credit_limit") @db.Decimal(18, 2)
+  creditDays  Int     @default(0) @map("credit_days") @db.UnsignedInt
+  creditLimit Decimal @default(0.00) @map("credit_limit") @db.Decimal(18, 2)
 
   // Address
-  addressLine1      String?        @map("address_line_1") @db.VarChar(255)
-  addressLine2      String?        @map("address_line_2") @db.VarChar(255)
-  city              String?        @db.VarChar(100)
-  stateCode         String?        @map("state_code") @db.VarChar(2)
-  pincode           String?        @db.VarChar(10)
-  country           String?        @default("India") @db.VarChar(100)
+  addressLine1 String? @map("address_line_1") @db.VarChar(255)
+  addressLine2 String? @map("address_line_2") @db.VarChar(255)
+  city         String? @db.VarChar(100)
+  stateCode    String? @map("state_code") @db.VarChar(2)
+  pincode      String? @db.VarChar(10)
+  country      String? @default("India") @db.VarChar(100)
 
   // Contact
-  mobile            String?        @db.VarChar(20)
-  phone             String?        @db.VarChar(20)
-  email             String?        @db.VarChar(255)
+  mobile String? @db.VarChar(20)
+  phone  String? @db.VarChar(20)
+  email  String? @db.VarChar(255)
 
   // Bank Details
-  bankAccountNumber String?        @map("bank_account_number") @db.VarChar(30)
-  bankName          String?        @map("bank_name") @db.VarChar(150)
-  bankBranch        String?        @map("bank_branch") @db.VarChar(150)
-  bankIfsc          String?        @map("bank_ifsc") @db.VarChar(11)
+  bankAccountNumber String? @map("bank_account_number") @db.VarChar(30)
+  bankName          String? @map("bank_name") @db.VarChar(150)
+  bankBranch        String? @map("bank_branch") @db.VarChar(150)
+  bankIfsc          String? @map("bank_ifsc") @db.VarChar(11)
 
   // Opening Balance
-  openingBalanceAmount Decimal     @default(0.00) @map("opening_balance_amount") @db.Decimal(18, 2)
+  openingBalanceAmount Decimal          @default(0.00) @map("opening_balance_amount") @db.Decimal(18, 2)
   openingBalanceType   DebitCreditType? @map("opening_balance_type")
 
   // Audit
-  createdBy         Int?           @map("created_by") @db.UnsignedInt
-  createdAt         DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy         Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted         Boolean        @default(false) @map("is_deleted")
-  deletedBy         Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt         DateTime?      @map("deleted_at") @db.DateTime(3)
-  version           Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company           Company        @relation(fields: [companyId], references: [id])
-  accountGroup      AccountGroup   @relation(fields: [accountGroupId], references: [id])
-  brokerProfile     BrokerProfile?
-  broker            Account?       @relation("AccountBroker", fields: [brokerId], references: [id])
-  referredAccounts  Account[]      @relation("AccountBroker")
+  company          Company        @relation(fields: [companyId], references: [id])
+  accountGroup     AccountGroup   @relation(fields: [accountGroupId], references: [id])
+  brokerProfile    BrokerProfile?
+  broker           Account?       @relation("AccountBroker", fields: [brokerId], references: [id])
+  referredAccounts Account[]      @relation("AccountBroker")
 
   // Transaction Relations (as customer/supplier/party)
-  saleInvoicesAsCustomer    SaleInvoice[]    @relation("CustomerOnSale")
-  saleInvoicesAsBroker      SaleInvoice[]    @relation("BrokerOnSale")
-  purchaseInvoicesAsSupplier PurchaseInvoice[] @relation("SupplierOnPurchase")
-  purchaseInvoicesAsBroker  PurchaseInvoice[] @relation("BrokerOnPurchase")
-  challanVouchersAsParty    ChallanVoucher[] @relation("PartyOnChallan")
-  cashBankVouchersAsParty   CashBankVoucher[] @relation("PartyOnCashBank")
-  cashBankVouchersAsBank    CashBankVoucher[] @relation("BankOnCashBank")
-  journalVoucherLines       JournalVoucherLine[]
-  jobVouchersAsParty        JobVoucher[]     @relation("PartyOnJob")
-  generalLedgerEntries      GeneralLedgerEntry[]
-  outstandingBills          OutstandingBill[]
+  saleInvoicesAsCustomer     SaleInvoice[]        @relation("CustomerOnSale")
+  saleInvoicesAsBroker       SaleInvoice[]        @relation("BrokerOnSale")
+  purchaseInvoicesAsSupplier PurchaseInvoice[]    @relation("SupplierOnPurchase")
+  purchaseInvoicesAsBroker   PurchaseInvoice[]    @relation("BrokerOnPurchase")
+  challanVouchersAsParty     ChallanVoucher[]     @relation("PartyOnChallan")
+  cashBankVouchersAsParty    CashBankVoucher[]    @relation("PartyOnCashBank")
+  cashBankVouchersAsBank     CashBankVoucher[]    @relation("BankOnCashBank")
+  journalVoucherLines        JournalVoucherLine[]
+  jobVouchersAsParty         JobVoucher[]         @relation("PartyOnJob")
+  generalLedgerEntries       GeneralLedgerEntry[]
+  outstandingBills           OutstandingBill[]
+  loansAsParty               Loan[]               @relation("LoanPartyRelation")
+  loansAsCashBank            Loan[]               @relation("LoanCashRelation")
+  loanRepaymentsAsCashBank   LoanRepayment[]
 
   @@unique([companyId, accountName], map: "UQ_accounts_company_name")
   @@index([companyId, status, isDeleted], map: "IX_accounts_company_status")
@@ -549,61 +577,61 @@ model Account {
 
 /// Broker-specific extension fields. One-to-one with Account (where is_broker = true).
 model BrokerProfile {
-  id              Int         @id @default(autoincrement()) @db.UnsignedInt
-  accountId       Int         @unique @map("account_id") @db.UnsignedInt
-  brokeragePct    Decimal     @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
-  addLess         AddLessType @default(LESS) @map("add_less")
-  tdsLedgerId     Int?        @map("tds_ledger_id") @db.UnsignedInt
-  tdsPct          Decimal     @default(5.00) @map("tds_pct") @db.Decimal(5, 2)
+  id           Int         @id @default(autoincrement()) @db.UnsignedInt
+  accountId    Int         @unique @map("account_id") @db.UnsignedInt
+  brokeragePct Decimal     @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
+  addLess      AddLessType @default(LESS) @map("add_less")
+  tdsLedgerId  Int?        @map("tds_ledger_id") @db.UnsignedInt
+  tdsPct       Decimal     @default(5.00) @map("tds_pct") @db.Decimal(5, 2)
 
   // Audit
-  createdBy       Int?        @map("created_by") @db.UnsignedInt
-  createdAt       DateTime    @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy       Int?        @map("updated_by") @db.UnsignedInt
-  updatedAt       DateTime    @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted       Boolean     @default(false) @map("is_deleted")
-  deletedBy       Int?        @map("deleted_by") @db.UnsignedInt
-  deletedAt       DateTime?   @map("deleted_at") @db.DateTime(3)
-  version         Int         @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  account         Account     @relation(fields: [accountId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
 
   @@map("broker_profiles")
 }
 
 /// Diamond grade catalog: classification, HSN, UQC, rates, stock levels.
 model Quality {
-  id               Int       @id @default(autoincrement()) @db.UnsignedInt
-  companyId        Int       @map("company_id") @db.UnsignedInt
-  qualityName      String    @map("quality_name") @db.VarChar(100)
-  itemCode         String    @map("item_code") @db.VarChar(30)
-  hsnNumber        String    @map("hsn_number") @db.VarChar(8)
-  uqc              UqcType   @default(CTS)
-  purchaseRate     Decimal   @default(0.00) @map("purchase_rate") @db.Decimal(18, 2)
-  saleRate         Decimal   @default(0.00) @map("sale_rate") @db.Decimal(18, 2)
-  mrp              Decimal   @default(0.00) @db.Decimal(18, 2)
-  minLevel         Decimal   @default(0.00) @map("min_level") @db.Decimal(12, 3)
-  maxLevel         Decimal   @default(0.00) @map("max_level") @db.Decimal(12, 3)
-  openingBalanceCarats Decimal @default(0.000) @map("opening_balance_carats") @db.Decimal(12, 3)
-  openingBalancePcs    Int     @default(0) @map("opening_balance_pcs") @db.UnsignedInt
-  openingBalanceRate   Decimal @default(0.00) @map("opening_balance_rate") @db.Decimal(18, 2)
-  isService        Boolean       @default(false) @map("is_service")
-  status           AccountStatus @default(ACTIVE)
+  id                   Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId            Int           @map("company_id") @db.UnsignedInt
+  qualityName          String        @map("quality_name") @db.VarChar(100)
+  itemCode             String        @map("item_code") @db.VarChar(30)
+  hsnNumber            String        @map("hsn_number") @db.VarChar(8)
+  uqc                  UqcType       @default(CTS)
+  purchaseRate         Decimal       @default(0.00) @map("purchase_rate") @db.Decimal(18, 2)
+  saleRate             Decimal       @default(0.00) @map("sale_rate") @db.Decimal(18, 2)
+  mrp                  Decimal       @default(0.00) @db.Decimal(18, 2)
+  minLevel             Decimal       @default(0.00) @map("min_level") @db.Decimal(12, 3)
+  maxLevel             Decimal       @default(0.00) @map("max_level") @db.Decimal(12, 3)
+  openingBalanceCarats Decimal       @default(0.000) @map("opening_balance_carats") @db.Decimal(12, 3)
+  openingBalancePcs    Int           @default(0) @map("opening_balance_pcs") @db.UnsignedInt
+  openingBalanceRate   Decimal       @default(0.00) @map("opening_balance_rate") @db.Decimal(18, 2)
+  isService            Boolean       @default(false) @map("is_service")
+  status               AccountStatus @default(ACTIVE)
 
   // Audit
-  createdBy        Int?      @map("created_by") @db.UnsignedInt
-  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy        Int?      @map("updated_by") @db.UnsignedInt
-  updatedAt        DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted        Boolean   @default(false) @map("is_deleted")
-  deletedBy        Int?      @map("deleted_by") @db.UnsignedInt
-  deletedAt        DateTime? @map("deleted_at") @db.DateTime(3)
-  version          Int       @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company          Company   @relation(fields: [companyId], references: [id])
-  gstHistory       QualityGstHistory[]
+  company              Company               @relation(fields: [companyId], references: [id])
+  gstHistory           QualityGstHistory[]
   saleInvoiceItems     SaleInvoiceItem[]
   purchaseInvoiceItems PurchaseInvoiceItem[]
   challanItems         ChallanItem[]
@@ -618,21 +646,21 @@ model Quality {
 
 /// Date-effective GST rate change history per Quality item.
 model QualityGstHistory {
-  id         Int      @id @default(autoincrement()) @db.UnsignedInt
-  qualityId  Int      @map("quality_id") @db.UnsignedInt
-  applyDate  DateTime @map("apply_date") @db.Date
-  gstPct     Decimal  @map("gst_pct") @db.Decimal(5, 2)
-  cessPct    Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
-  remarks    String?  @db.VarChar(255)
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  qualityId Int      @map("quality_id") @db.UnsignedInt
+  applyDate DateTime @map("apply_date") @db.Date
+  gstPct    Decimal  @map("gst_pct") @db.Decimal(5, 2)
+  cessPct   Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+  remarks   String?  @db.VarChar(255)
 
   // Audit
-  createdBy  Int?     @map("created_by") @db.UnsignedInt
-  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy  Int?     @map("updated_by") @db.UnsignedInt
-  updatedAt  DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  createdBy Int?     @map("created_by") @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  quality    Quality  @relation(fields: [qualityId], references: [id])
+  quality Quality @relation(fields: [qualityId], references: [id])
 
   @@index([qualityId, applyDate], map: "IX_quality_gst_history_date")
   @@map("quality_gst_history")
@@ -647,72 +675,72 @@ model QualityGstHistory {
 /// Sale Book invoice header. Covers Sale Invoices, Sale Returns,
 /// and Sale Debit Notes via the invoiceType discriminator.
 model SaleInvoice {
-  id                  Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId           Int            @map("company_id") @db.UnsignedInt
-  financialYearId     Int            @map("financial_year_id") @db.UnsignedInt
-  invoiceType         InvoiceType    @default(SALE_INVOICE) @map("invoice_type")
-  voucherNumber       String         @map("voucher_number") @db.VarChar(50)
-  billNumber          String         @map("bill_number") @db.VarChar(50)
-  invoiceDate         DateTime       @map("invoice_date") @db.Date
-  dueDate             DateTime?      @map("due_date") @db.Date
-  status              InvoiceStatus  @default(DRAFT)
-  paymentStatus       PaymentStatus  @default(UNPAID) @map("payment_status")
+  id              Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int           @map("company_id") @db.UnsignedInt
+  financialYearId Int           @map("financial_year_id") @db.UnsignedInt
+  invoiceType     InvoiceType   @default(SALE_INVOICE) @map("invoice_type")
+  voucherNumber   String        @map("voucher_number") @db.VarChar(50)
+  billNumber      String        @map("bill_number") @db.VarChar(50)
+  invoiceDate     DateTime      @map("invoice_date") @db.Date
+  dueDate         DateTime?     @map("due_date") @db.Date
+  status          InvoiceStatus @default(DRAFT)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
 
   // Party
-  customerId          Int            @map("customer_id") @db.UnsignedInt
-  customerGstin       String?        @map("customer_gstin") @db.VarChar(15)
-  customerStateCode   String?        @map("customer_state_code") @db.VarChar(2)
-  placeOfSupply       String?        @map("place_of_supply") @db.VarChar(2)
+  customerId        Int     @map("customer_id") @db.UnsignedInt
+  customerGstin     String? @map("customer_gstin") @db.VarChar(15)
+  customerStateCode String? @map("customer_state_code") @db.VarChar(2)
+  placeOfSupply     String? @map("place_of_supply") @db.VarChar(2)
 
   // Broker
-  brokerId            Int?           @map("broker_id") @db.UnsignedInt
-  brokeragePct        Decimal        @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
-  brokerageAmount     Decimal        @default(0.00) @map("brokerage_amount") @db.Decimal(18, 2)
+  brokerId        Int?    @map("broker_id") @db.UnsignedInt
+  brokeragePct    Decimal @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
+  brokerageAmount Decimal @default(0.00) @map("brokerage_amount") @db.Decimal(18, 2)
 
   // Credit Terms
-  creditDays          Int            @default(0) @map("credit_days") @db.UnsignedInt
+  creditDays Int @default(0) @map("credit_days") @db.UnsignedInt
 
   // Totals (denormalized for performance)
-  totalCarats         Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
-  totalPieces         Int            @default(0) @map("total_pieces") @db.UnsignedInt
-  totalGrossAmount    Decimal        @default(0.00) @map("total_gross_amount") @db.Decimal(18, 2)
-  totalDiscount       Decimal        @default(0.00) @map("total_discount") @db.Decimal(18, 2)
-  totalCgst           Decimal        @default(0.00) @map("total_cgst") @db.Decimal(18, 2)
-  totalSgst           Decimal        @default(0.00) @map("total_sgst") @db.Decimal(18, 2)
-  totalIgst           Decimal        @default(0.00) @map("total_igst") @db.Decimal(18, 2)
-  totalCess           Decimal        @default(0.00) @map("total_cess") @db.Decimal(18, 2)
-  totalTcs            Decimal        @default(0.00) @map("total_tcs") @db.Decimal(18, 2)
-  roundOff            Decimal        @default(0.00) @map("round_off") @db.Decimal(18, 2)
-  netAmount           Decimal        @default(0.00) @map("net_amount") @db.Decimal(18, 2)
-  jamaAmount          Decimal        @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
-  outstandingAmount   Decimal        @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
+  totalCarats       Decimal @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalPieces       Int     @default(0) @map("total_pieces") @db.UnsignedInt
+  totalGrossAmount  Decimal @default(0.00) @map("total_gross_amount") @db.Decimal(18, 2)
+  totalDiscount     Decimal @default(0.00) @map("total_discount") @db.Decimal(18, 2)
+  totalCgst         Decimal @default(0.00) @map("total_cgst") @db.Decimal(18, 2)
+  totalSgst         Decimal @default(0.00) @map("total_sgst") @db.Decimal(18, 2)
+  totalIgst         Decimal @default(0.00) @map("total_igst") @db.Decimal(18, 2)
+  totalCess         Decimal @default(0.00) @map("total_cess") @db.Decimal(18, 2)
+  totalTcs          Decimal @default(0.00) @map("total_tcs") @db.Decimal(18, 2)
+  roundOff          Decimal @default(0.00) @map("round_off") @db.Decimal(18, 2)
+  netAmount         Decimal @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  jamaAmount        Decimal @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
+  outstandingAmount Decimal @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
 
   // Reference (for Returns / Debit Notes)
-  referenceInvoiceId  Int?           @map("reference_invoice_id") @db.UnsignedInt
-  referenceBillNumber String?        @map("reference_bill_number") @db.VarChar(50)
-  challanVoucherId    Int?           @map("challan_voucher_id") @db.UnsignedInt
+  referenceInvoiceId  Int?    @map("reference_invoice_id") @db.UnsignedInt
+  referenceBillNumber String? @map("reference_bill_number") @db.VarChar(50)
+  challanVoucherId    Int?    @map("challan_voucher_id") @db.UnsignedInt
 
   // Narration
-  narration           String?        @db.Text
+  narration String? @db.Text
 
   // Audit
-  createdBy           Int?           @map("created_by") @db.UnsignedInt
-  createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy           Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt           DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted           Boolean        @default(false) @map("is_deleted")
-  deletedBy           Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt           DateTime?      @map("deleted_at") @db.DateTime(3)
-  version             Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company             Company        @relation(fields: [companyId], references: [id])
-  financialYear       FinancialYear  @relation(fields: [financialYearId], references: [id])
-  customer            Account        @relation("CustomerOnSale", fields: [customerId], references: [id])
-  broker              Account?       @relation("BrokerOnSale", fields: [brokerId], references: [id])
-  referenceInvoice    SaleInvoice?   @relation("SaleInvoiceRef", fields: [referenceInvoiceId], references: [id])
-  referencedBy        SaleInvoice[]  @relation("SaleInvoiceRef")
-  items               SaleInvoiceItem[]
+  company          Company           @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear     @relation(fields: [financialYearId], references: [id])
+  customer         Account           @relation("CustomerOnSale", fields: [customerId], references: [id])
+  broker           Account?          @relation("BrokerOnSale", fields: [brokerId], references: [id])
+  referenceInvoice SaleInvoice?      @relation("SaleInvoiceRef", fields: [referenceInvoiceId], references: [id])
+  referencedBy     SaleInvoice[]     @relation("SaleInvoiceRef")
+  items            SaleInvoiceItem[]
 
   @@unique([companyId, financialYearId, billNumber], map: "UQ_sale_invoices_bill")
   @@index([companyId, invoiceDate], map: "IX_sale_invoices_company_date")
@@ -724,29 +752,29 @@ model SaleInvoice {
 
 /// Sale Book line items: quality, carats, rates, discounts, taxes.
 model SaleInvoiceItem {
-  id              Int      @id @default(autoincrement()) @db.UnsignedInt
-  saleInvoiceId   Int      @map("sale_invoice_id") @db.UnsignedInt
-  rowNumber       Int      @map("row_number") @db.UnsignedInt
-  qualityId       Int      @map("quality_id") @db.UnsignedInt
-  hsnNumber       String   @map("hsn_number") @db.VarChar(8)
-  carats          Decimal  @map("carats") @db.Decimal(12, 3)
-  pieces          Int      @default(1) @db.UnsignedInt
-  rate            Decimal  @map("rate") @db.Decimal(18, 2)
-  lessPct         Decimal  @default(0.00) @map("less_pct") @db.Decimal(5, 2)
-  termsRate       Decimal  @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
-  grossAmount     Decimal  @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
-  gstPct          Decimal  @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
-  cgstAmount      Decimal  @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
-  sgstAmount      Decimal  @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
-  igstAmount      Decimal  @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
-  cessPct         Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
-  cessAmount      Decimal  @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
-  netAmount       Decimal  @default(0.00) @map("net_amount") @db.Decimal(18, 2)
-  stockPacketId   Int?     @map("stock_packet_id") @db.UnsignedInt
+  id            Int     @id @default(autoincrement()) @db.UnsignedInt
+  saleInvoiceId Int     @map("sale_invoice_id") @db.UnsignedInt
+  rowNumber     Int     @map("row_number") @db.UnsignedInt
+  qualityId     Int     @map("quality_id") @db.UnsignedInt
+  hsnNumber     String  @map("hsn_number") @db.VarChar(8)
+  carats        Decimal @map("carats") @db.Decimal(12, 3)
+  pieces        Int     @default(1) @db.UnsignedInt
+  rate          Decimal @map("rate") @db.Decimal(18, 2)
+  lessPct       Decimal @default(0.00) @map("less_pct") @db.Decimal(5, 2)
+  termsRate     Decimal @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
+  grossAmount   Decimal @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
+  gstPct        Decimal @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
+  cgstAmount    Decimal @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount    Decimal @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount    Decimal @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
+  cessPct       Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+  cessAmount    Decimal @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
+  netAmount     Decimal @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  stockPacketId Int?    @map("stock_packet_id") @db.UnsignedInt
 
   // Relations
-  saleInvoice     SaleInvoice @relation(fields: [saleInvoiceId], references: [id])
-  quality         Quality     @relation(fields: [qualityId], references: [id])
+  saleInvoice SaleInvoice @relation(fields: [saleInvoiceId], references: [id])
+  quality     Quality     @relation(fields: [qualityId], references: [id])
 
   @@index([saleInvoiceId], map: "IX_sale_invoice_items_invoice")
   @@index([qualityId], map: "IX_sale_invoice_items_quality")
@@ -758,71 +786,71 @@ model SaleInvoiceItem {
 /// Purchase Book invoice header. Covers Purchase Invoices, Purchase Returns,
 /// and Purchase Debit Notes via the invoiceType discriminator.
 model PurchaseInvoice {
-  id                  Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId           Int            @map("company_id") @db.UnsignedInt
-  financialYearId     Int            @map("financial_year_id") @db.UnsignedInt
-  invoiceType         InvoiceType    @default(PURCHASE_INVOICE) @map("invoice_type")
-  voucherNumber       String         @map("voucher_number") @db.VarChar(50)
-  billNumber          String         @map("bill_number") @db.VarChar(50)
-  invoiceDate         DateTime       @map("invoice_date") @db.Date
-  dueDate             DateTime?      @map("due_date") @db.Date
-  status              InvoiceStatus  @default(DRAFT)
-  paymentStatus       PaymentStatus  @default(UNPAID) @map("payment_status")
+  id              Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int           @map("company_id") @db.UnsignedInt
+  financialYearId Int           @map("financial_year_id") @db.UnsignedInt
+  invoiceType     InvoiceType   @default(PURCHASE_INVOICE) @map("invoice_type")
+  voucherNumber   String        @map("voucher_number") @db.VarChar(50)
+  billNumber      String        @map("bill_number") @db.VarChar(50)
+  invoiceDate     DateTime      @map("invoice_date") @db.Date
+  dueDate         DateTime?     @map("due_date") @db.Date
+  status          InvoiceStatus @default(DRAFT)
+  paymentStatus   PaymentStatus @default(UNPAID) @map("payment_status")
 
   // Party
-  supplierId          Int            @map("supplier_id") @db.UnsignedInt
-  supplierGstin       String?        @map("supplier_gstin") @db.VarChar(15)
-  supplierStateCode   String?        @map("supplier_state_code") @db.VarChar(2)
-  placeOfSupply       String?        @map("place_of_supply") @db.VarChar(2)
+  supplierId        Int     @map("supplier_id") @db.UnsignedInt
+  supplierGstin     String? @map("supplier_gstin") @db.VarChar(15)
+  supplierStateCode String? @map("supplier_state_code") @db.VarChar(2)
+  placeOfSupply     String? @map("place_of_supply") @db.VarChar(2)
 
   // Broker
-  brokerId            Int?           @map("broker_id") @db.UnsignedInt
-  brokeragePct        Decimal        @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
-  brokerageAmount     Decimal        @default(0.00) @map("brokerage_amount") @db.Decimal(18, 2)
+  brokerId        Int?    @map("broker_id") @db.UnsignedInt
+  brokeragePct    Decimal @default(0.00) @map("brokerage_pct") @db.Decimal(5, 2)
+  brokerageAmount Decimal @default(0.00) @map("brokerage_amount") @db.Decimal(18, 2)
 
   // Credit Terms
-  creditDays          Int            @default(0) @map("credit_days") @db.UnsignedInt
+  creditDays Int @default(0) @map("credit_days") @db.UnsignedInt
 
   // Totals (denormalized)
-  totalCarats         Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
-  totalPieces         Int            @default(0) @map("total_pieces") @db.UnsignedInt
-  totalGrossAmount    Decimal        @default(0.00) @map("total_gross_amount") @db.Decimal(18, 2)
-  totalDiscount       Decimal        @default(0.00) @map("total_discount") @db.Decimal(18, 2)
-  totalCgst           Decimal        @default(0.00) @map("total_cgst") @db.Decimal(18, 2)
-  totalSgst           Decimal        @default(0.00) @map("total_sgst") @db.Decimal(18, 2)
-  totalIgst           Decimal        @default(0.00) @map("total_igst") @db.Decimal(18, 2)
-  totalCess           Decimal        @default(0.00) @map("total_cess") @db.Decimal(18, 2)
-  totalTds            Decimal        @default(0.00) @map("total_tds") @db.Decimal(18, 2)
-  roundOff            Decimal        @default(0.00) @map("round_off") @db.Decimal(18, 2)
-  netAmount           Decimal        @default(0.00) @map("net_amount") @db.Decimal(18, 2)
-  jamaAmount          Decimal        @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
-  outstandingAmount   Decimal        @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
+  totalCarats       Decimal @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalPieces       Int     @default(0) @map("total_pieces") @db.UnsignedInt
+  totalGrossAmount  Decimal @default(0.00) @map("total_gross_amount") @db.Decimal(18, 2)
+  totalDiscount     Decimal @default(0.00) @map("total_discount") @db.Decimal(18, 2)
+  totalCgst         Decimal @default(0.00) @map("total_cgst") @db.Decimal(18, 2)
+  totalSgst         Decimal @default(0.00) @map("total_sgst") @db.Decimal(18, 2)
+  totalIgst         Decimal @default(0.00) @map("total_igst") @db.Decimal(18, 2)
+  totalCess         Decimal @default(0.00) @map("total_cess") @db.Decimal(18, 2)
+  totalTds          Decimal @default(0.00) @map("total_tds") @db.Decimal(18, 2)
+  roundOff          Decimal @default(0.00) @map("round_off") @db.Decimal(18, 2)
+  netAmount         Decimal @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  jamaAmount        Decimal @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
+  outstandingAmount Decimal @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
 
   // Reference (for Returns / Debit Notes)
-  referenceInvoiceId  Int?           @map("reference_invoice_id") @db.UnsignedInt
-  referenceBillNumber String?        @map("reference_bill_number") @db.VarChar(50)
+  referenceInvoiceId  Int?    @map("reference_invoice_id") @db.UnsignedInt
+  referenceBillNumber String? @map("reference_bill_number") @db.VarChar(50)
 
   // Narration
-  narration           String?        @db.Text
+  narration String? @db.Text
 
   // Audit
-  createdBy           Int?           @map("created_by") @db.UnsignedInt
-  createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy           Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt           DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted           Boolean        @default(false) @map("is_deleted")
-  deletedBy           Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt           DateTime?      @map("deleted_at") @db.DateTime(3)
-  version             Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company             Company         @relation(fields: [companyId], references: [id])
-  financialYear       FinancialYear   @relation(fields: [financialYearId], references: [id])
-  supplier            Account         @relation("SupplierOnPurchase", fields: [supplierId], references: [id])
-  broker              Account?        @relation("BrokerOnPurchase", fields: [brokerId], references: [id])
-  referenceInvoice    PurchaseInvoice? @relation("PurchaseInvoiceRef", fields: [referenceInvoiceId], references: [id])
-  referencedBy        PurchaseInvoice[] @relation("PurchaseInvoiceRef")
-  items               PurchaseInvoiceItem[]
+  company          Company               @relation(fields: [companyId], references: [id])
+  financialYear    FinancialYear         @relation(fields: [financialYearId], references: [id])
+  supplier         Account               @relation("SupplierOnPurchase", fields: [supplierId], references: [id])
+  broker           Account?              @relation("BrokerOnPurchase", fields: [brokerId], references: [id])
+  referenceInvoice PurchaseInvoice?      @relation("PurchaseInvoiceRef", fields: [referenceInvoiceId], references: [id])
+  referencedBy     PurchaseInvoice[]     @relation("PurchaseInvoiceRef")
+  items            PurchaseInvoiceItem[]
 
   @@unique([companyId, financialYearId, billNumber], map: "UQ_purchase_invoices_bill")
   @@index([companyId, invoiceDate], map: "IX_purchase_invoices_company_date")
@@ -833,29 +861,29 @@ model PurchaseInvoice {
 
 /// Purchase Book line items.
 model PurchaseInvoiceItem {
-  id                Int      @id @default(autoincrement()) @db.UnsignedInt
-  purchaseInvoiceId Int      @map("purchase_invoice_id") @db.UnsignedInt
-  rowNumber         Int      @map("row_number") @db.UnsignedInt
-  qualityId         Int      @map("quality_id") @db.UnsignedInt
-  hsnNumber         String   @map("hsn_number") @db.VarChar(8)
-  carats            Decimal  @map("carats") @db.Decimal(12, 3)
-  pieces            Int      @default(1) @db.UnsignedInt
-  rate              Decimal  @map("rate") @db.Decimal(18, 2)
-  lessPct           Decimal  @default(0.00) @map("less_pct") @db.Decimal(5, 2)
-  termsRate         Decimal  @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
-  grossAmount       Decimal  @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
-  gstPct            Decimal  @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
-  cgstAmount        Decimal  @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
-  sgstAmount        Decimal  @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
-  igstAmount        Decimal  @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
-  cessPct           Decimal  @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
-  cessAmount        Decimal  @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
-  netAmount         Decimal  @default(0.00) @map("net_amount") @db.Decimal(18, 2)
-  stockPacketId     Int?     @map("stock_packet_id") @db.UnsignedInt
+  id                Int     @id @default(autoincrement()) @db.UnsignedInt
+  purchaseInvoiceId Int     @map("purchase_invoice_id") @db.UnsignedInt
+  rowNumber         Int     @map("row_number") @db.UnsignedInt
+  qualityId         Int     @map("quality_id") @db.UnsignedInt
+  hsnNumber         String  @map("hsn_number") @db.VarChar(8)
+  carats            Decimal @map("carats") @db.Decimal(12, 3)
+  pieces            Int     @default(1) @db.UnsignedInt
+  rate              Decimal @map("rate") @db.Decimal(18, 2)
+  lessPct           Decimal @default(0.00) @map("less_pct") @db.Decimal(5, 2)
+  termsRate         Decimal @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
+  grossAmount       Decimal @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
+  gstPct            Decimal @default(0.00) @map("gst_pct") @db.Decimal(5, 2)
+  cgstAmount        Decimal @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount        Decimal @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount        Decimal @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
+  cessPct           Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
+  cessAmount        Decimal @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
+  netAmount         Decimal @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  stockPacketId     Int?    @map("stock_packet_id") @db.UnsignedInt
 
   // Relations
-  purchaseInvoice   PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
-  quality           Quality         @relation(fields: [qualityId], references: [id])
+  purchaseInvoice PurchaseInvoice @relation(fields: [purchaseInvoiceId], references: [id])
+  quality         Quality         @relation(fields: [qualityId], references: [id])
 
   @@index([purchaseInvoiceId], map: "IX_purchase_invoice_items_invoice")
   @@index([qualityId], map: "IX_purchase_invoice_items_quality")
@@ -866,53 +894,53 @@ model PurchaseInvoiceItem {
 
 /// Challan header for all purposes: Jhanghad, Job Work, Lab, Orders, Transfers.
 model ChallanVoucher {
-  id                   Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId            Int            @map("company_id") @db.UnsignedInt
-  financialYearId      Int            @map("financial_year_id") @db.UnsignedInt
-  purpose              ChallanPurpose @map("purpose")
-  voucherNumber        String         @map("voucher_number") @db.VarChar(50)
-  challanNumber        String         @map("challan_number") @db.VarChar(50)
-  challanDate          DateTime       @map("challan_date") @db.Date
-  status               ChallanStatus  @default(DRAFT)
+  id              Int            @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int            @map("company_id") @db.UnsignedInt
+  financialYearId Int            @map("financial_year_id") @db.UnsignedInt
+  purpose         ChallanPurpose @map("purpose")
+  voucherNumber   String         @map("voucher_number") @db.VarChar(50)
+  challanNumber   String         @map("challan_number") @db.VarChar(50)
+  challanDate     DateTime       @map("challan_date") @db.Date
+  status          ChallanStatus  @default(DRAFT)
 
   // Party / Custodian
-  partyId              Int            @map("party_id") @db.UnsignedInt
-  partyName            String?        @map("party_name") @db.VarChar(150)
+  partyId   Int     @map("party_id") @db.UnsignedInt
+  partyName String? @map("party_name") @db.VarChar(150)
 
   // Dates
-  expectedReturnDate   DateTime?      @map("expected_return_date") @db.Date
-  actualReturnDate     DateTime?      @map("actual_return_date") @db.Date
+  expectedReturnDate DateTime? @map("expected_return_date") @db.Date
+  actualReturnDate   DateTime? @map("actual_return_date") @db.Date
 
   // Totals (denormalized)
-  totalCarats          Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
-  totalPieces          Int            @default(0) @map("total_pieces") @db.UnsignedInt
-  totalAmount          Decimal        @default(0.00) @map("total_amount") @db.Decimal(18, 2)
-  returnedCarats       Decimal        @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
-  returnedPieces       Int            @default(0) @map("returned_pieces") @db.UnsignedInt
+  totalCarats    Decimal @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalPieces    Int     @default(0) @map("total_pieces") @db.UnsignedInt
+  totalAmount    Decimal @default(0.00) @map("total_amount") @db.Decimal(18, 2)
+  returnedCarats Decimal @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
+  returnedPieces Int     @default(0) @map("returned_pieces") @db.UnsignedInt
 
   // Conversion Reference
-  convertedInvoiceType  String?       @map("converted_invoice_type") @db.VarChar(30)
-  convertedInvoiceId    Int?          @map("converted_invoice_id") @db.UnsignedInt
+  convertedInvoiceType String? @map("converted_invoice_type") @db.VarChar(30)
+  convertedInvoiceId   Int?    @map("converted_invoice_id") @db.UnsignedInt
 
   // Narration
-  narration            String?        @db.Text
+  narration String? @db.Text
 
   // Audit
-  createdBy            Int?           @map("created_by") @db.UnsignedInt
-  createdAt            DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy            Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt            DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted            Boolean        @default(false) @map("is_deleted")
-  deletedBy            Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt            DateTime?      @map("deleted_at") @db.DateTime(3)
-  version              Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company              Company        @relation(fields: [companyId], references: [id])
-  financialYear        FinancialYear  @relation(fields: [financialYearId], references: [id])
-  party                Account        @relation("PartyOnChallan", fields: [partyId], references: [id])
-  items                ChallanItem[]
-  stockReservations    StockReservation[]
+  company           Company            @relation(fields: [companyId], references: [id])
+  financialYear     FinancialYear      @relation(fields: [financialYearId], references: [id])
+  party             Account            @relation("PartyOnChallan", fields: [partyId], references: [id])
+  items             ChallanItem[]
+  stockReservations StockReservation[]
 
   @@unique([companyId, financialYearId, challanNumber], map: "UQ_challan_vouchers_number")
   @@index([companyId, purpose, status], map: "IX_challan_vouchers_purpose_status")
@@ -923,22 +951,22 @@ model ChallanVoucher {
 
 /// Challan line items.
 model ChallanItem {
-  id               Int      @id @default(autoincrement()) @db.UnsignedInt
-  challanVoucherId Int      @map("challan_voucher_id") @db.UnsignedInt
-  rowNumber        Int      @map("row_number") @db.UnsignedInt
-  qualityId        Int      @map("quality_id") @db.UnsignedInt
-  carats           Decimal  @map("carats") @db.Decimal(12, 3)
-  pieces           Int      @default(1) @db.UnsignedInt
-  rate             Decimal  @default(0.00) @map("rate") @db.Decimal(18, 2)
-  amount           Decimal  @default(0.00) @map("amount") @db.Decimal(18, 2)
-  returnedCarats   Decimal  @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
-  returnedPieces   Int      @default(0) @map("returned_pieces") @db.UnsignedInt
-  stockPacketId    Int?     @map("stock_packet_id") @db.UnsignedInt
-  remarks          String?  @db.VarChar(255)
+  id               Int     @id @default(autoincrement()) @db.UnsignedInt
+  challanVoucherId Int     @map("challan_voucher_id") @db.UnsignedInt
+  rowNumber        Int     @map("row_number") @db.UnsignedInt
+  qualityId        Int     @map("quality_id") @db.UnsignedInt
+  carats           Decimal @map("carats") @db.Decimal(12, 3)
+  pieces           Int     @default(1) @db.UnsignedInt
+  rate             Decimal @default(0.00) @map("rate") @db.Decimal(18, 2)
+  amount           Decimal @default(0.00) @map("amount") @db.Decimal(18, 2)
+  returnedCarats   Decimal @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
+  returnedPieces   Int     @default(0) @map("returned_pieces") @db.UnsignedInt
+  stockPacketId    Int?    @map("stock_packet_id") @db.UnsignedInt
+  remarks          String? @db.VarChar(255)
 
   // Relations
-  challanVoucher   ChallanVoucher @relation(fields: [challanVoucherId], references: [id])
-  quality          Quality        @relation(fields: [qualityId], references: [id])
+  challanVoucher ChallanVoucher @relation(fields: [challanVoucherId], references: [id])
+  quality        Quality        @relation(fields: [qualityId], references: [id])
 
   @@index([challanVoucherId], map: "IX_challan_items_voucher")
   @@map("challan_items")
@@ -948,33 +976,33 @@ model ChallanItem {
 
 /// Journal Voucher header for all journal types.
 model JournalVoucher {
-  id               Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId        Int            @map("company_id") @db.UnsignedInt
-  financialYearId  Int            @map("financial_year_id") @db.UnsignedInt
-  journalType      JournalType    @default(GENERAL) @map("journal_type")
-  voucherNumber    String         @map("voucher_number") @db.VarChar(50)
-  voucherDate      DateTime       @map("voucher_date") @db.Date
-  status           VoucherStatus  @default(DRAFT)
-  totalDebit       Decimal        @default(0.00) @map("total_debit") @db.Decimal(18, 2)
-  totalCredit      Decimal        @default(0.00) @map("total_credit") @db.Decimal(18, 2)
-  narration        String?        @db.Text
-  referenceId      String?        @map("reference_id") @db.VarChar(50)
-  referenceType    String?        @map("reference_type") @db.VarChar(30)
+  id              Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int           @map("company_id") @db.UnsignedInt
+  financialYearId Int           @map("financial_year_id") @db.UnsignedInt
+  journalType     JournalType   @default(GENERAL) @map("journal_type")
+  voucherNumber   String        @map("voucher_number") @db.VarChar(50)
+  voucherDate     DateTime      @map("voucher_date") @db.Date
+  status          VoucherStatus @default(DRAFT)
+  totalDebit      Decimal       @default(0.00) @map("total_debit") @db.Decimal(18, 2)
+  totalCredit     Decimal       @default(0.00) @map("total_credit") @db.Decimal(18, 2)
+  narration       String?       @db.Text
+  referenceId     String?       @map("reference_id") @db.VarChar(50)
+  referenceType   String?       @map("reference_type") @db.VarChar(30)
 
   // Audit
-  createdBy        Int?           @map("created_by") @db.UnsignedInt
-  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy        Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted        Boolean        @default(false) @map("is_deleted")
-  deletedBy        Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
-  version          Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company          Company        @relation(fields: [companyId], references: [id])
-  financialYear    FinancialYear  @relation(fields: [financialYearId], references: [id])
-  lines            JournalVoucherLine[]
+  company       Company              @relation(fields: [companyId], references: [id])
+  financialYear FinancialYear        @relation(fields: [financialYearId], references: [id])
+  lines         JournalVoucherLine[]
 
   @@unique([companyId, financialYearId, voucherNumber], map: "UQ_journal_vouchers_number")
   @@index([companyId, voucherDate], map: "IX_journal_vouchers_date")
@@ -983,17 +1011,17 @@ model JournalVoucher {
 
 /// Journal Voucher debit/credit lines.
 model JournalVoucherLine {
-  id                Int             @id @default(autoincrement()) @db.UnsignedInt
-  journalVoucherId  Int             @map("journal_voucher_id") @db.UnsignedInt
-  rowNumber         Int             @map("row_number") @db.UnsignedInt
-  accountId         Int             @map("account_id") @db.UnsignedInt
-  debitCreditType   DebitCreditType @map("debit_credit_type")
-  amount            Decimal         @map("amount") @db.Decimal(18, 2)
-  narration         String?         @db.VarChar(255)
+  id               Int             @id @default(autoincrement()) @db.UnsignedInt
+  journalVoucherId Int             @map("journal_voucher_id") @db.UnsignedInt
+  rowNumber        Int             @map("row_number") @db.UnsignedInt
+  accountId        Int             @map("account_id") @db.UnsignedInt
+  debitCreditType  DebitCreditType @map("debit_credit_type")
+  amount           Decimal         @map("amount") @db.Decimal(18, 2)
+  narration        String?         @db.VarChar(255)
 
   // Relations
-  journalVoucher    JournalVoucher  @relation(fields: [journalVoucherId], references: [id])
-  account           Account         @relation(fields: [accountId], references: [id])
+  journalVoucher JournalVoucher @relation(fields: [journalVoucherId], references: [id])
+  account        Account        @relation(fields: [accountId], references: [id])
 
   @@index([journalVoucherId], map: "IX_journal_voucher_lines_voucher")
   @@index([accountId], map: "IX_journal_voucher_lines_account")
@@ -1004,51 +1032,51 @@ model JournalVoucherLine {
 
 /// Unified Cash + Bank voucher header.
 model CashBankVoucher {
-  id               Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId        Int            @map("company_id") @db.UnsignedInt
-  financialYearId  Int            @map("financial_year_id") @db.UnsignedInt
-  transactionType  CashBankType   @map("transaction_type")
-  voucherNumber    String         @map("voucher_number") @db.VarChar(50)
-  manualVoucherNo  String?        @map("manual_voucher_no") @db.VarChar(50)
-  voucherDate      DateTime       @map("voucher_date") @db.Date
-  status           VoucherStatus  @default(DRAFT)
+  id              Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int           @map("company_id") @db.UnsignedInt
+  financialYearId Int           @map("financial_year_id") @db.UnsignedInt
+  transactionType CashBankType  @map("transaction_type")
+  voucherNumber   String        @map("voucher_number") @db.VarChar(50)
+  manualVoucherNo String?       @map("manual_voucher_no") @db.VarChar(50)
+  voucherDate     DateTime      @map("voucher_date") @db.Date
+  status          VoucherStatus @default(DRAFT)
 
   // Party
-  partyId          Int            @map("party_id") @db.UnsignedInt
+  partyId Int @map("party_id") @db.UnsignedInt
 
   // Cash/Bank Account
-  cashBankAccountId Int           @map("cash_bank_account_id") @db.UnsignedInt
+  cashBankAccountId Int @map("cash_bank_account_id") @db.UnsignedInt
 
   // Payment Mode (Bank only)
-  paymentMode      PaymentMode?   @map("payment_mode")
-  chequeNumber     String?        @map("cheque_number") @db.VarChar(20)
-  chequeDate       DateTime?      @map("cheque_date") @db.Date
-  utrNumber        String?        @map("utr_number") @db.VarChar(50)
-  transactionRef   String?        @map("transaction_ref") @db.VarChar(50)
+  paymentMode    PaymentMode? @map("payment_mode")
+  chequeNumber   String?      @map("cheque_number") @db.VarChar(20)
+  chequeDate     DateTime?    @map("cheque_date") @db.Date
+  utrNumber      String?      @map("utr_number") @db.VarChar(50)
+  transactionRef String?      @map("transaction_ref") @db.VarChar(50)
 
   // Amount
-  amount           Decimal        @map("amount") @db.Decimal(18, 2)
-  narration        String?        @db.Text
+  amount    Decimal @map("amount") @db.Decimal(18, 2)
+  narration String? @db.Text
 
   // Reference
-  referenceBillNo  String?        @map("reference_bill_no") @db.VarChar(50)
+  referenceBillNo String? @map("reference_bill_no") @db.VarChar(50)
 
   // Audit
-  createdBy        Int?           @map("created_by") @db.UnsignedInt
-  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy        Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted        Boolean        @default(false) @map("is_deleted")
-  deletedBy        Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
-  version          Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company          Company        @relation(fields: [companyId], references: [id])
-  financialYear    FinancialYear  @relation(fields: [financialYearId], references: [id])
-  party            Account        @relation("PartyOnCashBank", fields: [partyId], references: [id])
-  cashBankAccount  Account        @relation("BankOnCashBank", fields: [cashBankAccountId], references: [id])
-  allocations      CashBankAllocation[]
+  company             Company              @relation(fields: [companyId], references: [id])
+  financialYear       FinancialYear        @relation(fields: [financialYearId], references: [id])
+  party               Account              @relation("PartyOnCashBank", fields: [partyId], references: [id])
+  cashBankAccount     Account              @relation("BankOnCashBank", fields: [cashBankAccountId], references: [id])
+  allocations         CashBankAllocation[]
   bankReconciliations BankReconciliation[]
 
   @@unique([companyId, financialYearId, voucherNumber], map: "UQ_cash_bank_vouchers_number")
@@ -1059,14 +1087,14 @@ model CashBankVoucher {
 
 /// Outstanding bill allocation lines per Cash/Bank payment.
 model CashBankAllocation {
-  id                 Int      @id @default(autoincrement()) @db.UnsignedInt
-  cashBankVoucherId  Int      @map("cash_bank_voucher_id") @db.UnsignedInt
-  outstandingBillId  Int      @map("outstanding_bill_id") @db.UnsignedInt
-  allocatedAmount    Decimal  @map("allocated_amount") @db.Decimal(18, 2)
+  id                Int     @id @default(autoincrement()) @db.UnsignedInt
+  cashBankVoucherId Int     @map("cash_bank_voucher_id") @db.UnsignedInt
+  outstandingBillId Int     @map("outstanding_bill_id") @db.UnsignedInt
+  allocatedAmount   Decimal @map("allocated_amount") @db.Decimal(18, 2)
 
   // Relations
-  cashBankVoucher    CashBankVoucher @relation(fields: [cashBankVoucherId], references: [id])
-  outstandingBill    OutstandingBill @relation(fields: [outstandingBillId], references: [id])
+  cashBankVoucher CashBankVoucher @relation(fields: [cashBankVoucherId], references: [id])
+  outstandingBill OutstandingBill @relation(fields: [outstandingBillId], references: [id])
 
   @@index([cashBankVoucherId], map: "IX_cash_bank_allocations_voucher")
   @@index([outstandingBillId], map: "IX_cash_bank_allocations_bill")
@@ -1077,39 +1105,39 @@ model CashBankAllocation {
 
 /// Job Book header for Job Income / Job Expense.
 model JobVoucher {
-  id               Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId        Int            @map("company_id") @db.UnsignedInt
-  financialYearId  Int            @map("financial_year_id") @db.UnsignedInt
-  jobType          JobType        @map("job_type")
-  voucherNumber    String         @map("voucher_number") @db.VarChar(50)
-  billNumber       String         @map("bill_number") @db.VarChar(50)
-  voucherDate      DateTime       @map("voucher_date") @db.Date
-  status           VoucherStatus  @default(DRAFT)
+  id              Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int           @map("company_id") @db.UnsignedInt
+  financialYearId Int           @map("financial_year_id") @db.UnsignedInt
+  jobType         JobType       @map("job_type")
+  voucherNumber   String        @map("voucher_number") @db.VarChar(50)
+  billNumber      String        @map("bill_number") @db.VarChar(50)
+  voucherDate     DateTime      @map("voucher_date") @db.Date
+  status          VoucherStatus @default(DRAFT)
 
   // Party (Job Worker)
-  partyId          Int            @map("party_id") @db.UnsignedInt
+  partyId Int @map("party_id") @db.UnsignedInt
 
   // Totals
-  totalCarats      Decimal        @default(0.000) @map("total_carats") @db.Decimal(12, 3)
-  totalAmount      Decimal        @default(0.00) @map("total_amount") @db.Decimal(18, 2)
-  narration        String?        @db.Text
+  totalCarats Decimal @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalAmount Decimal @default(0.00) @map("total_amount") @db.Decimal(18, 2)
+  narration   String? @db.Text
 
   // Audit
-  createdBy        Int?           @map("created_by") @db.UnsignedInt
-  createdAt        DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy        Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt        DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted        Boolean        @default(false) @map("is_deleted")
-  deletedBy        Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt        DateTime?      @map("deleted_at") @db.DateTime(3)
-  version          Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company          Company        @relation(fields: [companyId], references: [id])
-  financialYear    FinancialYear  @relation(fields: [financialYearId], references: [id])
-  party            Account        @relation("PartyOnJob", fields: [partyId], references: [id])
-  items            JobVoucherItem[]
-  costEntries      JobCostEntry[]
+  company       Company          @relation(fields: [companyId], references: [id])
+  financialYear FinancialYear    @relation(fields: [financialYearId], references: [id])
+  party         Account          @relation("PartyOnJob", fields: [partyId], references: [id])
+  items         JobVoucherItem[]
+  costEntries   JobCostEntry[]
 
   @@unique([companyId, financialYearId, billNumber], map: "UQ_job_vouchers_bill")
   @@index([companyId, voucherDate], map: "IX_job_vouchers_date")
@@ -1118,20 +1146,20 @@ model JobVoucher {
 
 /// Job Book line items.
 model JobVoucherItem {
-  id             Int      @id @default(autoincrement()) @db.UnsignedInt
-  jobVoucherId   Int      @map("job_voucher_id") @db.UnsignedInt
-  rowNumber      Int      @map("row_number") @db.UnsignedInt
-  qualityId      Int      @map("quality_id") @db.UnsignedInt
-  carats         Decimal  @map("carats") @db.Decimal(12, 3)
-  pieces         Int      @default(1) @db.UnsignedInt
-  rate           Decimal  @default(0.00) @map("rate") @db.Decimal(18, 2)
-  amount         Decimal  @default(0.00) @map("amount") @db.Decimal(18, 2)
-  stockPacketId  Int?     @map("stock_packet_id") @db.UnsignedInt
-  remarks        String?  @db.VarChar(255)
+  id            Int     @id @default(autoincrement()) @db.UnsignedInt
+  jobVoucherId  Int     @map("job_voucher_id") @db.UnsignedInt
+  rowNumber     Int     @map("row_number") @db.UnsignedInt
+  qualityId     Int     @map("quality_id") @db.UnsignedInt
+  carats        Decimal @map("carats") @db.Decimal(12, 3)
+  pieces        Int     @default(1) @db.UnsignedInt
+  rate          Decimal @default(0.00) @map("rate") @db.Decimal(18, 2)
+  amount        Decimal @default(0.00) @map("amount") @db.Decimal(18, 2)
+  stockPacketId Int?    @map("stock_packet_id") @db.UnsignedInt
+  remarks       String? @db.VarChar(255)
 
   // Relations
-  jobVoucher     JobVoucher @relation(fields: [jobVoucherId], references: [id])
-  quality        Quality    @relation(fields: [qualityId], references: [id])
+  jobVoucher JobVoucher @relation(fields: [jobVoucherId], references: [id])
+  quality    Quality    @relation(fields: [qualityId], references: [id])
 
   @@index([jobVoucherId], map: "IX_job_voucher_items_voucher")
   @@map("job_voucher_items")
@@ -1139,17 +1167,17 @@ model JobVoucherItem {
 
 /// Job cost capitalization records.
 model JobCostEntry {
-  id             Int      @id @default(autoincrement()) @db.UnsignedInt
-  jobVoucherId   Int      @map("job_voucher_id") @db.UnsignedInt
-  stockPacketId  Int      @map("stock_packet_id") @db.UnsignedInt
-  costType       String   @map("cost_type") @db.VarChar(50)
-  amount         Decimal  @map("amount") @db.Decimal(18, 2)
-  remarks        String?  @db.VarChar(255)
-  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  jobVoucherId  Int      @map("job_voucher_id") @db.UnsignedInt
+  stockPacketId Int      @map("stock_packet_id") @db.UnsignedInt
+  costType      String   @map("cost_type") @db.VarChar(50)
+  amount        Decimal  @map("amount") @db.Decimal(18, 2)
+  remarks       String?  @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  jobVoucher     JobVoucher  @relation(fields: [jobVoucherId], references: [id])
-  stockPacket    StockPacket @relation(fields: [stockPacketId], references: [id])
+  jobVoucher  JobVoucher  @relation(fields: [jobVoucherId], references: [id])
+  stockPacket StockPacket @relation(fields: [stockPacketId], references: [id])
 
   @@index([jobVoucherId], map: "IX_job_cost_entries_voucher")
   @@index([stockPacketId], map: "IX_job_cost_entries_packet")
@@ -1163,27 +1191,27 @@ model JobCostEntry {
 /// Unified double-entry general ledger postings. Every transaction
 /// generates balanced debit/credit rows in this table.
 model GeneralLedgerEntry {
-  id                 Int             @id @default(autoincrement()) @db.UnsignedInt
-  companyId          Int             @map("company_id") @db.UnsignedInt
-  accountId          Int             @map("account_id") @db.UnsignedInt
-  voucherDate        DateTime        @map("voucher_date") @db.Date
-  debitCreditType    DebitCreditType @map("debit_credit_type")
-  amount             Decimal         @map("amount") @db.Decimal(18, 2)
+  id              Int             @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int             @map("company_id") @db.UnsignedInt
+  accountId       Int             @map("account_id") @db.UnsignedInt
+  voucherDate     DateTime        @map("voucher_date") @db.Date
+  debitCreditType DebitCreditType @map("debit_credit_type")
+  amount          Decimal         @map("amount") @db.Decimal(18, 2)
 
   // Polymorphic Source
-  sourceVoucherType  VoucherType     @map("source_voucher_type")
-  sourceVoucherId    Int             @map("source_voucher_id") @db.UnsignedInt
-  sourceBillNumber   String?         @map("source_bill_number") @db.VarChar(50)
+  sourceVoucherType VoucherType @map("source_voucher_type")
+  sourceVoucherId   Int         @map("source_voucher_id") @db.UnsignedInt
+  sourceBillNumber  String?     @map("source_bill_number") @db.VarChar(50)
 
-  narration          String?         @db.VarChar(255)
+  narration String? @db.VarChar(255)
 
   // Audit
-  createdBy          Int?            @map("created_by") @db.UnsignedInt
-  createdAt          DateTime        @default(now()) @map("created_at") @db.DateTime(3)
+  createdBy Int?     @map("created_by") @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  company            Company         @relation(fields: [companyId], references: [id])
-  account            Account         @relation(fields: [accountId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
 
   @@index([companyId, accountId, voucherDate], map: "IX_gl_entries_account_date")
   @@index([companyId, voucherDate], map: "IX_gl_entries_company_date")
@@ -1193,30 +1221,30 @@ model GeneralLedgerEntry {
 
 /// Bill-level outstanding tracking for receivables and payables.
 model OutstandingBill {
-  id                 Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId          Int            @map("company_id") @db.UnsignedInt
-  accountId          Int            @map("account_id") @db.UnsignedInt
-  billNumber         String         @map("bill_number") @db.VarChar(50)
-  billDate           DateTime       @map("bill_date") @db.Date
-  dueDate            DateTime?      @map("due_date") @db.Date
-  billType           DebitCreditType @map("bill_type") // DEBIT = Receivable, CREDIT = Payable
-  originalAmount     Decimal        @map("original_amount") @db.Decimal(18, 2)
-  allocatedAmount    Decimal        @default(0.00) @map("allocated_amount") @db.Decimal(18, 2)
-  outstandingAmount  Decimal        @map("outstanding_amount") @db.Decimal(18, 2)
-  status             PaymentStatus  @default(UNPAID)
+  id                Int             @id @default(autoincrement()) @db.UnsignedInt
+  companyId         Int             @map("company_id") @db.UnsignedInt
+  accountId         Int             @map("account_id") @db.UnsignedInt
+  billNumber        String          @map("bill_number") @db.VarChar(50)
+  billDate          DateTime        @map("bill_date") @db.Date
+  dueDate           DateTime?       @map("due_date") @db.Date
+  billType          DebitCreditType @map("bill_type") // DEBIT = Receivable, CREDIT = Payable
+  originalAmount    Decimal         @map("original_amount") @db.Decimal(18, 2)
+  allocatedAmount   Decimal         @default(0.00) @map("allocated_amount") @db.Decimal(18, 2)
+  outstandingAmount Decimal         @map("outstanding_amount") @db.Decimal(18, 2)
+  status            PaymentStatus   @default(UNPAID)
 
   // Polymorphic Source
-  sourceVoucherType  VoucherType    @map("source_voucher_type")
-  sourceVoucherId    Int            @map("source_voucher_id") @db.UnsignedInt
+  sourceVoucherType VoucherType @map("source_voucher_type")
+  sourceVoucherId   Int         @map("source_voucher_id") @db.UnsignedInt
 
   // Audit
-  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  company            Company        @relation(fields: [companyId], references: [id])
-  account            Account        @relation(fields: [accountId], references: [id])
-  allocations        CashBankAllocation[]
+  company     Company              @relation(fields: [companyId], references: [id])
+  account     Account              @relation(fields: [accountId], references: [id])
+  allocations CashBankAllocation[]
 
   @@index([companyId, accountId, status], map: "IX_outstanding_bills_account")
   @@index([companyId, dueDate], map: "IX_outstanding_bills_due_date")
@@ -1226,20 +1254,20 @@ model OutstandingBill {
 
 /// Bank Reconciliation Statement (BRS) matching records.
 model BankReconciliation {
-  id                 Int            @id @default(autoincrement()) @db.UnsignedInt
-  cashBankVoucherId  Int            @map("cash_bank_voucher_id") @db.UnsignedInt
-  matchStatus        BrsMatchStatus @default(UNMATCHED) @map("match_status")
-  bankStatementDate  DateTime?      @map("bank_statement_date") @db.Date
-  bankStatementRef   String?        @map("bank_statement_ref") @db.VarChar(50)
-  bankStatementAmount Decimal?      @map("bank_statement_amount") @db.Decimal(18, 2)
-  reconciledDate     DateTime?      @map("reconciled_date") @db.Date
-  reconciledBy       Int?           @map("reconciled_by") @db.UnsignedInt
-  remarks            String?        @db.VarChar(255)
-  createdAt          DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt          DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
+  id                  Int            @id @default(autoincrement()) @db.UnsignedInt
+  cashBankVoucherId   Int            @map("cash_bank_voucher_id") @db.UnsignedInt
+  matchStatus         BrsMatchStatus @default(UNMATCHED) @map("match_status")
+  bankStatementDate   DateTime?      @map("bank_statement_date") @db.Date
+  bankStatementRef    String?        @map("bank_statement_ref") @db.VarChar(50)
+  bankStatementAmount Decimal?       @map("bank_statement_amount") @db.Decimal(18, 2)
+  reconciledDate      DateTime?      @map("reconciled_date") @db.Date
+  reconciledBy        Int?           @map("reconciled_by") @db.UnsignedInt
+  remarks             String?        @db.VarChar(255)
+  createdAt           DateTime       @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt           DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  cashBankVoucher    CashBankVoucher @relation(fields: [cashBankVoucherId], references: [id])
+  cashBankVoucher CashBankVoucher @relation(fields: [cashBankVoucherId], references: [id])
 
   @@index([cashBankVoucherId], map: "IX_bank_reconciliations_voucher")
   @@index([matchStatus], map: "IX_bank_reconciliations_status")
@@ -1253,59 +1281,59 @@ model BankReconciliation {
 /// Individual diamond packet: master record with physical properties,
 /// current status (denormalized), and certification details.
 model StockPacket {
-  id                Int            @id @default(autoincrement()) @db.UnsignedInt
-  companyId         Int            @map("company_id") @db.UnsignedInt
-  qualityId         Int            @map("quality_id") @db.UnsignedInt
-  stockIdNumber     String         @map("stock_id_number") @db.VarChar(30)
-  category          StockCategory  @default(NON_CERTIFIED)
-  registrationDate  DateTime       @map("registration_date") @db.Date
+  id               Int           @id @default(autoincrement()) @db.UnsignedInt
+  companyId        Int           @map("company_id") @db.UnsignedInt
+  qualityId        Int           @map("quality_id") @db.UnsignedInt
+  stockIdNumber    String        @map("stock_id_number") @db.VarChar(30)
+  category         StockCategory @default(NON_CERTIFIED)
+  registrationDate DateTime      @map("registration_date") @db.Date
 
   // Physical
-  shape             String?        @db.VarChar(30)
-  caratWeight       Decimal        @map("carat_weight") @db.Decimal(12, 3)
-  pieceCount        Int            @default(1) @map("piece_count") @db.UnsignedInt
-  color             String?        @db.VarChar(30)
-  clarity           String?        @db.VarChar(30)
-  cut               String?        @db.VarChar(30)
-  polish            String?        @db.VarChar(30)
-  symmetry          String?        @db.VarChar(30)
-  lengthMm          Decimal?       @map("length_mm") @db.Decimal(8, 2)
-  widthMm           Decimal?       @map("width_mm") @db.Decimal(8, 2)
-  depthMm           Decimal?       @map("depth_mm") @db.Decimal(8, 2)
-  totalDepthPct     Decimal?       @map("total_depth_pct") @db.Decimal(5, 2)
-  tablePct          Decimal?       @map("table_pct") @db.Decimal(5, 2)
+  shape         String?  @db.VarChar(30)
+  caratWeight   Decimal  @map("carat_weight") @db.Decimal(12, 3)
+  pieceCount    Int      @default(1) @map("piece_count") @db.UnsignedInt
+  color         String?  @db.VarChar(30)
+  clarity       String?  @db.VarChar(30)
+  cut           String?  @db.VarChar(30)
+  polish        String?  @db.VarChar(30)
+  symmetry      String?  @db.VarChar(30)
+  lengthMm      Decimal? @map("length_mm") @db.Decimal(8, 2)
+  widthMm       Decimal? @map("width_mm") @db.Decimal(8, 2)
+  depthMm       Decimal? @map("depth_mm") @db.Decimal(8, 2)
+  totalDepthPct Decimal? @map("total_depth_pct") @db.Decimal(5, 2)
+  tablePct      Decimal? @map("table_pct") @db.Decimal(5, 2)
 
   // Certification
-  certificateType   String?        @map("certificate_type") @db.VarChar(20)
-  certificateNumber String?        @unique @map("certificate_number") @db.VarChar(50)
+  certificateType   String? @map("certificate_type") @db.VarChar(20)
+  certificateNumber String? @unique @map("certificate_number") @db.VarChar(50)
 
   // Valuation
-  costPerCarat      Decimal        @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
-  totalCost         Decimal        @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  costPerCarat Decimal @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
+  totalCost    Decimal @default(0.00) @map("total_cost") @db.Decimal(18, 2)
 
   // Denormalized Status (updated by StockMovement events)
-  currentStatus     StockStatus    @default(CREATED) @map("current_status")
-  currentOwnership  StockOwnership @default(COMPANY) @map("current_ownership")
-  currentOwnerId    Int?           @map("current_owner_id") @db.UnsignedInt
-  currentLocation   String?        @map("current_location") @db.VarChar(100)
+  currentStatus    StockStatus    @default(CREATED) @map("current_status")
+  currentOwnership StockOwnership @default(COMPANY) @map("current_ownership")
+  currentOwnerId   Int?           @map("current_owner_id") @db.UnsignedInt
+  currentLocation  String?        @map("current_location") @db.VarChar(100)
 
   // Audit
-  createdBy         Int?           @map("created_by") @db.UnsignedInt
-  createdAt         DateTime       @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy         Int?           @map("updated_by") @db.UnsignedInt
-  updatedAt         DateTime       @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted         Boolean        @default(false) @map("is_deleted")
-  deletedBy         Int?           @map("deleted_by") @db.UnsignedInt
-  deletedAt         DateTime?      @map("deleted_at") @db.DateTime(3)
-  version           Int            @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  company           Company        @relation(fields: [companyId], references: [id])
-  quality           Quality        @relation(fields: [qualityId], references: [id])
-  movements         StockMovement[]
-  reservations      StockReservation[]
-  media             StockMedia[]
-  jobCostEntries    JobCostEntry[]
+  company        Company            @relation(fields: [companyId], references: [id])
+  quality        Quality            @relation(fields: [qualityId], references: [id])
+  movements      StockMovement[]
+  reservations   StockReservation[]
+  media          StockMedia[]
+  jobCostEntries JobCostEntry[]
 
   @@unique([companyId, stockIdNumber], map: "UQ_stock_packets_id_number")
   @@index([companyId, currentStatus], map: "IX_stock_packets_status")
@@ -1318,27 +1346,27 @@ model StockPacket {
 
 /// Lifecycle event log per stock packet. Append-only.
 model StockMovement {
-  id                 Int          @id @default(autoincrement()) @db.UnsignedInt
-  stockPacketId      Int          @map("stock_packet_id") @db.UnsignedInt
-  movementDate       DateTime     @map("movement_date") @db.Date
-  movementType       MovementType @map("movement_type")
-  previousStatus     StockStatus  @map("previous_status")
-  newStatus          StockStatus  @map("new_status")
-  previousOwnerId    Int?         @map("previous_owner_id") @db.UnsignedInt
-  newOwnerId         Int?         @map("new_owner_id") @db.UnsignedInt
-  carats             Decimal?     @db.Decimal(12, 3)
-  pieces             Int?         @db.UnsignedInt
+  id              Int          @id @default(autoincrement()) @db.UnsignedInt
+  stockPacketId   Int          @map("stock_packet_id") @db.UnsignedInt
+  movementDate    DateTime     @map("movement_date") @db.Date
+  movementType    MovementType @map("movement_type")
+  previousStatus  StockStatus  @map("previous_status")
+  newStatus       StockStatus  @map("new_status")
+  previousOwnerId Int?         @map("previous_owner_id") @db.UnsignedInt
+  newOwnerId      Int?         @map("new_owner_id") @db.UnsignedInt
+  carats          Decimal?     @db.Decimal(12, 3)
+  pieces          Int?         @db.UnsignedInt
 
   // Polymorphic Source
-  sourceVoucherType  VoucherType? @map("source_voucher_type")
-  sourceVoucherId    Int?         @map("source_voucher_id") @db.UnsignedInt
+  sourceVoucherType VoucherType? @map("source_voucher_type")
+  sourceVoucherId   Int?         @map("source_voucher_id") @db.UnsignedInt
 
-  remarks            String?      @db.VarChar(255)
-  userId             Int?         @map("user_id") @db.UnsignedInt
-  createdAt          DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  remarks   String?  @db.VarChar(255)
+  userId    Int?     @map("user_id") @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  stockPacket        StockPacket  @relation(fields: [stockPacketId], references: [id])
+  stockPacket StockPacket @relation(fields: [stockPacketId], references: [id])
 
   @@index([stockPacketId, createdAt], map: "IX_stock_movements_packet_date")
   @@index([sourceVoucherType, sourceVoucherId], map: "IX_stock_movements_source")
@@ -1347,20 +1375,20 @@ model StockMovement {
 
 /// Hold/allocation tracking per stock packet.
 model StockReservation {
-  id               Int      @id @default(autoincrement()) @db.UnsignedInt
-  stockPacketId    Int      @map("stock_packet_id") @db.UnsignedInt
-  challanVoucherId Int?     @map("challan_voucher_id") @db.UnsignedInt
-  reservationType  String   @map("reservation_type") @db.VarChar(30) // HOLD, JOB_WORK, SALE_ORDER
-  reservedCarats   Decimal  @map("reserved_carats") @db.Decimal(12, 3)
-  reservedDate     DateTime @map("reserved_date") @db.Date
+  id               Int       @id @default(autoincrement()) @db.UnsignedInt
+  stockPacketId    Int       @map("stock_packet_id") @db.UnsignedInt
+  challanVoucherId Int?      @map("challan_voucher_id") @db.UnsignedInt
+  reservationType  String    @map("reservation_type") @db.VarChar(30) // HOLD, JOB_WORK, SALE_ORDER
+  reservedCarats   Decimal   @map("reserved_carats") @db.Decimal(12, 3)
+  reservedDate     DateTime  @map("reserved_date") @db.Date
   expiryDate       DateTime? @map("expiry_date") @db.Date
-  isActive         Boolean  @default(true) @map("is_active")
-  remarks          String?  @db.VarChar(255)
-  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  isActive         Boolean   @default(true) @map("is_active")
+  remarks          String?   @db.VarChar(255)
+  createdAt        DateTime  @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  stockPacket      StockPacket     @relation(fields: [stockPacketId], references: [id])
-  challanVoucher   ChallanVoucher? @relation(fields: [challanVoucherId], references: [id])
+  stockPacket    StockPacket     @relation(fields: [stockPacketId], references: [id])
+  challanVoucher ChallanVoucher? @relation(fields: [challanVoucherId], references: [id])
 
   @@index([stockPacketId, isActive], map: "IX_stock_reservations_active")
   @@map("stock_reservations")
@@ -1368,17 +1396,17 @@ model StockReservation {
 
 /// Stock packet media attachments: photos, videos, certificate PDFs.
 model StockMedia {
-  id             Int      @id @default(autoincrement()) @db.UnsignedInt
-  stockPacketId  Int      @map("stock_packet_id") @db.UnsignedInt
-  mediaType      String   @map("media_type") @db.VarChar(20) // PHOTO, VIDEO, CERTIFICATE
-  filePath       String   @map("file_path") @db.VarChar(500)
-  fileName       String   @map("file_name") @db.VarChar(255)
-  fileSizeBytes  Int?     @map("file_size_bytes") @db.UnsignedInt
-  sortOrder      Int      @default(0) @map("sort_order") @db.UnsignedInt
-  createdAt      DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  stockPacketId Int      @map("stock_packet_id") @db.UnsignedInt
+  mediaType     String   @map("media_type") @db.VarChar(20) // PHOTO, VIDEO, CERTIFICATE
+  filePath      String   @map("file_path") @db.VarChar(500)
+  fileName      String   @map("file_name") @db.VarChar(255)
+  fileSizeBytes Int?     @map("file_size_bytes") @db.UnsignedInt
+  sortOrder     Int      @default(0) @map("sort_order") @db.UnsignedInt
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  stockPacket    StockPacket @relation(fields: [stockPacketId], references: [id])
+  stockPacket StockPacket @relation(fields: [stockPacketId], references: [id])
 
   @@index([stockPacketId], map: "IX_stock_media_packet")
   @@map("stock_media")
@@ -1409,27 +1437,27 @@ model StockAuditBatch {
 
 /// Voucher numbering format configuration per company + voucher type.
 model VoucherNumberConfig {
-  id               Int             @id @default(autoincrement()) @db.UnsignedInt
-  companyId        Int             @map("company_id") @db.UnsignedInt
-  financialYearId  Int             @map("financial_year_id") @db.UnsignedInt
-  voucherType      VoucherType     @map("voucher_type")
-  method           NumberingMethod @default(AUTOMATIC)
-  prefix           String?         @db.VarChar(20)
-  separator        String          @default("-") @db.VarChar(5)
-  suffix           String?         @db.VarChar(20)
-  digitLength      Int             @default(6) @map("digit_length") @db.UnsignedInt
-  includeYear      Boolean         @default(true) @map("include_year")
-  resetAnnually    Boolean         @default(true) @map("reset_annually")
+  id              Int             @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int             @map("company_id") @db.UnsignedInt
+  financialYearId Int             @map("financial_year_id") @db.UnsignedInt
+  voucherType     VoucherType     @map("voucher_type")
+  method          NumberingMethod @default(AUTOMATIC)
+  prefix          String?         @db.VarChar(20)
+  separator       String          @default("-") @db.VarChar(5)
+  suffix          String?         @db.VarChar(20)
+  digitLength     Int             @default(6) @map("digit_length") @db.UnsignedInt
+  includeYear     Boolean         @default(true) @map("include_year")
+  resetAnnually   Boolean         @default(true) @map("reset_annually")
 
   // Audit
-  createdBy        Int?            @map("created_by") @db.UnsignedInt
-  createdAt        DateTime        @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy        Int?            @map("updated_by") @db.UnsignedInt
-  updatedAt        DateTime        @updatedAt @map("updated_at") @db.DateTime(3)
+  createdBy Int?     @map("created_by") @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  company          Company         @relation(fields: [companyId], references: [id])
-  financialYear    FinancialYear   @relation(fields: [financialYearId], references: [id])
+  company       Company       @relation(fields: [companyId], references: [id])
+  financialYear FinancialYear @relation(fields: [financialYearId], references: [id])
 
   @@unique([companyId, financialYearId, voucherType], map: "UQ_voucher_number_configs")
   @@map("voucher_number_configs")
@@ -1437,16 +1465,16 @@ model VoucherNumberConfig {
 
 /// Running sequence counters per company + FY + voucher type.
 model VoucherNumberSequence {
-  id               Int         @id @default(autoincrement()) @db.UnsignedInt
-  companyId        Int         @map("company_id") @db.UnsignedInt
-  financialYearId  Int         @map("financial_year_id") @db.UnsignedInt
-  voucherType      VoucherType @map("voucher_type")
-  currentNumber    Int         @default(0) @map("current_number") @db.UnsignedInt
-  lastGeneratedAt  DateTime?   @map("last_generated_at") @db.DateTime(3)
+  id              Int         @id @default(autoincrement()) @db.UnsignedInt
+  companyId       Int         @map("company_id") @db.UnsignedInt
+  financialYearId Int         @map("financial_year_id") @db.UnsignedInt
+  voucherType     VoucherType @map("voucher_type")
+  currentNumber   Int         @default(0) @map("current_number") @db.UnsignedInt
+  lastGeneratedAt DateTime?   @map("last_generated_at") @db.DateTime(3)
 
   // Relations
-  company          Company       @relation(fields: [companyId], references: [id])
-  financialYear    FinancialYear @relation(fields: [financialYearId], references: [id])
+  company       Company       @relation(fields: [companyId], references: [id])
+  financialYear FinancialYear @relation(fields: [financialYearId], references: [id])
 
   @@unique([companyId, financialYearId, voucherType], map: "UQ_voucher_number_sequences")
   @@map("voucher_number_sequences")
@@ -1454,17 +1482,17 @@ model VoucherNumberSequence {
 
 /// Key-value system settings per company.
 model SystemSetting {
-  id          Int      @id @default(autoincrement()) @db.UnsignedInt
-  companyId   Int      @map("company_id") @db.UnsignedInt
-  settingKey  String   @map("setting_key") @db.VarChar(100)
-  settingValue Json?   @map("setting_value")
-  category    String?  @db.VarChar(50)
-  description String?  @db.VarChar(255)
-  updatedBy   Int?     @map("updated_by") @db.UnsignedInt
-  updatedAt   DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  id           Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId    Int      @map("company_id") @db.UnsignedInt
+  settingKey   String   @map("setting_key") @db.VarChar(100)
+  settingValue Json?    @map("setting_value")
+  category     String?  @db.VarChar(50)
+  description  String?  @db.VarChar(255)
+  updatedBy    Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  company     Company  @relation(fields: [companyId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
 
   @@unique([companyId, settingKey], map: "UQ_system_settings_key")
   @@map("system_settings")
@@ -1472,21 +1500,21 @@ model SystemSetting {
 
 /// Print template layout configurations per company + voucher type.
 model PrintTemplate {
-  id              Int      @id @default(autoincrement()) @db.UnsignedInt
-  companyId       Int      @map("company_id") @db.UnsignedInt
-  voucherType     VoucherType @map("voucher_type")
-  templateName    String   @map("template_name") @db.VarChar(100)
-  isDefault       Boolean  @default(false) @map("is_default")
-  layoutConfig    Json?    @map("layout_config")
-  headerHtml      String?  @map("header_html") @db.Text
-  footerHtml      String?  @map("footer_html") @db.Text
-  paperSize       String   @default("A4") @map("paper_size") @db.VarChar(10)
-  orientation     String   @default("portrait") @db.VarChar(10)
-  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  id           Int         @id @default(autoincrement()) @db.UnsignedInt
+  companyId    Int         @map("company_id") @db.UnsignedInt
+  voucherType  VoucherType @map("voucher_type")
+  templateName String      @map("template_name") @db.VarChar(100)
+  isDefault    Boolean     @default(false) @map("is_default")
+  layoutConfig Json?       @map("layout_config")
+  headerHtml   String?     @map("header_html") @db.Text
+  footerHtml   String?     @map("footer_html") @db.Text
+  paperSize    String      @default("A4") @map("paper_size") @db.VarChar(10)
+  orientation  String      @default("portrait") @db.VarChar(10)
+  createdAt    DateTime    @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt    DateTime    @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  company         Company  @relation(fields: [companyId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
 
   @@index([companyId, voucherType], map: "IX_print_templates_company_type")
   @@map("print_templates")
@@ -1494,17 +1522,17 @@ model PrintTemplate {
 
 /// Backup execution history with file references and checksums.
 model BackupRecord {
-  id              Int      @id @default(autoincrement()) @db.UnsignedInt
-  backupType      String   @map("backup_type") @db.VarChar(20) // FULL, INCREMENTAL, MANUAL
-  filePath        String   @map("file_path") @db.VarChar(500)
-  fileName        String   @map("file_name") @db.VarChar(255)
-  fileSizeBytes   BigInt?  @map("file_size_bytes")
-  checksum        String?  @db.VarChar(64) // SHA-256
-  status          String   @default("COMPLETED") @db.VarChar(20)
-  durationMs      Int?     @map("duration_ms") @db.UnsignedInt
-  initiatedBy     Int?     @map("initiated_by") @db.UnsignedInt
-  remarks         String?  @db.VarChar(255)
-  createdAt       DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  backupType    String   @map("backup_type") @db.VarChar(20) // FULL, INCREMENTAL, MANUAL
+  filePath      String   @map("file_path") @db.VarChar(500)
+  fileName      String   @map("file_name") @db.VarChar(255)
+  fileSizeBytes BigInt?  @map("file_size_bytes")
+  checksum      String?  @db.VarChar(64) // SHA-256
+  status        String   @default("COMPLETED") @db.VarChar(20)
+  durationMs    Int?     @map("duration_ms") @db.UnsignedInt
+  initiatedBy   Int?     @map("initiated_by") @db.UnsignedInt
+  remarks       String?  @db.VarChar(255)
+  createdAt     DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   @@index([createdAt], map: "IX_backup_records_date")
   @@map("backup_records")
@@ -1516,33 +1544,33 @@ model BackupRecord {
 
 /// Staff user accounts with authentication credentials and profile details.
 model User {
-  id                Int        @id @default(autoincrement()) @db.UnsignedInt
-  userIdHandle      String     @unique @map("user_id_handle") @db.VarChar(50)
-  passwordHash      String     @map("password_hash") @db.VarChar(255)
-  fullName          String     @map("full_name") @db.VarChar(150)
-  email             String     @unique @db.VarChar(255)
-  mobile            String?    @db.VarChar(20)
-  designation       String?    @db.VarChar(100)
-  profilePicturePath String?   @map("profile_picture_path") @db.VarChar(500)
-  isSuperAdmin      Boolean    @default(false) @map("is_super_admin")
-  status            UserStatus @default(ACTIVE)
-  permissionTemplateId Int?    @map("permission_template_id") @db.UnsignedInt
-  failedLoginAttempts  Int     @default(0) @map("failed_login_attempts") @db.UnsignedInt
-  lastLoginAt       DateTime?  @map("last_login_at") @db.DateTime(3)
-  lastPasswordChange DateTime? @map("last_password_change") @db.DateTime(3)
+  id                   Int        @id @default(autoincrement()) @db.UnsignedInt
+  userIdHandle         String     @unique @map("user_id_handle") @db.VarChar(50)
+  passwordHash         String     @map("password_hash") @db.VarChar(255)
+  fullName             String     @map("full_name") @db.VarChar(150)
+  email                String     @unique @db.VarChar(255)
+  mobile               String?    @db.VarChar(20)
+  designation          String?    @db.VarChar(100)
+  profilePicturePath   String?    @map("profile_picture_path") @db.VarChar(500)
+  isSuperAdmin         Boolean    @default(false) @map("is_super_admin")
+  status               UserStatus @default(ACTIVE)
+  permissionTemplateId Int?       @map("permission_template_id") @db.UnsignedInt
+  failedLoginAttempts  Int        @default(0) @map("failed_login_attempts") @db.UnsignedInt
+  lastLoginAt          DateTime?  @map("last_login_at") @db.DateTime(3)
+  lastPasswordChange   DateTime?  @map("last_password_change") @db.DateTime(3)
 
   // Audit
-  createdBy         Int?       @map("created_by") @db.UnsignedInt
-  createdAt         DateTime   @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy         Int?       @map("updated_by") @db.UnsignedInt
-  updatedAt         DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted         Boolean    @default(false) @map("is_deleted")
-  deletedBy         Int?       @map("deleted_by") @db.UnsignedInt
-  deletedAt         DateTime?  @map("deleted_at") @db.DateTime(3)
-  version           Int        @default(1) @db.UnsignedInt
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+  version   Int       @default(1) @db.UnsignedInt
 
   // Relations
-  permissionTemplate PermissionTemplate? @relation(fields: [permissionTemplateId], references: [id])
+  permissionTemplate PermissionTemplate?  @relation(fields: [permissionTemplateId], references: [id])
   companyAccess      UserCompanyAccess[]
   sessions           UserSession[]
   activityLogs       ActivityLog[]
@@ -1558,16 +1586,16 @@ model User {
 
 /// Company-level access grants per user.
 model UserCompanyAccess {
-  id         Int      @id @default(autoincrement()) @db.UnsignedInt
-  userId     Int      @map("user_id") @db.UnsignedInt
-  companyId  Int      @map("company_id") @db.UnsignedInt
-  isDefault  Boolean  @default(false) @map("is_default")
-  grantedAt  DateTime @default(now()) @map("granted_at") @db.DateTime(3)
-  grantedBy  Int?     @map("granted_by") @db.UnsignedInt
+  id        Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId    Int      @map("user_id") @db.UnsignedInt
+  companyId Int      @map("company_id") @db.UnsignedInt
+  isDefault Boolean  @default(false) @map("is_default")
+  grantedAt DateTime @default(now()) @map("granted_at") @db.DateTime(3)
+  grantedBy Int?     @map("granted_by") @db.UnsignedInt
 
   // Relations
-  user       User     @relation(fields: [userId], references: [id])
-  company    Company  @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
 
   @@unique([userId, companyId], map: "UQ_user_company_access")
   @@map("user_company_access")
@@ -1575,18 +1603,18 @@ model UserCompanyAccess {
 
 /// Active login session tracking.
 model UserSession {
-  id            Int      @id @default(autoincrement()) @db.UnsignedInt
-  userId        Int      @map("user_id") @db.UnsignedInt
-  sessionToken  String   @unique @map("session_token") @db.VarChar(255)
-  hostname      String?  @db.VarChar(100)
-  ipAddress     String?  @map("ip_address") @db.VarChar(45)
-  loginAt       DateTime @default(now()) @map("login_at") @db.DateTime(3)
+  id             Int       @id @default(autoincrement()) @db.UnsignedInt
+  userId         Int       @map("user_id") @db.UnsignedInt
+  sessionToken   String    @unique @map("session_token") @db.VarChar(255)
+  hostname       String?   @db.VarChar(100)
+  ipAddress      String?   @map("ip_address") @db.VarChar(45)
+  loginAt        DateTime  @default(now()) @map("login_at") @db.DateTime(3)
   lastActivityAt DateTime? @map("last_activity_at") @db.DateTime(3)
-  logoutAt      DateTime? @map("logout_at") @db.DateTime(3)
-  isActive      Boolean  @default(true) @map("is_active")
+  logoutAt       DateTime? @map("logout_at") @db.DateTime(3)
+  isActive       Boolean   @default(true) @map("is_active")
 
   // Relations
-  user          User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, isActive], map: "IX_user_sessions_active")
   @@map("user_sessions")
@@ -1594,22 +1622,22 @@ model UserSession {
 
 /// Predefined role/permission profiles.
 model PermissionTemplate {
-  id               Int      @id @default(autoincrement()) @db.UnsignedInt
-  templateName     String   @map("template_name") @db.VarChar(100)
-  description      String?  @db.VarChar(255)
-  companyId        Int?     @map("company_id") @db.UnsignedInt // Nullable for global templates
+  id           Int     @id @default(autoincrement()) @db.UnsignedInt
+  templateName String  @map("template_name") @db.VarChar(100)
+  description  String? @db.VarChar(255)
+  companyId    Int?    @map("company_id") @db.UnsignedInt // Nullable for global templates
 
   // Audit
-  createdBy        Int?     @map("created_by") @db.UnsignedInt
-  createdAt        DateTime @default(now()) @map("created_at") @db.DateTime(3)
-  updatedBy        Int?     @map("updated_by") @db.UnsignedInt
-  updatedAt        DateTime @updatedAt @map("updated_at") @db.DateTime(3)
-  isDeleted        Boolean  @default(false) @map("is_deleted")
-  version          Int      @default(1) @db.UnsignedInt
+  createdBy Int?     @map("created_by") @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?     @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean  @default(false) @map("is_deleted")
+  version   Int      @default(1) @db.UnsignedInt
 
   // Relations
-  users            User[]
-  pagePermissions  PagePermission[]  @relation("TemplatePagePerms")
+  users             User[]
+  pagePermissions   PagePermission[]   @relation("TemplatePagePerms")
   modulePermissions ModulePermission[] @relation("TemplateModulePerms")
 
   @@map("permission_templates")
@@ -1617,15 +1645,15 @@ model PermissionTemplate {
 
 /// Page/menu visibility control per user or template.
 model PagePermission {
-  id                   Int      @id @default(autoincrement()) @db.UnsignedInt
-  userId               Int?     @map("user_id") @db.UnsignedInt
-  permissionTemplateId Int?     @map("permission_template_id") @db.UnsignedInt
-  pageUri              String   @map("page_uri") @db.VarChar(100)
-  canView              Boolean  @default(false) @map("can_view")
+  id                   Int     @id @default(autoincrement()) @db.UnsignedInt
+  userId               Int?    @map("user_id") @db.UnsignedInt
+  permissionTemplateId Int?    @map("permission_template_id") @db.UnsignedInt
+  pageUri              String  @map("page_uri") @db.VarChar(100)
+  canView              Boolean @default(false) @map("can_view")
 
   // Relations
-  user                 User?              @relation("UserPagePerms", fields: [userId], references: [id])
-  permissionTemplate   PermissionTemplate? @relation("TemplatePagePerms", fields: [permissionTemplateId], references: [id])
+  user               User?               @relation("UserPagePerms", fields: [userId], references: [id])
+  permissionTemplate PermissionTemplate? @relation("TemplatePagePerms", fields: [permissionTemplateId], references: [id])
 
   @@index([userId], map: "IX_page_permissions_user")
   @@index([permissionTemplateId], map: "IX_page_permissions_template")
@@ -1634,16 +1662,16 @@ model PagePermission {
 
 /// Action-level CRUD controls per user or template.
 model ModulePermission {
-  id                   Int      @id @default(autoincrement()) @db.UnsignedInt
-  userId               Int?     @map("user_id") @db.UnsignedInt
-  permissionTemplateId Int?     @map("permission_template_id") @db.UnsignedInt
-  moduleCode           String   @map("module_code") @db.VarChar(50) // e.g., 'sale_book', 'quality_master'
-  actionCode           String   @map("action_code") @db.VarChar(50) // e.g., 'create', 'edit', 'delete', 'export'
-  isAllowed            Boolean  @default(false) @map("is_allowed")
+  id                   Int     @id @default(autoincrement()) @db.UnsignedInt
+  userId               Int?    @map("user_id") @db.UnsignedInt
+  permissionTemplateId Int?    @map("permission_template_id") @db.UnsignedInt
+  moduleCode           String  @map("module_code") @db.VarChar(50) // e.g., 'sale_book', 'quality_master'
+  actionCode           String  @map("action_code") @db.VarChar(50) // e.g., 'create', 'edit', 'delete', 'export'
+  isAllowed            Boolean @default(false) @map("is_allowed")
 
   // Relations
-  user                 User?              @relation("UserModulePerms", fields: [userId], references: [id])
-  permissionTemplate   PermissionTemplate? @relation("TemplateModulePerms", fields: [permissionTemplateId], references: [id])
+  user               User?               @relation("UserModulePerms", fields: [userId], references: [id])
+  permissionTemplate PermissionTemplate? @relation("TemplateModulePerms", fields: [permissionTemplateId], references: [id])
 
   @@index([userId], map: "IX_module_permissions_user")
   @@index([permissionTemplateId], map: "IX_module_permissions_template")
@@ -1663,7 +1691,7 @@ model ActivityLog {
   createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  user        User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt], map: "IX_activity_logs_user_date")
   @@index([entityType, entityId], map: "IX_activity_logs_entity")
@@ -1672,17 +1700,17 @@ model ActivityLog {
 
 /// Login/logout timestamps and device details. Append-only.
 model LoginHistory {
-  id          Int       @id @default(autoincrement()) @db.UnsignedInt
-  userId      Int       @map("user_id") @db.UnsignedInt
-  action      String    @db.VarChar(10) // LOGIN, LOGOUT, FAILED
-  hostname    String?   @db.VarChar(100)
-  ipAddress   String?   @map("ip_address") @db.VarChar(45)
-  userAgent   String?   @map("user_agent") @db.VarChar(255)
-  failReason  String?   @map("fail_reason") @db.VarChar(255)
-  createdAt   DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId     Int      @map("user_id") @db.UnsignedInt
+  action     String   @db.VarChar(10) // LOGIN, LOGOUT, FAILED
+  hostname   String?  @db.VarChar(100)
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  userAgent  String?  @map("user_agent") @db.VarChar(255)
+  failReason String?  @map("fail_reason") @db.VarChar(255)
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  user        User      @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt], map: "IX_login_history_user_date")
   @@map("login_history")
@@ -1731,8 +1759,8 @@ model NotificationRecord {
   createdAt        DateTime             @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  company          Company              @relation(fields: [companyId], references: [id])
-  user             User                 @relation(fields: [userId], references: [id])
+  company Company @relation(fields: [companyId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
 
   @@index([userId, isRead, createdAt], map: "IX_notifications_user_unread")
   @@index([companyId, createdAt], map: "IX_notifications_company_date")
@@ -1761,20 +1789,20 @@ model ErrorLog {
 
 /// User dashboard widget personalization.
 model DashboardWidget {
-  id           Int        @id @default(autoincrement()) @db.UnsignedInt
-  userId       Int        @map("user_id") @db.UnsignedInt
-  widgetType   WidgetType @map("widget_type")
-  widgetTitle  String     @map("widget_title") @db.VarChar(100)
-  dataSource   String     @map("data_source") @db.VarChar(100) // e.g., 'sales_today', 'outstanding_receivables'
-  position     Int        @default(0) @db.UnsignedInt
-  columnSpan   Int        @default(1) @map("column_span") @db.UnsignedInt
-  isVisible    Boolean    @default(true) @map("is_visible")
-  config       Json?      // colors, date range, filters
-  createdAt    DateTime   @default(now()) @map("created_at") @db.DateTime(3)
-  updatedAt    DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
+  id          Int        @id @default(autoincrement()) @db.UnsignedInt
+  userId      Int        @map("user_id") @db.UnsignedInt
+  widgetType  WidgetType @map("widget_type")
+  widgetTitle String     @map("widget_title") @db.VarChar(100)
+  dataSource  String     @map("data_source") @db.VarChar(100) // e.g., 'sales_today', 'outstanding_receivables'
+  position    Int        @default(0) @db.UnsignedInt
+  columnSpan  Int        @default(1) @map("column_span") @db.UnsignedInt
+  isVisible   Boolean    @default(true) @map("is_visible")
+  config      Json? // colors, date range, filters
+  createdAt   DateTime   @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt   DateTime   @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  user         User       @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@index([userId], map: "IX_dashboard_widgets_user")
   @@map("dashboard_widgets")
@@ -1782,16 +1810,76 @@ model DashboardWidget {
 
 /// Personal workspace: favorites, quick actions, recent items.
 model UserWorkspace {
-  id              Int      @id @default(autoincrement()) @db.UnsignedInt
-  userId          Int      @unique @map("user_id") @db.UnsignedInt
-  favoritePages   Json?    @map("favorite_pages")   // Array of page URIs
-  quickActions    Json?    @map("quick_actions")     // Array of action configs
-  recentItems     Json?    @map("recent_items")      // Array of recently accessed items
-  pinnedReports   Json?    @map("pinned_reports")    // Array of saved report configs
-  updatedAt       DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+  id            Int      @id @default(autoincrement()) @db.UnsignedInt
+  userId        Int      @unique @map("user_id") @db.UnsignedInt
+  favoritePages Json?    @map("favorite_pages") // Array of page URIs
+  quickActions  Json?    @map("quick_actions") // Array of action configs
+  recentItems   Json?    @map("recent_items") // Array of recently accessed items
+  pinnedReports Json?    @map("pinned_reports") // Array of saved report configs
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  user            User     @relation(fields: [userId], references: [id])
+  user User @relation(fields: [userId], references: [id])
 
   @@map("user_workspaces")
+}
+
+model Loan {
+  id                   Int                   @id @default(autoincrement()) @db.UnsignedInt
+  companyId            Int                   @map("company_id") @db.UnsignedInt
+  financialYearId      Int                   @map("financial_year_id") @db.UnsignedInt
+  voucherNumber        String                @map("voucher_number") @db.VarChar(50)
+  loanType             LoanType              @map("loan_type")
+  partyId              Int                   @map("party_id") @db.UnsignedInt
+  cashBankAccountId    Int                   @map("cash_bank_account_id") @db.UnsignedInt
+  principalAmount      Decimal               @map("principal_amount") @db.Decimal(18, 2)
+  interestRate         Decimal               @map("interest_rate") @db.Decimal(5, 2)
+  interestType         InterestType          @map("interest_type")
+  compoundingFrequency CompoundingFrequency? @map("compounding_frequency")
+  durationMonths       Int                   @map("duration_months")
+  loanDate             DateTime              @map("loan_date") @db.Date
+  dueDate              DateTime?             @map("due_date") @db.Date
+  status               LoanStatus            @default(ACTIVE)
+  narration            String?               @db.Text
+  totalInterest        Decimal               @default(0.00) @map("total_interest") @db.Decimal(18, 2)
+  totalRepayable       Decimal               @default(0.00) @map("total_repayable") @db.Decimal(18, 2)
+  amountRepaid         Decimal               @default(0.00) @map("amount_repaid") @db.Decimal(18, 2)
+  balanceRemaining     Decimal               @default(0.00) @map("balance_remaining") @db.Decimal(18, 2)
+
+  // Audit
+  createdBy Int?      @map("created_by") @db.UnsignedInt
+  createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
+  updatedBy Int?      @map("updated_by") @db.UnsignedInt
+  updatedAt DateTime  @updatedAt @map("updated_at") @db.DateTime(3)
+  isDeleted Boolean   @default(false) @map("is_deleted")
+  deletedBy Int?      @map("deleted_by") @db.UnsignedInt
+  deletedAt DateTime? @map("deleted_at") @db.DateTime(3)
+
+  // Relations
+  company         Company         @relation(fields: [companyId], references: [id])
+  financialYear   FinancialYear   @relation(fields: [financialYearId], references: [id])
+  party           Account         @relation("LoanPartyRelation", fields: [partyId], references: [id])
+  cashBankAccount Account         @relation("LoanCashRelation", fields: [cashBankAccountId], references: [id])
+  repayments      LoanRepayment[]
+
+  @@unique([companyId, financialYearId, voucherNumber], map: "UQ_loans_number")
+  @@index([companyId, loanDate], map: "IX_loans_date")
+  @@map("loans")
+}
+
+model LoanRepayment {
+  id                Int      @id @default(autoincrement()) @db.UnsignedInt
+  loanId            Int      @map("loan_id") @db.UnsignedInt
+  paymentDate       DateTime @map("payment_date") @db.Date
+  amount            Decimal  @map("amount") @db.Decimal(18, 2)
+  cashBankAccountId Int      @map("cash_bank_account_id") @db.UnsignedInt
+  narration         String?  @db.VarChar(255)
+  createdBy         Int?     @map("created_by") @db.UnsignedInt
+  createdAt         DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  loan            Loan    @relation(fields: [loanId], references: [id])
+  cashBankAccount Account @relation(fields: [cashBankAccountId], references: [id])
+
+  @@map("loan_repayments")
 }

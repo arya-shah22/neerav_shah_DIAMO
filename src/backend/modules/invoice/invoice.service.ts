@@ -153,7 +153,7 @@ export class InvoiceService {
    * List all Sale or Purchase Invoices
    */
   async list(companyId: number, type: InvoiceType) {
-    return this.prisma.saleInvoice.findMany({
+    const invoices = await this.prisma.saleInvoice.findMany({
       where: { companyId, invoiceType: type, isDeleted: false },
       orderBy: { invoiceDate: 'desc' },
       include: {
@@ -164,6 +164,47 @@ export class InvoiceService {
         }
       },
     });
+
+    const packetIds: number[] = [];
+    for (const inv of invoices) {
+      for (const item of inv.items) {
+        if (item.stockPacketId) {
+          packetIds.push(item.stockPacketId);
+        }
+      }
+    }
+
+    if (packetIds.length > 0) {
+      const packets = await this.prisma.stockPacket.findMany({
+        where: { id: { in: packetIds } },
+        select: {
+          id: true,
+          stockIdNumber: true,
+          shape: true,
+          color: true,
+          clarity: true,
+          cut: true,
+          polish: true,
+          symmetry: true,
+          certificateNumber: true,
+          certificateType: true,
+        }
+      });
+      const packetMap = new Map(packets.map(p => [p.id, p]));
+      for (const inv of invoices) {
+        (inv as any).items = inv.items.map(item => {
+          if (item.stockPacketId && packetMap.has(item.stockPacketId)) {
+            return {
+              ...item,
+              stockPacket: packetMap.get(item.stockPacketId)
+            };
+          }
+          return item;
+        });
+      }
+    }
+
+    return invoices;
   }
 
   /**
@@ -181,6 +222,39 @@ export class InvoiceService {
       },
     });
     if (!invoice) throw new BadRequestException('Invoice not found');
+
+    const packetIds = invoice.items
+      .map(item => item.stockPacketId)
+      .filter((id): id is number => id !== null && id !== undefined);
+
+    if (packetIds.length > 0) {
+      const packets = await this.prisma.stockPacket.findMany({
+        where: { id: { in: packetIds } },
+        select: {
+          id: true,
+          stockIdNumber: true,
+          shape: true,
+          color: true,
+          clarity: true,
+          cut: true,
+          polish: true,
+          symmetry: true,
+          certificateNumber: true,
+          certificateType: true,
+        }
+      });
+      const packetMap = new Map(packets.map(p => [p.id, p]));
+      (invoice as any).items = invoice.items.map(item => {
+        if (item.stockPacketId && packetMap.has(item.stockPacketId)) {
+          return {
+            ...item,
+            stockPacket: packetMap.get(item.stockPacketId)
+          };
+        }
+        return item;
+      });
+    }
+
     return invoice;
   }
 

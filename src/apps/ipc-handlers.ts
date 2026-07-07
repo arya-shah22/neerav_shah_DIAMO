@@ -17,6 +17,7 @@ import { ChallanController } from '../backend/modules/challan/challan.controller
 import { JobController } from '../backend/modules/job/job.controller';
 import { JournalController } from '../backend/modules/journal/journal.controller';
 import { CashBankController } from '../backend/modules/cashbank/cashbank.controller';
+import { LoanController } from '../backend/modules/loan/loan.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -50,6 +51,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const jobController = nestApp.get(JobController);
   const journalController = nestApp.get(JournalController);
   const cashBankController = nestApp.get(CashBankController);
+  const loanController = nestApp.get(LoanController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -165,4 +167,12 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'cashbank:party-notes', (payload) => cashBankController.handleListPartyNotes(payload));
   ipcHandle(ipcMain, 'cashbank:create', (payload) => cashBankController.handleCreate(payload));
   ipcHandle(ipcMain, 'cashbank:delete', (payload) => cashBankController.handleDelete(payload));
+
+  // ─── Loan Management ──────────────────────────────────────
+  ipcHandle(ipcMain, 'loan:list', (payload: number) => loanController.handleList(payload));
+  ipcHandle(ipcMain, 'loan:create', (payload) => loanController.handleCreate(payload));
+  ipcHandle(ipcMain, 'loan:repay', (payload) => loanController.handleRepay(payload));
+  ipcHandle(ipcMain, 'loan:delete', (payload) => loanController.handleDelete(payload));
+  ipcHandle(ipcMain, 'loan:onhand', (payload: number) => loanController.handleGetOnHandMoney(payload));
+  ipcHandle(ipcMain, 'loan:pdf', (payload: number) => loanController.handleGeneratePdf(payload));
 }

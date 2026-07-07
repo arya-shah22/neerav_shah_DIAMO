@@ -110,6 +110,9 @@ export const QualityListPage: React.FC = () => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company to manage qualities.</p>;
   }
 
+  const services = (qualities || []).filter(q => q.isService);
+  const inventories = (qualities || []).filter(q => !q.isService);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -126,14 +129,35 @@ export const QualityListPage: React.FC = () => {
         <Input placeholder="Search qualities..." value={search} onChange={(e) => setSearch(e.target.value)} />
       </div>
 
-      <DataGrid
-        columns={columns}
-        data={qualities || []}
-        keyField="id"
-        loading={loading}
-        emptyTitle="No qualities found"
-        emptyDescription="Add your first diamond quality to get started."
-      />
+      {/* Grid 1: Services */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+          Services Qualities
+        </h2>
+        <DataGrid
+          columns={columns}
+          data={services}
+          keyField="id"
+          loading={loading}
+          emptyTitle="No service qualities found"
+          emptyDescription="Services will appear here once added."
+        />
+      </div>
+
+      {/* Grid 2: Inventory */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '16px' }}>
+        <h2 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+          Inventory Qualities
+        </h2>
+        <DataGrid
+          columns={columns}
+          data={inventories}
+          keyField="id"
+          loading={loading}
+          emptyTitle="No inventory qualities found"
+          emptyDescription="Regular inventory qualities will appear here."
+        />
+      </div>
     </div>
   );
 };

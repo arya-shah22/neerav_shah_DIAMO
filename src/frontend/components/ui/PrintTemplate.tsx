@@ -301,8 +301,20 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
               {type === 'INVOICE' && data.items?.map((item: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                   <td style={{ padding: '8px' }}>{idx + 1}</td>
-                  <td style={{ padding: '8px', fontWeight: 600 }}>{item.quality?.qualityName || 'Diamond Quality'} (HSN: {item.hsnNumber})</td>
-                  <td style={{ padding: '8px', textAlign: 'right' }}>{Number(item.carats).toFixed(2)}</td>
+                  <td style={{ padding: '8px', fontWeight: 600 }}>
+                    <div>{item.quality?.qualityName || 'Diamond Quality'} (HSN: {item.hsnNumber})</div>
+                    {item.stockPacket && (
+                      <div style={{ fontSize: '10px', color: '#475569', fontWeight: 400, marginTop: '3px', display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ background: '#f1f5f9', padding: '1px 4px', borderRadius: '2px', fontFamily: 'monospace', fontWeight: 600 }}>
+                          Pkt: {item.stockPacket.stockIdNumber}
+                        </span>
+                        <span>
+                          {[item.stockPacket.shape, item.stockPacket.color, item.stockPacket.clarity, item.stockPacket.cut].filter(Boolean).join(' / ')}
+                        </span>
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '8px', textAlign: 'right' }}>{Number(item.carats).toFixed(3)}</td>
                   <td style={{ padding: '8px', textAlign: 'right' }}>{item.pieces}</td>
                   <td style={{ padding: '8px', textAlign: 'right' }}>₹{Number(item.rate).toLocaleString('en-IN')}</td>
                   <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600 }}>₹{Number(item.grossAmount).toLocaleString('en-IN')}</td>

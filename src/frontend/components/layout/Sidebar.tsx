@@ -362,6 +362,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                     <>
                       {renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
                       {renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
+                      {renderLink('/vouchers/loan', 'Loan Book', <Briefcase size={16} />, '32px')}
                       {renderLink('/vouchers/ledger', 'Ledger', <BookOpen size={16} />, '32px')}
                     </>
                   )}

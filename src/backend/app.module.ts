@@ -18,6 +18,7 @@ import { ChallanModule } from './modules/challan/challan.module';
 import { JobModule } from './modules/job/job.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { CashBankModule } from './modules/cashbank/cashbank.module';
+import { LoanModule } from './modules/loan/loan.module';
 
 @Module({
   imports: [
@@ -35,6 +36,7 @@ import { CashBankModule } from './modules/cashbank/cashbank.module';
     JobModule,
     JournalModule,
     CashBankModule,
+    LoanModule,
   ],
   controllers: [],
   providers: [

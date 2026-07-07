@@ -21,6 +21,7 @@ import { ChallanListPage, ChallanFormPage } from './features/challan';
 import { JobListPage, JobFormPage } from './features/job';
 import { JVBookPage } from './features/journal';
 import { CashBankPage } from './features/cashbook';
+import { LoanPage } from './features/loan/LoanPage';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -380,6 +381,9 @@ const App: React.FC = () => {
 
                 {/* Phase 9: Cash & Bank Book */}
                 <Route path="/vouchers/cash-bank" element={<CashBankPage />} />
+
+                {/* Loan Book */}
+                <Route path="/vouchers/loan" element={<LoanPage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

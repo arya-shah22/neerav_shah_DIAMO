@@ -131,7 +131,17 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
             {(invoice.items || []).map((item, idx) => (
               <tr key={item.id || idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
                 <td style={{ padding: '10px 8px', fontSize: '13px' }}>{idx + 1}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', fontWeight: 600 }}>{item.quality?.qualityName || '—'}</td>
+                <td style={{ padding: '10px 8px', fontSize: '13px', fontWeight: 600 }}>
+                  <div>{item.quality?.qualityName || '—'}</div>
+                  {(item as any).stockPacket && (
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 400, marginTop: '4px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <span style={{ background: 'var(--color-row-alt)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 600 }}>
+                        📦 {(item as any).stockPacket.stockIdNumber}
+                      </span>
+                      {[(item as any).stockPacket.shape, (item as any).stockPacket.color, (item as any).stockPacket.clarity, (item as any).stockPacket.cut].filter(Boolean).join(' / ')}
+                    </div>
+                  )}
+                </td>
                 <td style={{ padding: '10px 8px', fontSize: '13px' }}>{item.hsnNumber || '—'}</td>
                 <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.carats).toFixed(3)}</td>
                 <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{item.pieces}</td>
