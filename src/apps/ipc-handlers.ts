@@ -18,6 +18,7 @@ import { JobController } from '../backend/modules/job/job.controller';
 import { JournalController } from '../backend/modules/journal/journal.controller';
 import { CashBankController } from '../backend/modules/cashbank/cashbank.controller';
 import { LoanController } from '../backend/modules/loan/loan.controller';
+import { ReportController } from '../backend/modules/report/report.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -52,6 +53,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const journalController = nestApp.get(JournalController);
   const cashBankController = nestApp.get(CashBankController);
   const loanController = nestApp.get(LoanController);
+  const reportController = nestApp.get(ReportController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -175,4 +177,11 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'loan:delete', (payload) => loanController.handleDelete(payload));
   ipcHandle(ipcMain, 'loan:onhand', (payload: number) => loanController.handleGetOnHandMoney(payload));
   ipcHandle(ipcMain, 'loan:pdf', (payload: number) => loanController.handleGeneratePdf(payload));
+
+  // ─── Phase 11: Enterprise Reports ────────────────────────
+  ipcHandle(ipcMain, 'report:ledger', (payload) => reportController.handleGetLedger(payload));
+  ipcHandle(ipcMain, 'report:trial-balance', (payload) => reportController.handleGetTrialBalance(payload));
+  ipcHandle(ipcMain, 'report:profit-loss', (payload) => reportController.handleGetProfitLoss(payload));
+  ipcHandle(ipcMain, 'report:balance-sheet', (payload) => reportController.handleGetBalanceSheet(payload));
+  ipcHandle(ipcMain, 'report:outstanding', (payload) => reportController.handleGetOutstanding(payload));
 }

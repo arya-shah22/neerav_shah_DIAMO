@@ -75,6 +75,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       nextOpen['transactions'] = true;
     }
     
+    if (currentPath.startsWith('/reports')) {
+      nextOpen['reports'] = true;
+    }
+    
     // Sub-nested groups under transactions
     if (
       currentPath.startsWith('/transactions/sales') ||
@@ -188,7 +192,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       key: 'reports',
       label: 'Reports',
       icon: <BarChart3 size={18} />,
-      path: '/reports',
+      subItems: [
+        { path: '/reports/ledger', label: 'General Ledger', icon: <FileText size={16} /> },
+        { path: '/reports/financials', label: 'Financial Statements', icon: <BarChart3 size={16} /> },
+        { path: '/reports/outstanding', label: 'Outstanding Statements', icon: <FileText size={16} /> },
+      ],
     },
     {
       key: 'system',

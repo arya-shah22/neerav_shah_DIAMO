@@ -19,6 +19,7 @@ import { JobModule } from './modules/job/job.module';
 import { JournalModule } from './modules/journal/journal.module';
 import { CashBankModule } from './modules/cashbank/cashbank.module';
 import { LoanModule } from './modules/loan/loan.module';
+import { ReportModule } from './modules/report/report.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { LoanModule } from './modules/loan/loan.module';
     JournalModule,
     CashBankModule,
     LoanModule,
+    ReportModule,
   ],
   controllers: [],
   providers: [
