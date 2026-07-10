@@ -191,6 +191,24 @@ export const LedgerBookPage: React.FC = () => {
     }, 100);
   };
 
+  const handleExportPDF = async () => {
+    setShowPrintPreview(true);
+    setTimeout(async () => {
+      try {
+        const res = await window.api.invoke('system:print-to-pdf', {
+          filename: `Ledger_Statement_${new Date().toISOString().split('T')[0]}.pdf`
+        }) as any;
+        if (res && !res.success && res.error !== 'Cancelled') {
+          alert(res.error || 'Failed to export PDF');
+        }
+      } catch (err: any) {
+        console.error(err);
+      } finally {
+        setShowPrintPreview(false);
+      }
+    }, 100);
+  };
+
   // Render Print Preview Mode
   if (showPrintPreview && activeCompany && ledgerStatements && ledgerStatements.length > 0) {
     return (
@@ -345,7 +363,7 @@ export const LedgerBookPage: React.FC = () => {
           </p>
         </div>
           <div style={{ display: 'flex', gap: '8px' }}>
-            <Button variant="secondary" onClick={() => setShowPrintModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Button variant="secondary" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FileText size={16} /> Export PDF
             </Button>
             <Button variant="primary" onClick={() => setShowPrintModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

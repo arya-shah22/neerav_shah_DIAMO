@@ -2,7 +2,7 @@
 // DIAMO ERP — IPC Handler Registration
 // ═══════════════════════════════════════════════════════════════
 
-import { IpcMain } from 'electron';
+import { IpcMain, BrowserWindow, dialog } from 'electron';
 import { INestApplicationContext } from '@nestjs/common';
 import { AuthController } from '../backend/modules/auth/auth.controller';
 import { CompanyController } from '../backend/modules/company/company.controller';
@@ -68,6 +68,41 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
     electron: process.versions.electron,
     chrome: process.versions.chrome,
   }));
+
+  ipcMain.handle('system:print-to-pdf', async (event, payload: { filename: string }) => {
+    const win = BrowserWindow.fromWebContents(event.sender);
+    if (!win) return { success: false, error: 'No active window found' };
+
+    const { filePath } = await dialog.showSaveDialog(win, {
+      title: 'Export Report as PDF',
+      defaultPath: payload.filename,
+      filters: [{ name: 'PDF Files', extensions: ['pdf'] }]
+    });
+
+    if (!filePath) {
+      return { success: false, error: 'Cancelled' };
+    }
+
+    try {
+      const data = await event.sender.printToPDF({
+        margins: {
+          top: 0.4,
+          bottom: 0.4,
+          left: 0.4,
+          right: 0.4
+        },
+        pageSize: 'A4',
+        printBackground: true,
+        landscape: false,
+      });
+
+      const fs = require('fs');
+      fs.writeFileSync(filePath, data);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to generate PDF' };
+    }
+  });
 
   // ─── Stage 1: Auth ───────────────────────────────────────
   ipcHandle(ipcMain, 'auth:login', (payload) => authController.handleLogin(payload));

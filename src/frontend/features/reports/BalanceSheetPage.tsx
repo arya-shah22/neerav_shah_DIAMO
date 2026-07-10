@@ -98,6 +98,24 @@ export const BalanceSheetPage: React.FC = () => {
     document.body.removeChild(link);
   };
 
+  const handleExportPDF = async () => {
+    setShowPrintPreview(true);
+    setTimeout(async () => {
+      try {
+        const res = await window.api.invoke('system:print-to-pdf', {
+          filename: `Balance_Sheet_${filterDate}.pdf`
+        }) as any;
+        if (res && !res.success && res.error !== 'Cancelled') {
+          alert(res.error || 'Failed to export PDF');
+        }
+      } catch (err: any) {
+        console.error(err);
+      } finally {
+        setShowPrintPreview(false);
+      }
+    }, 100);
+  };
+
   if (!isReady) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
@@ -316,7 +334,7 @@ export const BalanceSheetPage: React.FC = () => {
             <Button variant="secondary" onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Download size={16} /> Export CSV
             </Button>
-            <Button variant="secondary" onClick={() => setShowPrintModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Button variant="secondary" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FileText size={16} /> Export PDF
             </Button>
             <Button variant="primary" onClick={() => setShowPrintModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
