@@ -23,7 +23,9 @@ import { JVBookPage } from './features/journal';
 import { CashBankPage } from './features/cashbook';
 import { LoanPage } from './features/loan/LoanPage';
 import { LedgerBookPage } from './features/reports/LedgerBookPage';
-import { FinancialStatementsPage } from './features/reports/FinancialStatementsPage';
+import { TrialBalancePage } from './features/reports/TrialBalancePage';
+import { ProfitLossPage } from './features/reports/ProfitLossPage';
+import { BalanceSheetPage } from './features/reports/BalanceSheetPage';
 import { OutstandingReportPage } from './features/reports/OutstandingReportPage';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
@@ -390,7 +392,9 @@ const App: React.FC = () => {
 
                 {/* Phase 11: Enterprise Financial Reports */}
                 <Route path="/reports/ledger" element={<LedgerBookPage />} />
-                <Route path="/reports/financials" element={<FinancialStatementsPage />} />
+                <Route path="/reports/trial-balance" element={<TrialBalancePage />} />
+                <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
+                <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
                 <Route path="/reports/outstanding" element={<OutstandingReportPage />} />
 
                 {/* Legacy redirects */}

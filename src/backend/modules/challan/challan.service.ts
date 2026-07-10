@@ -48,7 +48,7 @@ export class ChallanService {
       ];
     }
 
-    return this.prisma.challanVoucher.findMany({
+    const challans = await this.prisma.challanVoucher.findMany({
       where,
       orderBy: { challanDate: 'desc' },
       include: {
@@ -56,6 +56,26 @@ export class ChallanService {
         items: { include: { quality: true } },
       },
     });
+
+    const packetIds = challans
+      .flatMap(c => c.items.map(it => it.stockPacketId))
+      .filter((id): id is number => id !== null);
+
+    if (packetIds.length > 0) {
+      const packets = await this.prisma.stockPacket.findMany({
+        where: { id: { in: packetIds } },
+        select: { id: true, stockIdNumber: true },
+      });
+      const packetMap = new Map(packets.map(p => [p.id, p.stockIdNumber]));
+      challans.forEach(c => {
+        c.items = c.items.map(it => ({
+          ...it,
+          stockPacketIdNumber: it.stockPacketId ? packetMap.get(it.stockPacketId) : null,
+        })) as any;
+      });
+    }
+
+    return challans;
   }
 
   async get(id: number, companyId: number) {
@@ -67,6 +87,20 @@ export class ChallanService {
       },
     });
     if (!challan) throw new BadRequestException('Challan not found');
+
+    const packetIds = challan.items.map(it => it.stockPacketId).filter((id): id is number => id !== null);
+    if (packetIds.length > 0) {
+      const packets = await this.prisma.stockPacket.findMany({
+        where: { id: { in: packetIds } },
+        select: { id: true, stockIdNumber: true },
+      });
+      const packetMap = new Map(packets.map(p => [p.id, p.stockIdNumber]));
+      challan.items = challan.items.map(it => ({
+        ...it,
+        stockPacketIdNumber: it.stockPacketId ? packetMap.get(it.stockPacketId) : null,
+      })) as any;
+    }
+
     return challan;
   }
 
@@ -111,6 +145,18 @@ export class ChallanService {
     const vType = purposeToVoucherType(purpose);
 
     return this.prisma.$transaction(async (tx) => {
+      // Update party account details if provided
+      if (partyId) {
+        await tx.account.update({
+          where: { id: partyId },
+          data: {
+            mobile: data.mobile || null,
+            city: data.city || null,
+            gstinNumber: data.gstin || null,
+          },
+        });
+      }
+
       // 1. Increment sequence
       await tx.voucherNumberSequence.upsert({
         where: {
@@ -239,6 +285,18 @@ export class ChallanService {
     const challan = await this.get(id, companyId);
 
     return this.prisma.$transaction(async (tx) => {
+      // Update party account details if provided
+      if (challan.partyId) {
+        await tx.account.update({
+          where: { id: challan.partyId },
+          data: {
+            mobile: data.mobile || null,
+            city: data.city || null,
+            gstinNumber: data.gstin || null,
+          },
+        });
+      }
+
       // Revert status of existing stock packets first
       for (const item of challan.items) {
         if (item.stockPacketId) {

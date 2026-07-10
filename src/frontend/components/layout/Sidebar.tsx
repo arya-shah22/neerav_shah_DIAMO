@@ -167,7 +167,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         },
         {
           key: 'challan',
-          label: 'Challan Book',
+          label: 'Memo Book',
           icon: <FileText size={16} />,
           subItems: [
             { path: '/transactions/challans/trading', label: 'Jhanghad (Trading)' },
@@ -194,7 +194,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       icon: <BarChart3 size={18} />,
       subItems: [
         { path: '/reports/ledger', label: 'General Ledger', icon: <FileText size={16} /> },
-        { path: '/reports/financials', label: 'Financial Statements', icon: <BarChart3 size={16} /> },
+        { path: '/reports/trial-balance', label: 'Trial Balance', icon: <FileText size={16} /> },
+        { path: '/reports/profit-loss', label: 'Profit & Loss', icon: <BarChart3 size={16} /> },
+        { path: '/reports/balance-sheet', label: 'Balance Sheet', icon: <BarChart3 size={16} /> },
         { path: '/reports/outstanding', label: 'Outstanding Statements', icon: <FileText size={16} /> },
       ],
     },

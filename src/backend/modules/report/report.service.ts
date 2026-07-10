@@ -323,87 +323,100 @@ export class ReportService {
   /**
    * Generates General Ledger for an account
    */
-  async getLedger(companyId: number, accountId: number, startDateStr?: string, endDateStr?: string) {
+  async getLedger(companyId: number, accountId: number | number[], startDateStr?: string, endDateStr?: string) {
     await this.reconcileLegacyEntries(companyId);
     const start = startDateStr ? new Date(startDateStr) : null;
     const end = endDateStr ? new Date(endDateStr) : null;
 
-    const account = await this.prisma.account.findFirst({
-      where: { id: accountId, companyId, isDeleted: false },
-      include: { accountGroup: true },
-    });
-    if (!account) throw new BadRequestException('Account not found');
+    const ids = Array.isArray(accountId) ? accountId : [accountId];
+    const results = [];
 
-    let prevEntries: any[] = [];
-    if (start) {
-      const openingFilter: any = {
+    for (const id of ids) {
+      const account = await this.prisma.account.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { accountGroup: true },
+      });
+      if (!account) continue;
+
+      let prevEntries: any[] = [];
+      if (start) {
+        prevEntries = await this.prisma.generalLedgerEntry.findMany({
+          where: {
+            companyId,
+            accountId: id,
+            voucherDate: { lt: start },
+          },
+        });
+      }
+
+      let openingAmt = Number(account.openingBalanceAmount || 0);
+      const openingType = account.openingBalanceType;
+      let balance = openingType === DebitCreditType.DEBIT ? openingAmt : -openingAmt;
+
+      for (const ent of prevEntries) {
+        const amt = Number(ent.amount);
+        if (ent.debitCreditType === DebitCreditType.DEBIT) {
+          balance += amt;
+        } else {
+          balance -= amt;
+        }
+      }
+
+      const rangeFilter: any = {
         companyId,
-        accountId,
-        voucherDate: { lt: start },
+        accountId: id,
       };
-      prevEntries = await this.prisma.generalLedgerEntry.findMany({
-        where: openingFilter,
+      if (start || end) {
+        rangeFilter.voucherDate = {};
+        if (start) rangeFilter.voucherDate.gte = start;
+        if (end) rangeFilter.voucherDate.lte = end;
+      }
+
+      const entries = await this.prisma.generalLedgerEntry.findMany({
+        where: rangeFilter,
+        orderBy: [{ voucherDate: 'asc' }, { createdAt: 'asc' }],
+      });
+
+      let runningBalance = balance;
+      const statements = entries.map((ent) => {
+        const amt = Number(ent.amount);
+        if (ent.debitCreditType === DebitCreditType.DEBIT) {
+          runningBalance += amt;
+        } else {
+          runningBalance -= amt;
+        }
+
+        return {
+          id: ent.id,
+          voucherDate: ent.voucherDate,
+          sourceVoucherType: ent.sourceVoucherType,
+          sourceVoucherId: ent.sourceVoucherId,
+          sourceBillNumber: ent.sourceBillNumber,
+          debitCreditType: ent.debitCreditType,
+          amount: amt,
+          narration: ent.narration,
+          runningBalance: runningBalance,
+        };
+      });
+
+      results.push({
+        accountId: account.id,
+        accountName: account.accountName,
+        phone: account.phone || account.mobile || '',
+        address: [account.addressLine1, account.addressLine2, account.city, account.stateCode, account.pincode].filter(Boolean).join(', '),
+        groupName: account.accountGroup?.groupName || '',
+        openingBalance: balance,
+        statements,
+        closingBalance: runningBalance,
       });
     }
 
-    let openingAmt = Number(account.openingBalanceAmount || 0);
-    const openingType = account.openingBalanceType; // DEBIT or CREDIT
-
-    let balance = openingType === DebitCreditType.DEBIT ? openingAmt : -openingAmt;
-
-    for (const ent of prevEntries) {
-      const amt = Number(ent.amount);
-      if (ent.debitCreditType === DebitCreditType.DEBIT) {
-        balance += amt;
-      } else {
-        balance -= amt;
-      }
+    if (Array.isArray(accountId)) {
+      return results;
+    } else {
+      if (results.length === 0) throw new BadRequestException('Account not found');
+      return results[0];
     }
-
-    // Now query range entries
-    const rangeFilter: any = {
-      companyId,
-      accountId,
-    };
-    if (start || end) {
-      rangeFilter.voucherDate = {};
-      if (start) rangeFilter.voucherDate.gte = start;
-      if (end) rangeFilter.voucherDate.lte = end;
-    }
-
-    const entries = await this.prisma.generalLedgerEntry.findMany({
-      where: rangeFilter,
-      orderBy: [{ voucherDate: 'asc' }, { createdAt: 'asc' }],
-    });
-
-    let runningBalance = balance;
-    const statements = entries.map((ent) => {
-      const amt = Number(ent.amount);
-      if (ent.debitCreditType === DebitCreditType.DEBIT) {
-        runningBalance += amt;
-      } else {
-        runningBalance -= amt;
-      }
-
-      return {
-        id: ent.id,
-        voucherDate: ent.voucherDate,
-        sourceVoucherType: ent.sourceVoucherType,
-        sourceVoucherId: ent.sourceVoucherId,
-        sourceBillNumber: ent.sourceBillNumber,
-        debitCreditType: ent.debitCreditType,
-        amount: amt,
-        narration: ent.narration,
-        runningBalance: runningBalance,
-      };
-    });
-
-    return {
-      accountName: account.accountName,
-      openingBalance: balance,
-      statements,
-      closingBalance: runningBalance,
-    };
   }
 
   /**
@@ -626,6 +639,7 @@ export class ReportService {
       capital,
       totalCapital,
       variance: Math.abs(totalAssets - (totalLiabilities + totalCapital)),
+      profitLossDetails: pl,
     };
   }
 

@@ -274,6 +274,9 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
       expectedReturnDate: expectedReturnDate || null,
       narration,
       challanNumber: challanNumber || previewVoucherNo,
+      mobile: mobile || null,
+      city: city || null,
+      gstin: gstin || null,
       items: items.map(it => ({
         qualityId: Number(it.qualityId),
         carats: Number(it.carats),

@@ -6,7 +6,7 @@ export class ReportController {
   @Inject(ReportService)
   private readonly service!: ReportService;
 
-  async handleGetLedger(payload: { companyId: number; accountId: number; startDate?: string; endDate?: string }) {
+  async handleGetLedger(payload: { companyId: number; accountId: number | number[]; startDate?: string; endDate?: string }) {
     try {
       const data = await this.service.getLedger(payload.companyId, payload.accountId, payload.startDate, payload.endDate);
       return { success: true, data };
