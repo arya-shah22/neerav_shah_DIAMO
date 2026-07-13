@@ -215,7 +215,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
   // Helper to render NavLink with consistent premium styling
   const renderLink = (path: string, label: string, icon?: React.ReactNode, paddingLeft: string = 'var(--spacing-md)') => {
-    const isActive = currentPath.startsWith(path);
+    const isActive = path === '/' ? currentPath === '/' : (currentPath === path || currentPath.startsWith(path + '/'));
     return (
       <NavLink
         key={path}
