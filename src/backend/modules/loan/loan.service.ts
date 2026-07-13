@@ -144,7 +144,10 @@ export class LoanService {
   async list(companyId: number) {
     return this.prisma.loan.findMany({
       where: { companyId, isDeleted: false },
-      orderBy: { loanDate: 'desc' },
+      orderBy: [
+        { loanDate: 'desc' },
+        { id: 'desc' }
+      ],
       include: {
         party: true,
         cashBankAccount: true,

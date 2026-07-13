@@ -110,7 +110,10 @@ export class CashBankService {
     await this.ensureDefaultAccounts(companyId);
     return this.prisma.cashBankVoucher.findMany({
       where: { companyId, isDeleted: false },
-      orderBy: { voucherDate: 'desc' },
+      orderBy: [
+        { voucherDate: 'desc' },
+        { id: 'desc' }
+      ],
       take: 20,
       include: {
         party: true,

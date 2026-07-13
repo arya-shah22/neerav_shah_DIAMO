@@ -50,7 +50,10 @@ export class ChallanService {
 
     const challans = await this.prisma.challanVoucher.findMany({
       where,
-      orderBy: { challanDate: 'desc' },
+      orderBy: [
+        { challanDate: 'desc' },
+        { id: 'desc' }
+      ],
       include: {
         party: { select: { id: true, accountName: true, mobile: true, city: true, gstinNumber: true } },
         items: { include: { quality: true } },

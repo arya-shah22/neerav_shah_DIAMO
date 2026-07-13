@@ -86,6 +86,19 @@ export const StockReportPage: React.FC = () => {
     if (!reportData) return;
     let rows: any[] = [];
     
+    // Add summary header lines
+    rows.push(['STOCK REPORT SUMMARY']);
+    rows.push(['Total Packets', reportData.summary.totalPackets, `${reportData.summary.totalCarats.toFixed(3)} Cts`]);
+    rows.push(['Total Valuation', `₹${reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]);
+    rows.push(['Available Stock', `${reportData.summary.statusBreakdown.available.count} Pkts`, `${reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.available.value}`]);
+    rows.push(['Reserved / Hold', `${reportData.summary.statusBreakdown.reserved.count} Pkts`, `${reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.reserved.value}`]);
+    rows.push(['In Job Work', `${reportData.summary.statusBreakdown.jobWork.count} Pkts`, `${reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.jobWork.value}`]);
+    rows.push(['Transit / Created', `${reportData.summary.statusBreakdown.transit.count} Pkts`, `${reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.transit.value}`]);
+    rows.push(['Sold', `${reportData.summary.statusBreakdown.sold.count} Pkts`, `${reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.sold.value}`]);
+    rows.push(['Returned', `${reportData.summary.statusBreakdown.returned.count} Pkts`, `${reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.returned.value}`]);
+    rows.push(['Damaged', `${reportData.summary.statusBreakdown.damaged.count} Pkts`, `${reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.damaged.value}`]);
+    rows.push([]); // Empty spacing line
+    
     if (activeTab === 'REGISTER') {
       rows.push(['PACKET NUMBER', 'QUALITY', 'SHAPE', 'COLOR', 'CLARITY', 'CARATS', 'RATE', 'VALUE', 'STATUS', 'LOCATION']);
       reportData.packets.forEach((p: any) => {
@@ -260,6 +273,48 @@ export const StockReportPage: React.FC = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '13px', fontWeight: 600 }}>
               <span style={{ color: 'var(--color-primary)' }}>STOCK REPORT — {activeTab}</span>
               <span>DATE: {new Date().toLocaleDateString('en-IN')}</span>
+            </div>
+          </div>
+
+          {/* Printable Summary Block */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: '1fr 1fr 1fr', 
+            gap: '12px', 
+            marginBottom: '24px', 
+            padding: '16px', 
+            background: '#f8fafc', 
+            border: '1px solid #cbd5e1', 
+            borderRadius: '6px',
+            fontSize: '11px',
+            lineHeight: '1.4'
+          }}>
+            <div>
+              <strong>Total Packets:</strong> {reportData.summary.totalPackets} ({reportData.summary.totalCarats.toFixed(3)} Cts)
+            </div>
+            <div>
+              <strong>Total Valuation:</strong> ₹{reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+            <div>
+              <strong>Available Stock:</strong> {reportData.summary.statusBreakdown.available.count} Pkts ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.available.value.toLocaleString('en-IN')})
+            </div>
+            <div>
+              <strong>Reserved / Hold:</strong> {reportData.summary.statusBreakdown.reserved.count} Pkts ({reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.reserved.value.toLocaleString('en-IN')})
+            </div>
+            <div>
+              <strong>In Job Work:</strong> {reportData.summary.statusBreakdown.jobWork.count} Pkts ({reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.jobWork.value.toLocaleString('en-IN')})
+            </div>
+            <div>
+              <strong>Transit / Created:</strong> {reportData.summary.statusBreakdown.transit.count} Pkts ({reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.transit.value.toLocaleString('en-IN')})
+            </div>
+            <div>
+              <strong>Sold:</strong> {reportData.summary.statusBreakdown.sold.count} Pkts ({reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.sold.value.toLocaleString('en-IN')})
+            </div>
+            <div>
+              <strong>Returned:</strong> {reportData.summary.statusBreakdown.returned.count} Pkts ({reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.returned.value.toLocaleString('en-IN')})
+            </div>
+            <div>
+              <strong>Damaged:</strong> {reportData.summary.statusBreakdown.damaged.count} Pkts ({reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.damaged.value.toLocaleString('en-IN')})
             </div>
           </div>
 

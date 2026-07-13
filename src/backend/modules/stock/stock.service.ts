@@ -64,7 +64,7 @@ export class StockService {
             }
           : {}),
       },
-      orderBy: [{ registrationDate: 'desc' }, { stockIdNumber: 'desc' }],
+      orderBy: [{ registrationDate: 'desc' }, { id: 'desc' }],
       include: STOCK_INCLUDE,
     });
   }

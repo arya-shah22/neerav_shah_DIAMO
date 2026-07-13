@@ -45,6 +45,8 @@ export const LedgerBookPage: React.FC = () => {
   
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+  const [onePartyPerPage, setOnePartyPerPage] = useState(true);
+  const [showPagePartyModal, setShowPagePartyModal] = useState(false);
 
   // Fetch accounts list to populate dropdown / modal
   const { data: accountsRaw, invoke: fetchAccounts } = useIpc<any[]>('account:search');
@@ -211,6 +213,25 @@ export const LedgerBookPage: React.FC = () => {
 
   // Render Print Preview Mode
   if (showPrintPreview && activeCompany && ledgerStatements && ledgerStatements.length > 0) {
+    const paginatedPages: any[][] = [];
+    let currentPageList: any[] = [];
+    let currentHeight = 0;
+
+    ledgerStatements.forEach((ledger) => {
+      const estimatedHeight = 130 + (ledger.statements.length * 32) + 70;
+      if (currentPageList.length > 0 && currentHeight + estimatedHeight > 850) {
+        paginatedPages.push(currentPageList);
+        currentPageList = [ledger];
+        currentHeight = estimatedHeight;
+      } else {
+        currentPageList.push(ledger);
+        currentHeight += estimatedHeight;
+      }
+    });
+    if (currentPageList.length > 0) {
+      paginatedPages.push(currentPageList);
+    }
+
     return (
       <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
         <style dangerouslySetInnerHTML={{ __html: `
@@ -242,85 +263,192 @@ export const LedgerBookPage: React.FC = () => {
         </div>
 
         {/* Printable portrait sheets */}
-        <div id="print-area" style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
-          {ledgerStatements.map((ledger, idx) => {
-            const isDr = ledger.closingBalance >= 0;
-            return (
-              <div 
-                key={ledger.accountId}
-                className={idx < ledgerStatements.length - 1 ? 'page-break print-page' : 'print-page'}
-                style={{
-                  background: '#ffffff',
-                  border: '1px solid var(--color-border)',
-                  borderRadius: '4px',
-                  padding: '20mm',
-                  width: '210mm',
-                  minHeight: '297mm',
-                  margin: '0 auto',
-                  boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
-                  color: '#1e293b',
-                  boxSizing: 'border-box',
-                }}
-              >
-                {/* Header */}
-                <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
-                  <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, textTransform: 'uppercase', color: '#0f172a' }}>
-                    {activeCompany.companyName}
-                  </h2>
-                  <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '11px' }}>
-                    {activeCompany.addressLine1} {activeCompany.addressLine2 && `, ${activeCompany.addressLine2}`} | {activeCompany.city} - {activeCompany.pincode}
-                  </p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '12px', fontWeight: 600 }}>
-                    <span style={{ color: 'var(--color-primary)' }}>LEDGER STATEMENT: {ledger.accountName.toUpperCase()}</span>
-                    <span>PERIOD: {startDate || 'INCEPTION'} TO {endDate || 'TODAY'}</span>
-                  </div>
-                </div>
+        <div id="print-area">
+          {onePartyPerPage ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              {ledgerStatements.map((ledger, idx) => {
+                const isDr = ledger.closingBalance >= 0;
+                return (
+                  <div 
+                    key={ledger.accountId}
+                    className={idx < ledgerStatements.length - 1 ? 'page-break print-page' : 'print-page'}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '4px',
+                      padding: '20mm',
+                      width: '210mm',
+                      minHeight: '297mm',
+                      margin: '0 auto',
+                      boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                      color: '#1e293b',
+                      boxSizing: 'border-box',
+                    }}
+                  >
+                    {/* Header */}
+                    <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '20px' }}>
+                      <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, textTransform: 'uppercase', color: '#0f172a' }}>
+                        {activeCompany.companyName}
+                      </h2>
+                      <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '11px' }}>
+                        {activeCompany.addressLine1} {activeCompany.addressLine2 && `, ${activeCompany.addressLine2}`} | {activeCompany.city} - {activeCompany.pincode}
+                      </p>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ color: 'var(--color-primary)' }}>LEDGER STATEMENT: {ledger.accountName.toUpperCase()}</span>
+                        <span>PERIOD: {startDate || 'INCEPTION'} TO {endDate || 'TODAY'}</span>
+                      </div>
+                    </div>
 
-                {/* Account Details and Outstanding */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '12px' }}>
-                  <div>
-                    {ledger.phone && <div><strong>Phone:</strong> {ledger.phone}</div>}
-                    {ledger.address && <div style={{ marginTop: '2px' }}><strong>Address:</strong> {ledger.address}</div>}
-                    <div style={{ marginTop: '2px' }}><strong>Account Group:</strong> {ledger.groupName}</div>
+                    {/* Account Details and Outstanding */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', background: '#f8fafc', padding: '12px 16px', borderRadius: '6px', marginBottom: '16px', fontSize: '12px' }}>
+                      <div>
+                        {ledger.phone && <div><strong>Phone:</strong> {ledger.phone}</div>}
+                        {ledger.address && <div style={{ marginTop: '2px' }}><strong>Address:</strong> {ledger.address}</div>}
+                        <div style={{ marginTop: '2px' }}><strong>Account Group:</strong> {ledger.groupName}</div>
+                      </div>
+                      <div style={{ textAlign: 'right' }}>
+                        <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Opening:</span> ₹{Math.abs(ledger.openingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {ledger.openingBalance >= 0 ? 'Dr' : 'Cr'}
+                        <div style={{ fontSize: '15px', fontWeight: 800, color: isDr ? '#059669' : '#dc2626', marginTop: '4px' }}>
+                          <strong>Closing Balance:</strong> ₹{Math.abs(ledger.closingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {isDr ? 'Dr' : 'Cr'}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Table */}
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Date</th>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Voucher Type</th>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Ref No</th>
+                          <th style={{ textAlign: 'left', padding: '8px' }}>Narration</th>
+                          <th style={{ textAlign: 'right', padding: '8px' }}>Debit (Dr)</th>
+                          <th style={{ textAlign: 'right', padding: '8px' }}>Credit (Cr)</th>
+                          <th style={{ textAlign: 'right', padding: '8px' }}>Balance</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {ledger.statements.map((st, sidx) => (
+                          <tr key={sidx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: '8px' }}>{new Date(st.voucherDate).toLocaleDateString('en-IN')}</td>
+                            <td style={{ padding: '8px' }}>{st.sourceVoucherType.replace('_', ' ')}</td>
+                            <td style={{ padding: '8px' }}>{st.sourceBillNumber || '—'}</td>
+                            <td style={{ padding: '8px' }}>{st.narration || '—'}</td>
+                            <td style={{ padding: '8px', textAlign: 'right' }}>{st.debitCreditType === 'DEBIT' ? `₹${st.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</td>
+                            <td style={{ padding: '8px', textAlign: 'right' }}>{st.debitCreditType === 'CREDIT' ? `₹${st.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</td>
+                            <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600 }}>₹{Math.abs(st.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {st.runningBalance >= 0 ? 'Dr' : 'Cr'}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                  <div style={{ textAlign: 'right' }}>
-                    <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Opening:</span> ₹{Math.abs(ledger.openingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {ledger.openingBalance >= 0 ? 'Dr' : 'Cr'}
-                    <div style={{ fontSize: '15px', fontWeight: 800, color: isDr ? '#059669' : '#dc2626', marginTop: '4px' }}>
-                      <strong>Closing Balance:</strong> ₹{Math.abs(ledger.closingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {isDr ? 'Dr' : 'Cr'}
+                );
+              })}
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '32px' }}>
+              {paginatedPages.map((pageLedgers, pidx) => (
+                <div 
+                  key={pidx}
+                  className={pidx < paginatedPages.length - 1 ? 'page-break print-page' : 'print-page'}
+                  style={{
+                    background: '#ffffff',
+                    border: '1px solid var(--color-border)',
+                    borderRadius: '4px',
+                    padding: '20mm',
+                    width: '210mm',
+                    minHeight: '297mm',
+                    margin: '0 auto',
+                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)',
+                    color: '#1e293b',
+                    boxSizing: 'border-box',
+                  }}
+                >
+                  {/* Shared Company Header on Each Page */}
+                  <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '24px' }}>
+                    <h2 style={{ fontSize: '20px', fontWeight: 800, margin: 0, textTransform: 'uppercase', color: '#0f172a' }}>
+                      {activeCompany.companyName}
+                    </h2>
+                    <p style={{ margin: '4px 0 0', color: '#475569', fontSize: '11px' }}>
+                      {activeCompany.addressLine1} {activeCompany.addressLine2 && `, ${activeCompany.addressLine2}`} | {activeCompany.city} - {activeCompany.pincode}
+                    </p>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '16px', fontSize: '12px', fontWeight: 600 }}>
+                      <span style={{ color: 'var(--color-primary)' }}>CONSOLIDATED LEDGER STATEMENT (PAGE {pidx + 1} OF {paginatedPages.length})</span>
+                      <span>PERIOD: {startDate || 'INCEPTION'} TO {endDate || 'TODAY'}</span>
                     </div>
                   </div>
-                </div>
 
-                {/* Table */}
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '11px' }}>
-                  <thead>
-                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
-                      <th style={{ textAlign: 'left', padding: '8px' }}>Date</th>
-                      <th style={{ textAlign: 'left', padding: '8px' }}>Voucher Type</th>
-                      <th style={{ textAlign: 'left', padding: '8px' }}>Ref No</th>
-                      <th style={{ textAlign: 'left', padding: '8px' }}>Narration</th>
-                      <th style={{ textAlign: 'right', padding: '8px' }}>Debit (Dr)</th>
-                      <th style={{ textAlign: 'right', padding: '8px' }}>Credit (Cr)</th>
-                      <th style={{ textAlign: 'right', padding: '8px' }}>Balance</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {ledger.statements.map((st, sidx) => (
-                      <tr key={sidx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '8px' }}>{new Date(st.voucherDate).toLocaleDateString('en-IN')}</td>
-                        <td style={{ padding: '8px' }}>{st.sourceVoucherType.replace('_', ' ')}</td>
-                        <td style={{ padding: '8px' }}>{st.sourceBillNumber || '—'}</td>
-                        <td style={{ padding: '8px' }}>{st.narration || '—'}</td>
-                        <td style={{ padding: '8px', textAlign: 'right' }}>{st.debitCreditType === 'DEBIT' ? `₹${st.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</td>
-                        <td style={{ padding: '8px', textAlign: 'right' }}>{st.debitCreditType === 'CREDIT' ? `₹${st.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</td>
-                        <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600 }}>₹{Math.abs(st.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {st.runningBalance >= 0 ? 'Dr' : 'Cr'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
+                  {/* List of Party Ledgers Allocated to this page */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                    {pageLedgers.map((ledger) => {
+                      const isDr = ledger.closingBalance >= 0;
+                      return (
+                        <div 
+                          key={ledger.accountId}
+                          style={{
+                            pageBreakInside: 'avoid',
+                            breakInside: 'avoid',
+                            border: '1px solid #cbd5e1',
+                            borderRadius: '6px',
+                            padding: '16px',
+                            background: '#ffffff',
+                          }}
+                        >
+                          {/* Party Header */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #e2e8f0', paddingBottom: '8px', marginBottom: '12px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-primary)' }}>{ledger.accountName.toUpperCase()}</span>
+                            <span style={{ fontSize: '11px', color: '#64748b', fontWeight: 600 }}>{ledger.groupName}</span>
+                          </div>
+
+                          {/* Details & Balances */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '12px', background: '#f8fafc', padding: '8px 12px', borderRadius: '4px' }}>
+                            <div>
+                              {ledger.phone && <div><strong>Phone:</strong> {ledger.phone}</div>}
+                              {ledger.address && <div style={{ marginTop: '2px' }}><strong>Address:</strong> {ledger.address}</div>}
+                            </div>
+                            <div style={{ textAlign: 'right' }}>
+                              <div><strong>Opening:</strong> ₹{Math.abs(ledger.openingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {ledger.openingBalance >= 0 ? 'Dr' : 'Cr'}</div>
+                              <div style={{ fontWeight: 700, color: isDr ? '#059669' : '#dc2626', marginTop: '2px' }}>
+                                <strong>Closing:</strong> ₹{Math.abs(ledger.closingBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {isDr ? 'Dr' : 'Cr'}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Transactions Table */}
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
+                            <thead>
+                              <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #0f172a', fontWeight: 700 }}>
+                                <th style={{ textAlign: 'left', padding: '6px' }}>Date</th>
+                                <th style={{ textAlign: 'left', padding: '6px' }}>Voucher Type</th>
+                                <th style={{ textAlign: 'left', padding: '6px' }}>Ref No</th>
+                                <th style={{ textAlign: 'left', padding: '6px' }}>Narration</th>
+                                <th style={{ textAlign: 'right', padding: '6px' }}>Debit (Dr)</th>
+                                <th style={{ textAlign: 'right', padding: '6px' }}>Credit (Cr)</th>
+                                <th style={{ textAlign: 'right', padding: '6px' }}>Balance</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {ledger.statements.map((st: any, sidx: number) => (
+                                <tr key={sidx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  <td style={{ padding: '6px' }}>{new Date(st.voucherDate).toLocaleDateString('en-IN')}</td>
+                                  <td style={{ padding: '6px' }}>{st.sourceVoucherType.replace('_', ' ')}</td>
+                                  <td style={{ padding: '6px' }}>{st.sourceBillNumber || '—'}</td>
+                                  <td style={{ padding: '6px' }}>{st.narration || '—'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'right' }}>{st.debitCreditType === 'DEBIT' ? `₹${st.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'right' }}>{st.debitCreditType === 'CREDIT' ? `₹${st.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}</td>
+                                  <td style={{ padding: '6px', textAlign: 'right', fontWeight: 600 }}>₹{Math.abs(st.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {st.runningBalance >= 0 ? 'Dr' : 'Cr'}</td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     );
@@ -366,7 +494,7 @@ export const LedgerBookPage: React.FC = () => {
             <Button variant="secondary" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <FileText size={16} /> Export PDF
             </Button>
-            <Button variant="primary" onClick={() => setShowPrintModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Button variant="primary" onClick={() => setShowPagePartyModal(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Printer size={16} /> Print Statement
             </Button>
           </div>
@@ -758,6 +886,96 @@ export const LedgerBookPage: React.FC = () => {
               </button>
               <button 
                 onClick={() => setShowPrintModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-secondary)',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginTop: '12px',
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Page per Party Layout Prompt Modal */}
+      {showPagePartyModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.3)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '12px',
+            padding: '28px',
+            maxWidth: '420px',
+            width: '100%',
+            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+            textAlign: 'center',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '8px' }}>Print Layout Style</h3>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginBottom: '24px', lineHeight: '1.5' }}>
+              Do you want to print one party per page?
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <button 
+                onClick={() => {
+                  setOnePartyPerPage(true);
+                  setShowPagePartyModal(false);
+                  setShowPrintModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '6px',
+                  background: 'var(--color-primary)',
+                  color: '#fff',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+              >
+                Yes (One Party per Page)
+              </button>
+              <button 
+                onClick={() => {
+                  setOnePartyPerPage(false);
+                  setShowPagePartyModal(false);
+                  setShowPrintModal(true);
+                }}
+                style={{
+                  width: '100%',
+                  padding: '12px',
+                  borderRadius: '6px',
+                  background: 'transparent',
+                  border: '1px solid var(--color-border)',
+                  color: 'var(--color-text-primary)',
+                  fontWeight: 600,
+                  fontSize: '14px',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+              >
+                No (Continuous Ledger)
+              </button>
+              <button 
+                onClick={() => setShowPagePartyModal(false)}
                 style={{
                   background: 'none',
                   border: 'none',

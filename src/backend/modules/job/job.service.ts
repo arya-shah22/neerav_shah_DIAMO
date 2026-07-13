@@ -17,7 +17,10 @@ export class JobService {
   async list(companyId: number, type: JobType) {
     return this.prisma.jobVoucher.findMany({
       where: { companyId, jobType: type, isDeleted: false },
-      orderBy: { voucherDate: 'desc' },
+      orderBy: [
+        { voucherDate: 'desc' },
+        { id: 'desc' }
+      ],
       include: {
         party: { select: { id: true, accountName: true, city: true } },
         items: {

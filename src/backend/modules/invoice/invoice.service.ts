@@ -161,7 +161,10 @@ export class InvoiceService {
   async list(companyId: number, type: InvoiceType) {
     const invoices = await this.prisma.saleInvoice.findMany({
       where: { companyId, invoiceType: type, isDeleted: false },
-      orderBy: { invoiceDate: 'desc' },
+      orderBy: [
+        { invoiceDate: 'desc' },
+        { id: 'desc' }
+      ],
       include: {
         customer: { select: { id: true, accountName: true } },
         broker: { select: { id: true, accountName: true } },
@@ -271,7 +274,12 @@ export class InvoiceService {
     const financialYearId = Number(data.financialYearId);
     const invoiceType = data.invoiceType as InvoiceType;
     const customerId = Number(data.customerId);
-    const brokerId = data.brokerId ? Number(data.brokerId) : null;
+    const brokerId = (data.brokerId !== undefined && data.brokerId !== null && data.brokerId !== '' && data.brokerId !== 'null' && data.brokerId !== 'undefined')
+      ? Number(data.brokerId)
+      : null;
+    const brokeragePct = (data.brokeragePct !== undefined && data.brokeragePct !== null && data.brokeragePct !== '' && data.brokeragePct !== 'null' && data.brokeragePct !== 'undefined')
+      ? Number(data.brokeragePct)
+      : 0;
     const invoiceDate = new Date(data.invoiceDate);
     const creditDays = Number(data.creditDays) || 0;
     const dueDate = new Date(invoiceDate.getTime() + creditDays * 24 * 60 * 60 * 1000);
@@ -497,8 +505,8 @@ export class InvoiceService {
           customerStateCode: party.stateCode,
           placeOfSupply: party.stateCode,
           brokerId,
-          brokeragePct: Number(data.brokeragePct) || 0,
-          brokerageAmount: (taxableTotal * (Number(data.brokeragePct) || 0)) / 100,
+          brokeragePct,
+          brokerageAmount: (taxableTotal * brokeragePct) / 100,
           totalCarats,
           totalPieces,
           totalGrossAmount,
