@@ -188,10 +188,10 @@ export class StockService {
           caratWeight,
           pieceCount,
           color: emptyToNull(data.color),
-          clarity: emptyToNull(data.clarity),
-          cut: emptyToNull(data.cut),
-          polish: emptyToNull(data.polish),
-          symmetry: emptyToNull(data.symmetry),
+          clarity: toUpperOrNull(data.clarity),
+          cut: toUpperOrNull(data.cut),
+          polish: toUpperOrNull(data.polish),
+          symmetry: toUpperOrNull(data.symmetry),
           lengthMm: toDecimalOrNull(data.lengthMm),
           widthMm: toDecimalOrNull(data.widthMm),
           depthMm: toDecimalOrNull(data.depthMm),
@@ -293,10 +293,10 @@ export class StockService {
           caratWeight,
           pieceCount,
           color: data.color !== undefined ? emptyToNull(data.color) : existing.color,
-          clarity: data.clarity !== undefined ? emptyToNull(data.clarity) : existing.clarity,
-          cut: data.cut !== undefined ? emptyToNull(data.cut) : existing.cut,
-          polish: data.polish !== undefined ? emptyToNull(data.polish) : existing.polish,
-          symmetry: data.symmetry !== undefined ? emptyToNull(data.symmetry) : existing.symmetry,
+          clarity: data.clarity !== undefined ? toUpperOrNull(data.clarity) : existing.clarity,
+          cut: data.cut !== undefined ? toUpperOrNull(data.cut) : existing.cut,
+          polish: data.polish !== undefined ? toUpperOrNull(data.polish) : existing.polish,
+          symmetry: data.symmetry !== undefined ? toUpperOrNull(data.symmetry) : existing.symmetry,
           lengthMm: data.lengthMm !== undefined ? toDecimalOrNull(data.lengthMm) : existing.lengthMm,
           widthMm: data.widthMm !== undefined ? toDecimalOrNull(data.widthMm) : existing.widthMm,
           depthMm: data.depthMm !== undefined ? toDecimalOrNull(data.depthMm) : existing.depthMm,
@@ -608,10 +608,10 @@ export class StockService {
               caratWeight,
               pieceCount,
               color: emptyToNull(row.color),
-              clarity: emptyToNull(row.clarity),
-              cut: emptyToNull(row.cut),
-              polish: emptyToNull(row.polish),
-              symmetry: emptyToNull(row.symmetry),
+              clarity: toUpperOrNull(row.clarity),
+              cut: toUpperOrNull(row.cut),
+              polish: toUpperOrNull(row.polish),
+              symmetry: toUpperOrNull(row.symmetry),
               lengthMm: toDecimalOrNull(row.lengthMm),
               widthMm: toDecimalOrNull(row.widthMm),
               depthMm: toDecimalOrNull(row.depthMm),
@@ -665,6 +665,11 @@ function emptyToNull(value: unknown): string | null {
   if (value == null) return null;
   const str = String(value).trim();
   return str.length > 0 ? str : null;
+}
+
+function toUpperOrNull(value: unknown): string | null {
+  const str = emptyToNull(value);
+  return str ? str.toUpperCase() : null;
 }
 
 function toDecimalOrNull(value: unknown): number | null {

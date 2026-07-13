@@ -7,6 +7,12 @@ import { PrismaService } from '../../database/prisma.service';
 import { InvoiceStatus, PaymentStatus, InvoiceType, DebitCreditType, MovementType, StockStatus } from '@prisma/client';
 import { generateStockIdNumber } from '../../utils/stock-id-generator';
 
+function cleanUpper(val: unknown): string | null {
+  if (val == null) return null;
+  const str = String(val).trim();
+  return str.length > 0 ? str.toUpperCase() : null;
+}
+
 @Injectable()
 export class InvoiceService {
   @Inject(PrismaService)
@@ -344,7 +350,7 @@ export class InvoiceService {
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
         if (quality && !quality.isService) {
           if (invoiceType === 'PURCHASE_INVOICE') {
-            const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
+             const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
             let pkt = await tx.stockPacket.findFirst({
               where: { companyId, stockIdNumber: stockId, isDeleted: false }
             });
@@ -357,10 +363,10 @@ export class InvoiceService {
                   category: (it.category as any) || 'NON_CERTIFIED',
                   shape: it.shape || null,
                   color: it.color || null,
-                  clarity: it.clarity || null,
-                  cut: it.cut || null,
-                  polish: it.polish || null,
-                  symmetry: it.symmetry || null,
+                  clarity: cleanUpper(it.clarity),
+                  cut: cleanUpper(it.cut),
+                  polish: cleanUpper(it.polish),
+                  symmetry: cleanUpper(it.symmetry),
                   lengthMm: it.lengthMm != null ? Number(it.lengthMm) : null,
                   widthMm: it.widthMm != null ? Number(it.widthMm) : null,
                   depthMm: it.depthMm != null ? Number(it.depthMm) : null,
@@ -399,6 +405,29 @@ export class InvoiceService {
                   }
                 });
               }
+            } else {
+              pkt = await tx.stockPacket.update({
+                where: { id: pkt.id },
+                data: {
+                  qualityId: quality.id,
+                  category: (it.category as any) || pkt.category,
+                  shape: it.shape !== undefined ? it.shape : pkt.shape,
+                  color: it.color !== undefined ? it.color : pkt.color,
+                  clarity: it.clarity !== undefined ? cleanUpper(it.clarity) : pkt.clarity,
+                  cut: it.cut !== undefined ? cleanUpper(it.cut) : pkt.cut,
+                  polish: it.polish !== undefined ? cleanUpper(it.polish) : pkt.polish,
+                  symmetry: it.symmetry !== undefined ? cleanUpper(it.symmetry) : pkt.symmetry,
+                  lengthMm: it.lengthMm != null ? Number(it.lengthMm) : pkt.lengthMm,
+                  widthMm: it.widthMm != null ? Number(it.widthMm) : pkt.widthMm,
+                  depthMm: it.depthMm != null ? Number(it.depthMm) : pkt.depthMm,
+                  totalDepthPct: it.totalDepthPct != null ? Number(it.totalDepthPct) : pkt.totalDepthPct,
+                  tablePct: it.tablePct != null ? Number(it.tablePct) : pkt.tablePct,
+                  certificateType: it.certificateType !== undefined ? it.certificateType : pkt.certificateType,
+                  certificateNumber: it.certificateNumber !== undefined ? it.certificateNumber : pkt.certificateNumber,
+                  costPerCarat: Number(it.rate),
+                  totalCost: Number(gross),
+                }
+              });
             }
             stockPacketId = pkt.id;
           } else if (it.stockPacketId) {
@@ -621,15 +650,21 @@ export class InvoiceService {
               },
             });
 
+            const skipWeightDecrement = hasStockOutward && Number(packet.pieceCount) === 1;
+
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
                 caratWeight: hasStockOutward
-                  ? { decrement: item.carats }
+                  ? (skipWeightDecrement ? undefined : { decrement: item.carats })
                   : { increment: item.carats },
                 pieceCount: hasStockOutward
-                  ? { decrement: item.pieces }
+                  ? (skipWeightDecrement ? undefined : { decrement: item.pieces })
                   : { increment: item.pieces },
+                ...(invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_INVOICE' ? {
+                  costPerCarat: item.rate,
+                  totalCost: item.carats * item.rate,
+                } : {}),
                 currentStatus: invoiceType === 'SALE_INVOICE' 
                   ? StockStatus.SOLD 
                   : (invoiceType === 'SALE_RETURN' 
@@ -807,7 +842,7 @@ export class InvoiceService {
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
         if (quality && !quality.isService) {
           if (invoiceType === 'PURCHASE_INVOICE') {
-            const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
+             const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
             let pkt = await tx.stockPacket.findFirst({
               where: { companyId, stockIdNumber: stockId, isDeleted: false }
             });
@@ -820,10 +855,10 @@ export class InvoiceService {
                   category: (it.category as any) || 'NON_CERTIFIED',
                   shape: it.shape || null,
                   color: it.color || null,
-                  clarity: it.clarity || null,
-                  cut: it.cut || null,
-                  polish: it.polish || null,
-                  symmetry: it.symmetry || null,
+                  clarity: cleanUpper(it.clarity),
+                  cut: cleanUpper(it.cut),
+                  polish: cleanUpper(it.polish),
+                  symmetry: cleanUpper(it.symmetry),
                   lengthMm: it.lengthMm != null ? Number(it.lengthMm) : null,
                   widthMm: it.widthMm != null ? Number(it.widthMm) : null,
                   depthMm: it.depthMm != null ? Number(it.depthMm) : null,
@@ -862,6 +897,29 @@ export class InvoiceService {
                   }
                 });
               }
+            } else {
+              pkt = await tx.stockPacket.update({
+                where: { id: pkt.id },
+                data: {
+                  qualityId: quality.id,
+                  category: (it.category as any) || pkt.category,
+                  shape: it.shape !== undefined ? it.shape : pkt.shape,
+                  color: it.color !== undefined ? it.color : pkt.color,
+                  clarity: it.clarity !== undefined ? cleanUpper(it.clarity) : pkt.clarity,
+                  cut: it.cut !== undefined ? cleanUpper(it.cut) : pkt.cut,
+                  polish: it.polish !== undefined ? cleanUpper(it.polish) : pkt.polish,
+                  symmetry: it.symmetry !== undefined ? cleanUpper(it.symmetry) : pkt.symmetry,
+                  lengthMm: it.lengthMm != null ? Number(it.lengthMm) : pkt.lengthMm,
+                  widthMm: it.widthMm != null ? Number(it.widthMm) : pkt.widthMm,
+                  depthMm: it.depthMm != null ? Number(it.depthMm) : pkt.depthMm,
+                  totalDepthPct: it.totalDepthPct != null ? Number(it.totalDepthPct) : pkt.totalDepthPct,
+                  tablePct: it.tablePct != null ? Number(it.tablePct) : pkt.tablePct,
+                  certificateType: it.certificateType !== undefined ? it.certificateType : pkt.certificateType,
+                  certificateNumber: it.certificateNumber !== undefined ? it.certificateNumber : pkt.certificateNumber,
+                  costPerCarat: Number(it.rate),
+                  totalCost: Number(gross),
+                }
+              });
             }
             stockPacketId = pkt.id;
           } else if (it.stockPacketId) {
@@ -934,11 +992,17 @@ export class InvoiceService {
             where: { companyId, qualityId: item.qualityId, isDeleted: false },
           });
           if (packet) {
+            const skipWeightIncrement = oldHasStockOutward && Number(packet.pieceCount) === 1;
+
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
-                caratWeight: oldHasStockOutward ? { increment: item.carats } : { decrement: item.carats },
-                pieceCount: oldHasStockOutward ? { increment: item.pieces } : { decrement: item.pieces },
+                caratWeight: oldHasStockOutward 
+                  ? (skipWeightIncrement ? undefined : { increment: item.carats }) 
+                  : { decrement: item.carats },
+                pieceCount: oldHasStockOutward 
+                  ? (skipWeightIncrement ? undefined : { increment: item.pieces }) 
+                  : { decrement: item.pieces },
                 currentStatus: (existing.invoiceType === 'SALE_INVOICE' || existing.invoiceType === 'PURCHASE_RETURN')
                   ? StockStatus.AVAILABLE
                   : undefined,
@@ -1100,11 +1164,21 @@ export class InvoiceService {
               },
             });
 
+            const skipWeightDecrement = hasStockOutward && Number(packet.pieceCount) === 1;
+
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
-                caratWeight: hasStockOutward ? { decrement: item.carats } : { increment: item.carats },
-                pieceCount: hasStockOutward ? { decrement: item.pieces } : { increment: item.pieces },
+                caratWeight: hasStockOutward 
+                  ? (skipWeightDecrement ? undefined : { decrement: item.carats }) 
+                  : { increment: item.carats },
+                pieceCount: hasStockOutward 
+                  ? (skipWeightDecrement ? undefined : { decrement: item.pieces }) 
+                  : { increment: item.pieces },
+                ...(invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_INVOICE' ? {
+                  costPerCarat: item.rate,
+                  totalCost: item.carats * item.rate,
+                } : {}),
                 currentStatus: invoiceType === 'SALE_INVOICE' 
                   ? StockStatus.SOLD 
                   : (invoiceType === 'SALE_RETURN' 

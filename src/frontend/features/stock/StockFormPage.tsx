@@ -320,10 +320,34 @@ export const StockFormPage: React.FC = () => {
             <Input label="Carat Weight *" type="number" step="0.001" error={errors.caratWeight?.message} {...register('caratWeight', { valueAsNumber: true })} />
             <Input label="Piece Count" type="number" error={errors.pieceCount?.message} {...register('pieceCount', { valueAsNumber: true })} />
             <Input label="Color" {...register('color')} />
-            <Input label="Clarity" {...register('clarity')} />
-            <Input label="Cut" {...register('cut')} />
-            <Input label="Polish" {...register('polish')} />
-            <Input label="Symmetry" {...register('symmetry')} />
+            <Input 
+              label="Clarity" 
+              style={{ textTransform: 'uppercase' }} 
+              {...register('clarity', {
+                onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+              })} 
+            />
+            <Input 
+              label="Cut" 
+              style={{ textTransform: 'uppercase' }} 
+              {...register('cut', {
+                onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+              })} 
+            />
+            <Input 
+              label="Polish" 
+              style={{ textTransform: 'uppercase' }} 
+              {...register('polish', {
+                onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+              })} 
+            />
+            <Input 
+              label="Symmetry" 
+              style={{ textTransform: 'uppercase' }} 
+              {...register('symmetry', {
+                onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+              })} 
+            />
           </div>
         </div>
 

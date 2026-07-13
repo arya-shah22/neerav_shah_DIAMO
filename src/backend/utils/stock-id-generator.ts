@@ -45,18 +45,21 @@ export async function generateStockIdNumber(
       stockIdNumber: { startsWith: pattern },
     },
     select: { stockIdNumber: true },
-    orderBy: { stockIdNumber: 'desc' },
-    take: 1,
   });
 
   let nextSequence = 1;
   if (existing.length > 0) {
-    const last = existing[0].stockIdNumber;
-    const segment = last.slice(pattern.length);
-    const parsed = parseInt(segment, 10);
-    if (!Number.isNaN(parsed)) {
-      nextSequence = parsed + 1;
+    let maxSeq = 0;
+    for (const item of existing) {
+      const segment = item.stockIdNumber.slice(pattern.length);
+      const parsed = parseInt(segment, 10);
+      if (!Number.isNaN(parsed) && /^\d+$/.test(segment)) {
+        if (parsed > maxSeq) {
+          maxSeq = parsed;
+        }
+      }
     }
+    nextSequence = maxSeq + 1;
   }
 
   return formatStockIdNumber(nextSequence, config, year);

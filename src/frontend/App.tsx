@@ -27,6 +27,7 @@ import { TrialBalancePage } from './features/reports/TrialBalancePage';
 import { ProfitLossPage } from './features/reports/ProfitLossPage';
 import { BalanceSheetPage } from './features/reports/BalanceSheetPage';
 import { OutstandingReportPage } from './features/reports/OutstandingReportPage';
+import { StockReportPage } from './features/reports/StockReportPage';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -396,6 +397,7 @@ const App: React.FC = () => {
                 <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
                 <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
                 <Route path="/reports/outstanding" element={<OutstandingReportPage />} />
+                <Route path="/reports/stock" element={<StockReportPage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

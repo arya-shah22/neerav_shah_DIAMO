@@ -4,14 +4,14 @@
 
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { useForm, useFieldArray } from 'react-hook-form';
+import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { invoiceSchema, InvoiceFormData } from './invoice.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { useCompanyStore } from '../../state/company-store';
-import { Button, Input, FormSelect, useToast } from '../../components/ui';
+import { Button, Input, Combobox, FormSelect, useToast } from '../../components/ui';
 import type { IInvoice, InvoiceType } from './invoice.types';
 
 interface FormPageProps {
@@ -119,8 +119,12 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const { invoke: fetchInvoice } = useIpc<IInvoice>('invoice:get');
   const { invoke: fetchParentInvoices } = useIpc<IInvoice[]>('invoice:list');
   const { invoke: fetchStockPackets } = useIpc<IStockPacket[]>('stock:list');
+  const { invoke: fetchPreviewId } = useIpc<string>('stock:preview-id');
+  const { invoke: fetchShapes } = useIpc<string[]>('stock:shapes-list');
   
   const [availablePackets, setAvailablePackets] = useState<IStockPacket[]>([]);
+  const [nextStockIdPreview, setNextStockIdPreview] = useState('');
+  const [shapeOptions, setShapeOptions] = useState<string[]>([]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -129,10 +133,29 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         setAvailablePackets(res.data);
       }
     });
-  }, [companyId, fetchStockPackets]);
+    fetchShapes(companyId).then((res) => {
+      if (res.success && res.data) {
+        setShapeOptions(res.data);
+      }
+    });
+  }, [companyId, fetchStockPackets, fetchShapes]);
   const { invoke: createInvoice, loading: savingCreate } = useIpc('invoice:create');
   const { invoke: updateInvoice, loading: savingUpdate } = useIpc('invoice:update');
   const saving = savingCreate || savingUpdate;
+
+  const getPreviewIdForRow = (baseId: string, index: number) => {
+    if (!baseId) return 'Auto (DM-YYYY-XXXXXX)';
+    const parts = baseId.split('-');
+    if (parts.length < 3) return baseId;
+    const prefix = parts[0];
+    const year = parts[1];
+    const seqStr = parts[2];
+    const seqNum = parseInt(seqStr, 10);
+    if (isNaN(seqNum)) return baseId;
+    const nextSeq = seqNum + index;
+    const padded = String(nextSeq).padStart(seqStr.length, '0');
+    return `${prefix}-${year}-${padded}`;
+  };
 
   const { register, control, handleSubmit, watch, setValue } = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceSchema),
@@ -154,7 +177,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       totalSgst: 0,
       totalIgst: 0,
       narration: '',
-      items: [{ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0 }],
+      items: [{ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0, isManualStockId: false }],
     },
   });
 
@@ -182,9 +205,10 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     if (activeFinancialYear) setValue('financialYearId', activeFinancialYear.id);
 
     const loadData = async () => {
-      const [accRes, qlyRes] = await Promise.all([
+      const [accRes, qlyRes, previewIdRes] = await Promise.all([
         fetchAccounts({ companyId }),
         fetchQualities({ companyId }),
+        fetchPreviewId(companyId) as any,
       ]);
 
       if (accRes.success && accRes.data) {
@@ -193,6 +217,9 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       }
       if (qlyRes.success && qlyRes.data) {
         setQualities(qlyRes.data);
+      }
+      if (previewIdRes?.success && previewIdRes?.data) {
+        setNextStockIdPreview(previewIdRes.data);
       }
 
       if (needReference && referenceType) {
@@ -203,7 +230,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       }
     };
     loadData();
-  }, [companyId, fetchAccounts, fetchQualities, activeFinancialYear, setValue, needReference, referenceType, fetchParentInvoices]);
+  }, [companyId, fetchAccounts, fetchQualities, fetchPreviewId, activeFinancialYear, setValue, needReference, referenceType, fetchParentInvoices]);
 
   // Load Preview Voucher Number (only in create mode)
   useEffect(() => {
@@ -250,6 +277,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             rate: Number(it.rate),
             discountPct: Number(it.discountPct) || 0,
             stockPacketId: it.stockPacketId ?? undefined,
+            isManualStockId: false,
           })));
         }
         setPreviewVoucherNo(inv.voucherNumber);
@@ -293,6 +321,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
           rate: Number(it.rate),
           discountPct: Number(it.discountPct) || 0,
           stockPacketId: it.stockPacketId || undefined,
+          isManualStockId: false,
         })));
       }
       showToast(`Referenced invoice ${matched.voucherNumber} details loaded successfully`, 'success');
@@ -591,8 +620,44 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                             <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-accent)', display: 'block', marginBottom: '12px' }}>
                               Stock Packet Registration Details
                             </span>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                              <Input label="Stock Packet ID" placeholder="PKT-0001 (Auto if empty)" {...register(`items.${index}.stockIdNumber`)} />
+                            <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                <label style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+                                  <input
+                                    type="checkbox"
+                                    {...register(`items.${index}.isManualStockId`)}
+                                    onChange={(e) => {
+                                      if (!e.target.checked) {
+                                        setValue(`items.${index}.stockIdNumber`, '');
+                                      }
+                                    }}
+                                  />
+                                  Manual ID
+                                </label>
+                                {watch(`items.${index}.isManualStockId`) ? (
+                                  <Input
+                                    label=""
+                                    placeholder="Enter custom ID"
+                                    {...register(`items.${index}.stockIdNumber`)}
+                                  />
+                                ) : (
+                                  <div style={{
+                                    padding: '7px 10px',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: 'var(--color-background-subtle, #f5f5f5)',
+                                    border: '1px solid var(--color-border)',
+                                    fontSize: '12px',
+                                    color: 'var(--color-text-primary)',
+                                    minHeight: '34px',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    marginTop: '2px',
+                                    fontWeight: 500
+                                  }}>
+                                    Auto: <strong style={{ marginLeft: '4px', color: 'var(--color-accent)' }}>{getPreviewIdForRow(nextStockIdPreview, index)}</strong>
+                                  </div>
+                                )}
+                              </div>
                               <FormSelect
                                 control={control}
                                 name={`items.${index}.category`}
@@ -602,14 +667,55 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                   { value: 'CERTIFIED', label: 'Certified' }
                                 ]}
                               />
-                              <Input label="Shape" placeholder="e.g. Round" {...register(`items.${index}.shape`)} />
+                              <Controller
+                                name={`items.${index}.shape`}
+                                control={control}
+                                render={({ field }) => (
+                                  <Combobox
+                                    label="Shape"
+                                    value={field.value ?? ''}
+                                    onChange={field.onChange}
+                                    options={shapeOptions}
+                                    placeholder="Select or type shape"
+                                    maxVisibleItems={5}
+                                  />
+                                )}
+                              />
                               <Input label="Color" placeholder="e.g. D" {...register(`items.${index}.color`)} />
-                              <Input label="Clarity" placeholder="e.g. VS1" {...register(`items.${index}.clarity`)} />
-                              <Input label="Cut" placeholder="e.g. EX" {...register(`items.${index}.cut`)} />
+                              <Input 
+                                label="Clarity" 
+                                placeholder="e.g. VS1" 
+                                style={{ textTransform: 'uppercase' }} 
+                                {...register(`items.${index}.clarity`, {
+                                  onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+                                })} 
+                              />
+                              <Input 
+                                label="Cut" 
+                                placeholder="e.g. EX" 
+                                style={{ textTransform: 'uppercase' }} 
+                                {...register(`items.${index}.cut`, {
+                                  onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+                                })} 
+                              />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
-                              <Input label="Polish" placeholder="e.g. EX" {...register(`items.${index}.polish`)} />
-                              <Input label="Symmetry" placeholder="e.g. EX" {...register(`items.${index}.symmetry`)} />
+                               <Input 
+                                label="Polish" 
+                                placeholder="e.g. EX" 
+                                style={{ textTransform: 'uppercase' }} 
+                                {...register(`items.${index}.polish`, {
+                                  onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+                                })} 
+                              />
+                              <Input 
+                                label="Symmetry" 
+                                placeholder="e.g. EX" 
+                                style={{ textTransform: 'uppercase' }} 
+                                {...register(`items.${index}.symmetry`, {
+                                  onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
+                                })} 
+                              />
                               <Input label="Length (mm)" type="number" step="0.01" {...register(`items.${index}.lengthMm`, { valueAsNumber: true })} />
                               <Input label="Width (mm)" type="number" step="0.01" {...register(`items.${index}.widthMm`, { valueAsNumber: true })} />
                               <Input label="Depth (mm)" type="number" step="0.01" {...register(`items.${index}.depthMm`, { valueAsNumber: true })} />
@@ -636,7 +742,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         <Button
           type="button"
           variant="secondary"
-          onClick={() => append({ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0 })}
+          onClick={() => append({ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0, isManualStockId: false })}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '24px' }}
         >
           <Plus size={14} /> Add Row

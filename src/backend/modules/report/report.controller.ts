@@ -50,4 +50,13 @@ export class ReportController {
       return { success: false, error: error.message || 'Failed to calculate outstanding aging' };
     }
   }
+
+  async handleGetStockReport(payload: { companyId: number; filters?: { status?: string; qualityId?: number; search?: string } }) {
+    try {
+      const data = await this.service.getStockReport(payload.companyId, payload.filters);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate stock report' };
+    }
+  }
 }

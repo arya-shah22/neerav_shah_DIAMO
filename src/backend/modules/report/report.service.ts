@@ -724,4 +724,206 @@ export class ReportService {
 
     return outstandingList;
   }
+
+  async getStockReport(companyId: number, filters?: { status?: string; qualityId?: number; search?: string }) {
+    // 1. Fetch filtered stock packets
+    const packets = await this.prisma.stockPacket.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        ...(filters?.status ? { currentStatus: filters.status as any } : {}),
+        ...(filters?.qualityId ? { qualityId: Number(filters.qualityId) } : {}),
+        ...(filters?.search ? {
+          OR: [
+            { stockIdNumber: { contains: filters.search } },
+            { shape: { contains: filters.search } },
+            { color: { contains: filters.search } },
+            { clarity: { contains: filters.search } },
+          ]
+        } : {}),
+      },
+      include: {
+        quality: true,
+        movements: true,
+      },
+      orderBy: { stockIdNumber: 'asc' },
+    });
+
+    // 2. Fetch all non-deleted packets for summary calculations
+    const allPackets = await this.prisma.stockPacket.findMany({
+      where: { companyId, isDeleted: false },
+      include: {
+        quality: true,
+        movements: true,
+      },
+    });
+
+    let totalPackets = allPackets.length;
+    let totalCarats = 0;
+    let totalValuation = 0;
+
+    let availableCount = 0;
+    let availableCarats = 0;
+    let availableValuation = 0;
+
+    let reservedCount = 0;
+    let reservedCarats = 0;
+    let reservedValuation = 0;
+
+    let jobWorkCount = 0;
+    let jobWorkCarats = 0;
+    let jobWorkValuation = 0;
+
+    let transitCount = 0;
+    let transitCarats = 0;
+    let transitValuation = 0;
+
+    let soldCount = 0;
+    let soldCarats = 0;
+    let soldValuation = 0;
+
+    let returnedCount = 0;
+    let returnedCarats = 0;
+    let returnedValuation = 0;
+
+    let damagedCount = 0;
+    let damagedCarats = 0;
+    let damagedValuation = 0;
+
+    let archivedCount = 0;
+    let archivedCarats = 0;
+    let archivedValuation = 0;
+
+    for (const p of allPackets) {
+      let carats = Number(p.caratWeight || 0);
+      if (carats === 0 && (p.currentStatus === 'SOLD' || p.currentStatus === 'RETURNED' || p.currentStatus === 'DAMAGED')) {
+        const outMov = p.movements?.find(m => m.movementType === 'SALES' || m.movementType === 'PURCHASE_RETURN');
+        if (outMov) {
+          carats = Number(outMov.carats || 0);
+        }
+      }
+
+      const rate = Number(p.costPerCarat || 0);
+      const value = carats * rate;
+
+      totalCarats += carats;
+      totalValuation += value;
+
+      if (p.currentStatus === 'AVAILABLE') {
+        availableCount++;
+        availableCarats += carats;
+        availableValuation += value;
+      } else if (p.currentStatus === 'HOLD') {
+        reservedCount++;
+        reservedCarats += carats;
+        reservedValuation += value;
+      } else if (p.currentStatus === 'JOB_WORK') {
+        jobWorkCount++;
+        jobWorkCarats += carats;
+        jobWorkValuation += value;
+      } else if (p.currentStatus === 'CREATED' || p.currentStatus === 'PURCHASED') {
+        transitCount++;
+        transitCarats += carats;
+        transitValuation += value;
+      } else if (p.currentStatus === 'SOLD') {
+        soldCount++;
+        soldCarats += carats;
+        soldValuation += value;
+      } else if (p.currentStatus === 'RETURNED') {
+        returnedCount++;
+        returnedCarats += carats;
+        returnedValuation += value;
+      } else if (p.currentStatus === 'DAMAGED') {
+        damagedCount++;
+        damagedCarats += carats;
+        damagedValuation += value;
+      } else if (p.currentStatus === 'ARCHIVED') {
+        archivedCount++;
+        archivedCarats += carats;
+        archivedValuation += value;
+      }
+    }
+
+    // 3. Compute quality-wise aggregates from the filtered dataset
+    const qualityMap = new Map<number, { qualityName: string; count: number; carats: number; value: number }>();
+    for (const p of packets) {
+      if (!p.quality) continue;
+      const qId = p.qualityId;
+      
+      let carats = Number(p.caratWeight || 0);
+      if (carats === 0 && (p.currentStatus === 'SOLD' || p.currentStatus === 'RETURNED' || p.currentStatus === 'DAMAGED')) {
+        const outMov = p.movements?.find(m => m.movementType === 'SALES' || m.movementType === 'PURCHASE_RETURN');
+        if (outMov) {
+          carats = Number(outMov.carats || 0);
+        }
+      }
+
+      const rate = Number(p.costPerCarat || 0);
+      const value = carats * rate;
+
+      if (!qualityMap.has(qId)) {
+        qualityMap.set(qId, {
+          qualityName: p.quality.qualityName,
+          count: 0,
+          carats: 0,
+          value: 0,
+        });
+      }
+
+      const qStat = qualityMap.get(qId)!;
+      qStat.count++;
+      qStat.carats += carats;
+      qStat.value += value;
+    }
+
+    const qualityAggregates = Array.from(qualityMap.values()).map(q => ({
+      qualityName: q.qualityName,
+      count: q.count,
+      carats: q.carats,
+      averageRate: q.carats > 0 ? q.value / q.carats : 0,
+      totalValue: q.value,
+    }));
+
+    return {
+      summary: {
+        totalPackets,
+        totalCarats,
+        totalValuation,
+        statusBreakdown: {
+          available: { count: availableCount, carats: availableCarats, value: availableValuation },
+          reserved: { count: reservedCount, carats: reservedCarats, value: reservedValuation },
+          jobWork: { count: jobWorkCount, carats: jobWorkCarats, value: jobWorkValuation },
+          transit: { count: transitCount, carats: transitCarats, value: transitValuation },
+          sold: { count: soldCount, carats: soldCarats, value: soldValuation },
+          returned: { count: returnedCount, carats: returnedCarats, value: returnedValuation },
+          damaged: { count: damagedCount, carats: damagedCarats, value: damagedValuation },
+          archived: { count: archivedCount, carats: archivedCarats, value: archivedValuation },
+        }
+      },
+      qualityAggregates,
+      packets: packets.map(p => {
+        let carats = Number(p.caratWeight || 0);
+        if (carats === 0 && (p.currentStatus === 'SOLD' || p.currentStatus === 'RETURNED' || p.currentStatus === 'DAMAGED')) {
+          const outMov = p.movements?.find(m => m.movementType === 'SALES' || m.movementType === 'PURCHASE_RETURN');
+          if (outMov) {
+            carats = Number(outMov.carats || 0);
+          }
+        }
+
+        return {
+          id: p.id,
+          stockIdNumber: p.stockIdNumber,
+          qualityName: p.quality?.qualityName || 'Unknown',
+          shape: p.shape,
+          color: p.color,
+          clarity: p.clarity,
+          caratWeight: carats,
+          costRate: Number(p.costPerCarat || 0),
+          totalValue: carats * Number(p.costPerCarat || 0),
+          currentStatus: p.currentStatus,
+          location: p.currentLocation || (p.currentStatus === 'JOB_WORK' ? 'Worker Vault' : 'Central Vault'),
+        };
+      }),
+    };
+  }
 }

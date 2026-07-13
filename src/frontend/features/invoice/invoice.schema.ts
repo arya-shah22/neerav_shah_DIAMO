@@ -10,6 +10,7 @@ export const invoiceItemSchema = z.object({
   discountPct: z.number().min(0).max(100).default(0),
   stockPacketId: z.number().nullable().optional(),
   stockIdNumber: z.string().optional(),
+  isManualStockId: z.boolean().optional().default(false),
   category: z.string().optional(),
   shape: z.string().optional(),
   color: z.string().optional(),

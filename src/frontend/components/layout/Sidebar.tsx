@@ -198,6 +198,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/profit-loss', label: 'Profit & Loss', icon: <BarChart3 size={16} /> },
         { path: '/reports/balance-sheet', label: 'Balance Sheet', icon: <BarChart3 size={16} /> },
         { path: '/reports/outstanding', label: 'Outstanding Statements', icon: <FileText size={16} /> },
+        { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
       ],
     },
     {

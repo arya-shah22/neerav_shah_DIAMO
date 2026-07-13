@@ -219,4 +219,5 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'report:profit-loss', (payload) => reportController.handleGetProfitLoss(payload));
   ipcHandle(ipcMain, 'report:balance-sheet', (payload) => reportController.handleGetBalanceSheet(payload));
   ipcHandle(ipcMain, 'report:outstanding', (payload) => reportController.handleGetOutstanding(payload));
+  ipcHandle(ipcMain, 'report:stock', (payload) => reportController.handleGetStockReport(payload));
 }
