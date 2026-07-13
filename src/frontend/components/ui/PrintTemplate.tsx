@@ -133,6 +133,9 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
             width: 100% !important;
             background: #fff !important;
             color: #000 !important;
+            min-height: auto !important;
+            height: auto !important;
+            border-radius: 0 !important;
           }
         }
       ` }} />

@@ -130,6 +130,9 @@ export const IPC = {
   REPORT_OUTSTANDING: 'report:outstanding',
   REPORT_STOCK: 'report:stock',
   REPORT_GST: 'report:gst',
+  REPORT_GST_DASHBOARD: 'report:gst-dashboard',
+  REPORT_GSTR1: 'report:gstr1',
+  REPORT_GSTR1_JSON: 'report:gstr1-json',
 
   // ─── Settings (Stage 10) ─────────────────────────────
   SETTINGS_GET: 'settings:get',

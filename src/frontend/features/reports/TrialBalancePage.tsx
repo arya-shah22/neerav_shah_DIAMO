@@ -90,7 +90,7 @@ export const TrialBalancePage: React.FC = () => {
       } finally {
         setShowPrintPreview(false);
       }
-    }, 100);
+    }, 500);
   };
 
   if (!isReady) {
@@ -100,13 +100,30 @@ export const TrialBalancePage: React.FC = () => {
   // Render Print Preview Mode
   if (showPrintPreview && activeCompany) {
     return (
-      <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
+      <div id="print-preview-root" style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
-            body { background: #ffffff; padding: 0; margin: 0; }
+            body { background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
             .no-print { display: none !important; }
-            .print-page { padding: 0 !important; border: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; box-shadow: none !important; }
+            #print-preview-root {
+              background: transparent !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              min-height: auto !important;
+            }
+            .print-page {
+              padding: 5mm 0 !important;
+              border: none !important;
+              margin: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              box-shadow: none !important;
+              min-height: auto !important;
+              height: auto !important;
+              background: transparent !important;
+              border-radius: 0 !important;
+            }
           }
         `}} />
         

@@ -59,4 +59,31 @@ export class ReportController {
       return { success: false, error: error.message || 'Failed to generate stock report' };
     }
   }
+
+  async handleGetGstDashboard(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getGstDashboard(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate GST dashboard' };
+    }
+  }
+
+  async handleGetGstr1Report(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getGstr1Report(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate GSTR-1 report' };
+    }
+  }
+
+  async handleGenerateGstr1Json(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.generateGstr1Json(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate GSTR-1 offline utility JSON' };
+    }
+  }
 }

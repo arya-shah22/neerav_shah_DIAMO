@@ -25,7 +25,7 @@ export const AppShell: React.FC = () => {
   }
 
   return (
-    <div style={{
+    <div id="app-shell-root" style={{
       display: 'flex',
       flexDirection: 'column',
       height: '100vh',
@@ -33,12 +33,44 @@ export const AppShell: React.FC = () => {
       overflow: 'hidden',
       background: 'var(--color-bg)',
     }}>
+      {/* Global Print Layout CSS */}
+      <style dangerouslySetInnerHTML={{ __html: `
+        @media print {
+          .no-print {
+            display: none !important;
+          }
+          #app-shell-root {
+            height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          #app-shell-content-wrapper {
+            height: auto !important;
+            overflow: visible !important;
+            display: block !important;
+          }
+          main.content-area {
+            padding: 0 !important;
+            margin: 0 !important;
+            background: transparent !important;
+            overflow: visible !important;
+            width: 100% !important;
+            height: auto !important;
+          }
+          body, html {
+            background: #ffffff !important;
+            width: 100% !important;
+            height: auto !important;
+            overflow: visible !important;
+          }
+        }
+      `}} />
       <TopHeader
         sidebarCollapsed={sidebarCollapsed}
         onToggleSidebar={() => setSidebarCollapsed(!sidebarCollapsed)}
       />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div id="app-shell-content-wrapper" style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
         <Sidebar collapsed={sidebarCollapsed} />
 
         <main

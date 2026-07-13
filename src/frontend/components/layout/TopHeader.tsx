@@ -133,7 +133,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   };
 
   return (
-    <header style={{
+    <header className="no-print" style={{
       height: 'var(--header-height)',
       minHeight: 'var(--header-height)',
       background: 'var(--color-surface)',

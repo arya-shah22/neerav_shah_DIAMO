@@ -12,7 +12,6 @@ import {
   Briefcase,
   Coins,
   Landmark,
-  BookOpen,
   BarChart3,
   Settings,
   Shield,
@@ -199,6 +198,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/balance-sheet', label: 'Balance Sheet', icon: <BarChart3 size={16} /> },
         { path: '/reports/outstanding', label: 'Outstanding Statements', icon: <FileText size={16} /> },
         { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
+        { path: '/reports/gst', label: 'GST Dashboard', icon: <FileText size={16} /> },
+        { path: '/reports/gstr1', label: 'GSTR-1 Report', icon: <FileText size={16} /> },
       ],
     },
     {
@@ -242,7 +243,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   };
 
   return (
-    <aside style={{
+    <aside className="no-print" style={{
       width: collapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)',
       minWidth: collapsed ? 'var(--sidebar-collapsed)' : 'var(--sidebar-width)',
       height: '100%',
@@ -374,7 +375,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                       {renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
                       {renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
                       {renderLink('/vouchers/loan', 'Loan Book', <Briefcase size={16} />, '32px')}
-                      {renderLink('/vouchers/ledger', 'Ledger', <BookOpen size={16} />, '32px')}
                     </>
                   )}
                 </div>

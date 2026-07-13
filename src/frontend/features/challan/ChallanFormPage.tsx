@@ -498,13 +498,29 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
     );
 
     return (
-      <div style={{ background: '#ffffff', minHeight: '100vh', padding: '20px', boxSizing: 'border-box' }}>
+      <div id="print-preview-root" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px', boxSizing: 'border-box' }}>
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page { size: A4 landscape; margin: 10mm; }
-            body { background: #ffffff; padding: 0; margin: 0; }
+            body { background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
             .no-print { display: none !important; }
-            .print-page { padding: 0 !important; border: none !important; margin: 0 !important; width: 100% !important; }
+            #print-preview-root {
+              background: transparent !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              min-height: auto !important;
+            }
+            .print-page {
+              padding: 0 !important;
+              border: none !important;
+              margin: 0 !important;
+              width: 100% !important;
+              min-height: auto !important;
+              height: auto !important;
+              background: transparent !important;
+              border-radius: 0 !important;
+              box-shadow: none !important;
+            }
           }
         `}} />
         <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', padding: '10px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>

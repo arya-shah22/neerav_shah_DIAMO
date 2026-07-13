@@ -220,4 +220,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'report:balance-sheet', (payload) => reportController.handleGetBalanceSheet(payload));
   ipcHandle(ipcMain, 'report:outstanding', (payload) => reportController.handleGetOutstanding(payload));
   ipcHandle(ipcMain, 'report:stock', (payload) => reportController.handleGetStockReport(payload));
+  ipcHandle(ipcMain, 'report:gst-dashboard', (payload) => reportController.handleGetGstDashboard(payload));
+  ipcHandle(ipcMain, 'report:gstr1', (payload) => reportController.handleGetGstr1Report(payload));
+  ipcHandle(ipcMain, 'report:gstr1-json', (payload) => reportController.handleGenerateGstr1Json(payload));
 }

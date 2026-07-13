@@ -26,7 +26,7 @@ export const StatusFooter: React.FC = () => {
   }, []);
 
   return (
-    <footer style={{
+    <footer className="no-print" style={{
       height: 'var(--footer-height)',
       minHeight: 'var(--footer-height)',
       background: 'var(--color-primary)',

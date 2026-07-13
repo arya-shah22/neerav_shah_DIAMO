@@ -926,4 +926,621 @@ export class ReportService {
       }),
     };
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // GST Dashboard & Summary
+  // ═══════════════════════════════════════════════════════════════
+
+  async getGstDashboard(companyId: number, startDateStr?: string, endDateStr?: string) {
+    // Default to current financial year if no dates provided
+    const now = new Date();
+    const fyStart = now.getMonth() >= 3
+      ? new Date(now.getFullYear(), 3, 1)
+      : new Date(now.getFullYear() - 1, 3, 1);
+    const startDate = startDateStr ? new Date(startDateStr) : fyStart;
+    const endDate = endDateStr ? new Date(endDateStr) : now;
+
+    // ── 1. Sales Aggregation (Output Tax) ──────────────────────
+    const salesInvoices = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate },
+      },
+      select: {
+        invoiceType: true,
+        invoiceDate: true,
+        totalGrossAmount: true,
+        totalCgst: true,
+        totalSgst: true,
+        totalIgst: true,
+        totalCess: true,
+        netAmount: true,
+        customerGstin: true,
+      },
+    });
+
+    let outwardTaxableValue = 0;
+    let outputCgst = 0;
+    let outputSgst = 0;
+    let outputIgst = 0;
+    let outputCess = 0;
+    let totalSaleInvoices = 0;
+    let totalCreditNotes = 0; // Sale returns
+    let totalSaleDebitNotes = 0;
+
+    for (const inv of salesInvoices) {
+      const gross = Number(inv.totalGrossAmount || 0);
+      const cgst = Number(inv.totalCgst || 0);
+      const sgst = Number(inv.totalSgst || 0);
+      const igst = Number(inv.totalIgst || 0);
+      const cess = Number(inv.totalCess || 0);
+
+      if (inv.invoiceType === 'SALE_RETURN') {
+        // Sale return reduces output tax
+        outwardTaxableValue -= gross;
+        outputCgst -= cgst;
+        outputSgst -= sgst;
+        outputIgst -= igst;
+        outputCess -= cess;
+        totalCreditNotes++;
+      } else {
+        outwardTaxableValue += gross;
+        outputCgst += cgst;
+        outputSgst += sgst;
+        outputIgst += igst;
+        outputCess += cess;
+        if (inv.invoiceType === 'SALE_DEBIT_NOTE') {
+          totalSaleDebitNotes++;
+        } else {
+          totalSaleInvoices++;
+        }
+      }
+    }
+
+    const totalOutputTax = outputCgst + outputSgst + outputIgst + outputCess;
+
+    // ── 2. Purchase Aggregation (Input Tax) ────────────────────
+    const purchaseInvoices = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate },
+      },
+      select: {
+        invoiceType: true,
+        invoiceDate: true,
+        totalGrossAmount: true,
+        totalCgst: true,
+        totalSgst: true,
+        totalIgst: true,
+        totalCess: true,
+        netAmount: true,
+        supplierGstin: true,
+      },
+    });
+
+    let inwardTaxableValue = 0;
+    let inputCgst = 0;
+    let inputSgst = 0;
+    let inputIgst = 0;
+    let inputCess = 0;
+    let totalPurchaseInvoices = 0;
+    let totalPurchaseDebitNotes = 0;
+    let totalPurchaseReturns = 0;
+
+    for (const inv of purchaseInvoices) {
+      const gross = Number(inv.totalGrossAmount || 0);
+      const cgst = Number(inv.totalCgst || 0);
+      const sgst = Number(inv.totalSgst || 0);
+      const igst = Number(inv.totalIgst || 0);
+      const cess = Number(inv.totalCess || 0);
+
+      if (inv.invoiceType === 'PURCHASE_RETURN') {
+        inwardTaxableValue -= gross;
+        inputCgst -= cgst;
+        inputSgst -= sgst;
+        inputIgst -= igst;
+        inputCess -= cess;
+        totalPurchaseReturns++;
+      } else {
+        inwardTaxableValue += gross;
+        inputCgst += cgst;
+        inputSgst += sgst;
+        inputIgst += igst;
+        inputCess += cess;
+        if (inv.invoiceType === 'PURCHASE_DEBIT_NOTE') {
+          totalPurchaseDebitNotes++;
+        } else {
+          totalPurchaseInvoices++;
+        }
+      }
+    }
+
+    const totalInputTax = inputCgst + inputSgst + inputIgst + inputCess;
+
+    // ── 3. Net Tax Liability ───────────────────────────────────
+    const netCgstLiability = outputCgst - inputCgst;
+    const netSgstLiability = outputSgst - inputSgst;
+    const netIgstLiability = outputIgst - inputIgst;
+    const netCessLiability = outputCess - inputCess;
+    const netTaxLiability = netCgstLiability + netSgstLiability + netIgstLiability + netCessLiability;
+
+    // ── 4. Monthly Trend (12 months rolling) ───────────────────
+    const monthlyMap: Record<string, { outputTax: number; inputTax: number }> = {};
+
+    // Generate last 12 month keys
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      monthlyMap[key] = { outputTax: 0, inputTax: 0 };
+    }
+
+    // Aggregate sales into monthly buckets
+    for (const inv of salesInvoices) {
+      const d = new Date(inv.invoiceDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyMap[key] !== undefined) {
+        const tax = Number(inv.totalCgst || 0) + Number(inv.totalSgst || 0) + Number(inv.totalIgst || 0) + Number(inv.totalCess || 0);
+        if (inv.invoiceType === 'SALE_RETURN') {
+          monthlyMap[key].outputTax -= tax;
+        } else {
+          monthlyMap[key].outputTax += tax;
+        }
+      }
+    }
+
+    // Aggregate purchases into monthly buckets
+    for (const inv of purchaseInvoices) {
+      const d = new Date(inv.invoiceDate);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      if (monthlyMap[key] !== undefined) {
+        const tax = Number(inv.totalCgst || 0) + Number(inv.totalSgst || 0) + Number(inv.totalIgst || 0) + Number(inv.totalCess || 0);
+        if (inv.invoiceType === 'PURCHASE_RETURN') {
+          monthlyMap[key].inputTax -= tax;
+        } else {
+          monthlyMap[key].inputTax += tax;
+        }
+      }
+    }
+
+    const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const monthlyTrend = Object.entries(monthlyMap).map(([key, val]) => {
+      const [y, m] = key.split('-');
+      return {
+        month: `${monthNames[parseInt(m) - 1]} ${y}`,
+        outputTax: Math.round(val.outputTax * 100) / 100,
+        inputTax: Math.round(val.inputTax * 100) / 100,
+        netLiability: Math.round((val.outputTax - val.inputTax) * 100) / 100,
+      };
+    });
+
+    // ── 5. GST Rate Breakdown ──────────────────────────────────
+    const saleItems = await this.prisma.saleInvoiceItem.findMany({
+      where: {
+        saleInvoice: {
+          companyId,
+          isDeleted: false,
+          status: { in: ['SAVED', 'APPROVED'] as any[] },
+          invoiceDate: { gte: startDate, lte: endDate },
+        },
+      },
+      select: {
+        gstPct: true,
+        grossAmount: true,
+        cgstAmount: true,
+        sgstAmount: true,
+        igstAmount: true,
+        saleInvoice: { select: { invoiceType: true } },
+      },
+    });
+
+    const purchaseItems = await this.prisma.purchaseInvoiceItem.findMany({
+      where: {
+        purchaseInvoice: {
+          companyId,
+          isDeleted: false,
+          status: { in: ['SAVED', 'APPROVED'] as any[] },
+          invoiceDate: { gte: startDate, lte: endDate },
+        },
+      },
+      select: {
+        gstPct: true,
+        grossAmount: true,
+        cgstAmount: true,
+        sgstAmount: true,
+        igstAmount: true,
+        purchaseInvoice: { select: { invoiceType: true } },
+      },
+    });
+
+    const rateMap: Record<string, { taxableValue: number; cgst: number; sgst: number; igst: number }> = {};
+
+    for (const item of saleItems) {
+      const rate = Number(item.gstPct || 0);
+      const rKey = rate.toFixed(2);
+      if (!rateMap[rKey]) rateMap[rKey] = { taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+      const mult = item.saleInvoice.invoiceType === 'SALE_RETURN' ? -1 : 1;
+      rateMap[rKey].taxableValue += mult * Number(item.grossAmount || 0);
+      rateMap[rKey].cgst += mult * Number(item.cgstAmount || 0);
+      rateMap[rKey].sgst += mult * Number(item.sgstAmount || 0);
+      rateMap[rKey].igst += mult * Number(item.igstAmount || 0);
+    }
+
+    for (const item of purchaseItems) {
+      const rate = Number(item.gstPct || 0);
+      const rKey = rate.toFixed(2);
+      if (!rateMap[rKey]) rateMap[rKey] = { taxableValue: 0, cgst: 0, sgst: 0, igst: 0 };
+      const mult = item.purchaseInvoice.invoiceType === 'PURCHASE_RETURN' ? -1 : 1;
+      rateMap[rKey].taxableValue += mult * Number(item.grossAmount || 0);
+      rateMap[rKey].cgst += mult * Number(item.cgstAmount || 0);
+      rateMap[rKey].sgst += mult * Number(item.sgstAmount || 0);
+      rateMap[rKey].igst += mult * Number(item.igstAmount || 0);
+    }
+
+    const rateBreakdown = Object.entries(rateMap)
+      .map(([rate, v]) => ({
+        gstRate: parseFloat(rate),
+        taxableValue: Math.round(v.taxableValue * 100) / 100,
+        cgst: Math.round(v.cgst * 100) / 100,
+        sgst: Math.round(v.sgst * 100) / 100,
+        igst: Math.round(v.igst * 100) / 100,
+        totalTax: Math.round((v.cgst + v.sgst + v.igst) * 100) / 100,
+      }))
+      .sort((a, b) => a.gstRate - b.gstRate);
+
+    // ── 6. Compliance Status ───────────────────────────────────
+    const currentMonth = now.getMonth(); // 0-indexed
+    const currentYear = now.getFullYear();
+    const periodMonthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+    const currentPeriod = `${periodMonthNames[currentMonth]} ${currentYear}`;
+
+    // GSTR-1 due on 11th of next month, GSTR-3B due on 20th of next month
+    const nextMonth = currentMonth === 11 ? 0 : currentMonth + 1;
+    const nextYear = currentMonth === 11 ? currentYear + 1 : currentYear;
+    const gstr1DueDate = new Date(nextYear, nextMonth, 11);
+    const gstr3bDueDate = new Date(nextYear, nextMonth, 20);
+
+    const formatDate = (d: Date) => {
+      const day = d.getDate();
+      const mon = monthNames[d.getMonth()];
+      const yr = d.getFullYear();
+      return `${day}-${mon}-${yr}`;
+    };
+
+    const daysUntilGstr1 = Math.max(0, Math.ceil((gstr1DueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+    const daysUntilGstr3b = Math.max(0, Math.ceil((gstr3bDueDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24)));
+
+    return {
+      summary: {
+        outwardTaxableValue: Math.round(outwardTaxableValue * 100) / 100,
+        outputCgst: Math.round(outputCgst * 100) / 100,
+        outputSgst: Math.round(outputSgst * 100) / 100,
+        outputIgst: Math.round(outputIgst * 100) / 100,
+        outputCess: Math.round(outputCess * 100) / 100,
+        totalOutputTax: Math.round(totalOutputTax * 100) / 100,
+        inwardTaxableValue: Math.round(inwardTaxableValue * 100) / 100,
+        inputCgst: Math.round(inputCgst * 100) / 100,
+        inputSgst: Math.round(inputSgst * 100) / 100,
+        inputIgst: Math.round(inputIgst * 100) / 100,
+        inputCess: Math.round(inputCess * 100) / 100,
+        totalInputTax: Math.round(totalInputTax * 100) / 100,
+        netCgstLiability: Math.round(netCgstLiability * 100) / 100,
+        netSgstLiability: Math.round(netSgstLiability * 100) / 100,
+        netIgstLiability: Math.round(netIgstLiability * 100) / 100,
+        netCessLiability: Math.round(netCessLiability * 100) / 100,
+        netTaxLiability: Math.round(netTaxLiability * 100) / 100,
+        totalSaleInvoices,
+        totalPurchaseInvoices,
+        totalCreditNotes,
+        totalDebitNotes: totalSaleDebitNotes + totalPurchaseDebitNotes,
+      },
+      monthlyTrend,
+      rateBreakdown,
+      compliance: {
+        currentPeriod,
+        gstr1DueDate: formatDate(gstr1DueDate),
+        gstr3bDueDate: formatDate(gstr3bDueDate),
+        daysUntilGstr1,
+        daysUntilGstr3b,
+        filingStatus: 'PENDING' as const,
+      },
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // GSTR-1 OUTWARD SUPPLIES REPORT & JSON
+  // ═══════════════════════════════════════════════════════════════
+
+  async getGstr1Report(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const now = new Date();
+    const fyStart = now.getMonth() >= 3
+      ? new Date(now.getFullYear(), 3, 1)
+      : new Date(now.getFullYear() - 1, 3, 1);
+    const startDate = startDateStr ? new Date(startDateStr) : fyStart;
+    const endDate = endDateStr ? new Date(endDateStr) : now;
+
+    // Get company details for POS state checks
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { stateCode: true, gstinNumber: true }
+    });
+    const companyStateCode = company?.stateCode || '24'; // default to Gujarat
+
+    // Get active sales invoices
+    const sales = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate },
+      },
+      include: {
+        customer: { select: { accountName: true, stateCode: true, gstinNumber: true } },
+        items: { include: { quality: true } }
+      }
+    });
+
+    const b2b: any[] = [];
+    const b2cl: any[] = [];
+    const b2cs: any[] = [];
+    const cdnr: any[] = [];
+    const cdnur: any[] = [];
+    const hsnMap: Record<string, any> = {};
+
+    let minInvNum = '';
+    let maxInvNum = '';
+    let totalInvCount = 0;
+    let cancelledInvCount = 0;
+
+    for (const inv of sales) {
+      const isReturn = inv.invoiceType === 'SALE_RETURN';
+      const isDebitNote = inv.invoiceType === 'SALE_DEBIT_NOTE';
+      const isRegular = inv.invoiceType === 'SALE_INVOICE';
+
+      const customer = inv.customer;
+      const gstin = inv.customerGstin || customer?.gstinNumber;
+      const hasGstin = gstin && gstin.trim().length === 15;
+      const posState = inv.placeOfSupply || customer?.stateCode || companyStateCode;
+      const isInterState = posState !== companyStateCode;
+      const invVal = Number(inv.netAmount || 0);
+      const taxableVal = Number(inv.totalGrossAmount || 0);
+
+      // Document tracker
+      if (isRegular) {
+        totalInvCount++;
+        if (inv.status === 'CANCELLED' as any) {
+          cancelledInvCount++;
+        }
+        if (!minInvNum || inv.billNumber < minInvNum) minInvNum = inv.billNumber;
+        if (!maxInvNum || inv.billNumber > maxInvNum) maxInvNum = inv.billNumber;
+      }
+
+      // Group tax rate items
+      const itms = inv.items.map(item => {
+        const rate = Number(item.gstPct || 0);
+        const txval = Number(item.grossAmount || 0);
+        const cgst = Number(item.cgstAmount || 0);
+        const sgst = Number(item.sgstAmount || 0);
+        const igst = Number(item.igstAmount || 0);
+        const cess = Number(item.cessAmount || 0);
+
+        return {
+          num: item.rowNumber,
+          itm_det: {
+            rt: rate,
+            txval: Math.round(txval * 100) / 100,
+            iamt: Math.round(igst * 100) / 100,
+            camt: Math.round(cgst * 100) / 100,
+            samt: Math.round(sgst * 100) / 100,
+            csamt: Math.round(cess * 100) / 100
+          }
+        };
+      });
+
+      // ── HSN Aggregation ──
+      for (const item of inv.items) {
+        const hsn = item.hsnNumber || '7102'; // default diamond HSN
+        const rate = Number(item.gstPct || 0);
+        const txval = Number(item.grossAmount || 0) * (isReturn ? -1 : 1);
+        const cgst = Number(item.cgstAmount || 0) * (isReturn ? -1 : 1);
+        const sgst = Number(item.sgstAmount || 0) * (isReturn ? -1 : 1);
+        const igst = Number(item.igstAmount || 0) * (isReturn ? -1 : 1);
+        const cess = Number(item.cessAmount || 0) * (isReturn ? -1 : 1);
+        const carats = Number(item.carats || 0) * (isReturn ? -1 : 1);
+
+        const key = `${hsn}_${rate}`;
+        const currentName = item.quality?.qualityName || 'Diamond Quality';
+        if (!hsnMap[key]) {
+          hsnMap[key] = {
+            hsn_sc: hsn,
+            desc: currentName,
+            uqc: 'CTS',
+            qty: 0,
+            val: 0,
+            txval: 0,
+            iamt: 0,
+            camt: 0,
+            samt: 0,
+            csamt: 0
+          };
+        } else {
+          // If the quality name is different, append it
+          if (currentName && !hsnMap[key].desc.includes(currentName)) {
+            hsnMap[key].desc += ` / ${currentName}`;
+          }
+        }
+
+        hsnMap[key].qty += carats;
+        hsnMap[key].val += txval + cgst + sgst + igst + cess;
+        hsnMap[key].txval += txval;
+        hsnMap[key].iamt += igst;
+        hsnMap[key].camt += cgst;
+        hsnMap[key].samt += sgst;
+        hsnMap[key].csamt += cess;
+      }
+
+      // Categorization
+      if (hasGstin) {
+        if (isReturn || isDebitNote) {
+          cdnr.push({
+            ctin: gstin,
+            nt: [{
+              ntty: isReturn ? 'C' : 'D',
+              nt_num: inv.billNumber,
+              nt_dt: inv.invoiceDate.toISOString().split('T')[0].split('-').reverse().join('-'), // DD-MM-YYYY
+              inum: inv.referenceBillNumber || 'INV-000',
+              idt: inv.invoiceDate.toISOString().split('T')[0].split('-').reverse().join('-'),
+              val: Math.round(invVal * 100) / 100,
+              pos: posState,
+              rchrg: 'N',
+              itms
+            }]
+          });
+        } else {
+          // B2B
+          b2b.push({
+            ctin: gstin,
+            inv: [{
+              inum: inv.billNumber,
+              idt: inv.invoiceDate.toISOString().split('T')[0].split('-').reverse().join('-'),
+              val: Math.round(invVal * 100) / 100,
+              pos: posState,
+              rchrg: 'N',
+              inv_ty: 'R',
+              itms
+            }]
+          });
+        }
+      } else {
+        // B2C Unregistered
+        if (isReturn || isDebitNote) {
+          cdnur.push({
+            typ: isInterState && invVal > 250000 ? 'B2CL' : 'B2CS',
+            ntty: isReturn ? 'C' : 'D',
+            nt_num: inv.billNumber,
+            nt_dt: inv.invoiceDate.toISOString().split('T')[0].split('-').reverse().join('-'),
+            inum: inv.referenceBillNumber || 'INV-000',
+            idt: inv.invoiceDate.toISOString().split('T')[0].split('-').reverse().join('-'),
+            val: Math.round(invVal * 100) / 100,
+            pos: posState,
+            itms
+          });
+        } else if (isInterState && invVal > 250000) {
+          // B2C Large
+          b2cl.push({
+            pos: posState,
+            inv: [{
+              inum: inv.billNumber,
+              idt: inv.invoiceDate.toISOString().split('T')[0].split('-').reverse().join('-'),
+              val: Math.round(invVal * 100) / 100,
+              itms: itms.map(i => i.itm_det)
+            }]
+          });
+        } else {
+          // B2C Small (Aggregated)
+          b2cs.push({
+            inum: inv.billNumber,
+            idt: inv.invoiceDate.toISOString().split('T')[0],
+            pos: posState,
+            val: Math.round(invVal * 100) / 100,
+            txval: Math.round(taxableVal * 100) / 100,
+            cgst: Math.round(Number(inv.totalCgst || 0) * 100) / 100,
+            sgst: Math.round(Number(inv.totalSgst || 0) * 100) / 100,
+            igst: Math.round(Number(inv.totalIgst || 0) * 100) / 100,
+          });
+        }
+      }
+    }
+
+    const hsnList = Object.values(hsnMap).map((h: any) => ({
+      ...h,
+      qty: Math.round(h.qty * 1000) / 1000,
+      val: Math.round(h.val * 100) / 100,
+      txval: Math.round(h.txval * 100) / 100,
+      iamt: Math.round(h.iamt * 100) / 100,
+      camt: Math.round(h.camt * 100) / 100,
+      samt: Math.round(h.samt * 100) / 100,
+      csamt: Math.round(h.csamt * 100) / 100
+    }));
+
+    const docSummary = {
+      from: minInvNum || '—',
+      to: maxInvNum || '—',
+      totnum: totalInvCount,
+      cancel: cancelledInvCount,
+      net_issue: totalInvCount - cancelledInvCount
+    };
+
+    return {
+      b2b: b2b.map((item, idx) => ({ ...item, id: `b2b_${idx}` })),
+      b2cl: b2cl.map((item, idx) => ({ ...item, id: `b2cl_${idx}` })),
+      b2cs: b2cs.map((item, idx) => ({ ...item, id: `b2cs_${idx}` })),
+      cdnr: cdnr.map((item, idx) => ({ ...item, id: `cdnr_${idx}` })),
+      cdnur: cdnur.map((item, idx) => ({ ...item, id: `cdnur_${idx}` })),
+      hsn: hsnList.map((item, idx) => ({ ...item, id: `hsn_${idx}` })),
+      docSummary: { ...docSummary, id: 'docSummary' }
+    };
+  }
+
+  async generateGstr1Json(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const report = await this.getGstr1Report(companyId, startDateStr, endDateStr);
+    const company = await this.prisma.company.findUnique({
+      where: { id: companyId },
+      select: { gstinNumber: true }
+    });
+
+    const now = new Date();
+    const periodMonth = String(now.getMonth() + 1).padStart(2, '0');
+    const periodYear = now.getFullYear();
+
+    return {
+      gstin: company?.gstinNumber || '24AAAAA0000A1Z0',
+      fp: `${periodMonth}${periodYear}`,
+      cur_gt: 0.00,
+      gt: 0.00,
+      b2b: report.b2b,
+      b2cl: report.b2cl,
+      b2cs: report.b2cs.map((b: any) => ({
+        pos: b.pos,
+        rt: 0.25, // default diamond rate, or rate from items
+        txval: b.txval,
+        iamt: b.igst,
+        camt: b.cgst,
+        samt: b.sgst,
+        csamt: 0
+      })),
+      cdnr: report.cdnr,
+      cdnur: report.cdnur,
+      hsn: {
+        data: report.hsn.map((h: any, idx: number) => ({
+          num: idx + 1,
+          hsn_sc: h.hsn_sc,
+          desc: h.desc,
+          uqc: h.uqc,
+          qty: h.qty,
+          val: h.val,
+          txval: h.txval,
+          iamt: h.iamt,
+          camt: h.camt,
+          samt: h.samt,
+          csamt: h.csamt
+        }))
+      },
+      doc_issue: {
+        doc_det: [{
+          doc_num: 1,
+          doc_typ: "Invoices for outward supply",
+          from: report.docSummary.from,
+          to: report.docSummary.to,
+          totnum: report.docSummary.totnum,
+          cancel: report.docSummary.cancel,
+          net_issue: report.docSummary.net_issue
+        }]
+      }
+    };
+  }
 }
+

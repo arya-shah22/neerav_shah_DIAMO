@@ -47,6 +47,7 @@ export const LedgerBookPage: React.FC = () => {
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [onePartyPerPage, setOnePartyPerPage] = useState(true);
   const [showPagePartyModal, setShowPagePartyModal] = useState(false);
+  const [printActionType, setPrintActionType] = useState<'PRINT' | 'PDF'>('PRINT');
 
   // Fetch accounts list to populate dropdown / modal
   const { data: accountsRaw, invoke: fetchAccounts } = useIpc<any[]>('account:search');
@@ -193,8 +194,9 @@ export const LedgerBookPage: React.FC = () => {
     }, 100);
   };
 
-  const handleExportPDF = async () => {
+  const executeExportPDF = async () => {
     setShowPrintPreview(true);
+    // Allow React to fully render all print preview pages before capturing
     setTimeout(async () => {
       try {
         const res = await window.api.invoke('system:print-to-pdf', {
@@ -208,7 +210,12 @@ export const LedgerBookPage: React.FC = () => {
       } finally {
         setShowPrintPreview(false);
       }
-    }, 100);
+    }, 500);
+  };
+
+  const handleExportPDF = () => {
+    setPrintActionType('PDF');
+    setShowPagePartyModal(true);
   };
 
   // Render Print Preview Mode
@@ -233,14 +240,41 @@ export const LedgerBookPage: React.FC = () => {
     }
 
     return (
-      <div style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
+      <div id="print-preview-root" style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
-            body { background: #ffffff; padding: 0; margin: 0; }
+            body { background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
             .no-print { display: none !important; }
-            .print-page { padding: 0 !important; border: none !important; margin: 0 !important; width: 100% !important; max-width: 100% !important; box-shadow: none !important; }
-            .page-break { page-break-after: always; break-after: page; }
+            #print-preview-root {
+              background: transparent !important;
+              padding: 0 !important;
+              margin: 0 !important;
+              min-height: auto !important;
+            }
+            #print-area {
+              padding: 0 !important;
+              margin: 0 !important;
+            }
+            #print-area > div {
+              gap: 0 !important;
+            }
+            .print-page {
+              padding: 5mm 0 !important;
+              border: none !important;
+              margin: 0 !important;
+              width: 100% !important;
+              max-width: 100% !important;
+              box-shadow: none !important;
+              min-height: auto !important;
+              height: auto !important;
+              background: transparent !important;
+              border-radius: 0 !important;
+            }
+            .page-break {
+              page-break-after: always;
+              break-after: page;
+            }
           }
         `}} />
         
@@ -936,7 +970,11 @@ export const LedgerBookPage: React.FC = () => {
                 onClick={() => {
                   setOnePartyPerPage(true);
                   setShowPagePartyModal(false);
-                  setShowPrintModal(true);
+                  if (printActionType === 'PRINT') {
+                    setShowPrintModal(true);
+                  } else {
+                    executeExportPDF();
+                  }
                 }}
                 style={{
                   width: '100%',
@@ -957,7 +995,11 @@ export const LedgerBookPage: React.FC = () => {
                 onClick={() => {
                   setOnePartyPerPage(false);
                   setShowPagePartyModal(false);
-                  setShowPrintModal(true);
+                  if (printActionType === 'PRINT') {
+                    setShowPrintModal(true);
+                  } else {
+                    executeExportPDF();
+                  }
                 }}
                 style={{
                   width: '100%',
