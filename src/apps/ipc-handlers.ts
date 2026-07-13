@@ -225,4 +225,6 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'report:gstr1-json', (payload) => reportController.handleGenerateGstr1Json(payload));
   ipcHandle(ipcMain, 'report:gst-registers', (payload) => reportController.handleGetGstRegisters(payload));
   ipcHandle(ipcMain, 'report:reconcile-itc', (payload) => reportController.handleReconcileItc(payload));
+  ipcHandle(ipcMain, 'report:gstr3b-summary', (payload) => reportController.handleGetGstr3bSummary(payload));
+  ipcHandle(ipcMain, 'report:gst-analytics', (payload) => reportController.handleGetGstAnalytics(payload));
 }

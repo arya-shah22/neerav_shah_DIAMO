@@ -1723,5 +1723,252 @@ export class ReportService {
       }
     };
   }
+
+  async getGstr3bSummary(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const startDate = startDateStr ? new Date(startDateStr) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const endDate = endDateStr ? new Date(endDateStr) : new Date();
+
+    // Query sales invoices
+    const sales = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate }
+      },
+      include: {
+        customer: { select: { isBroker: true, stateCode: true } }
+      }
+    });
+
+    // Query purchase invoices
+    const purchases = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate }
+      },
+      include: {
+        supplier: { select: { isBroker: true, stateCode: true, gstinNumber: true } }
+      }
+    });
+
+    // ─── Table 3.1 Outward & Inward RCM Supplies ───
+    let t31a_taxable = 0, t31a_cgst = 0, t31a_sgst = 0, t31a_igst = 0, t31a_cess = 0;
+    let t31b_taxable = 0, t31b_cgst = 0, t31b_sgst = 0, t31b_igst = 0, t31b_cess = 0;
+    let t31c_taxable = 0;
+    let t31d_taxable = 0, t31d_cgst = 0, t31d_sgst = 0, t31d_igst = 0, t31d_cess = 0;
+    let t31e_taxable = 0;
+
+    for (const sale of sales) {
+      const taxable = Number(sale.totalGrossAmount || 0);
+      const cgst = Number(sale.totalCgst || 0);
+      const sgst = Number(sale.totalSgst || 0);
+      const igst = Number(sale.totalIgst || 0);
+      const cess = Number(sale.totalCess || 0);
+      const totalTax = cgst + sgst + igst;
+
+      const isExport = sale.placeOfSupply?.toUpperCase() === 'OUTSIDE INDIA' || sale.placeOfSupply?.toUpperCase() === 'EXPORT';
+
+      if (isExport) {
+        t31b_taxable += taxable;
+        t31b_cgst += cgst;
+        t31b_sgst += sgst;
+        t31b_igst += igst;
+        t31b_cess += cess;
+      } else if (totalTax === 0 && taxable > 0) {
+        t31c_taxable += taxable;
+      } else {
+        t31a_taxable += taxable;
+        t31a_cgst += cgst;
+        t31a_sgst += sgst;
+        t31a_igst += igst;
+        t31a_cess += cess;
+      }
+    }
+
+    // ─── Table 4 Eligible ITC & Reverse Charge purchases ───
+    let t4a1_igst = 0;
+    let t4a3_cgst = 0, t4a3_sgst = 0, t4a3_igst = 0;
+    let t4a5_cgst = 0, t4a5_sgst = 0, t4a5_igst = 0;
+    let t4b_cgst = 0, t4b_sgst = 0, t4b_igst = 0; // reversals (e.g. from returns)
+
+    for (const pur of purchases) {
+      const taxable = Number(pur.totalGrossAmount || 0);
+      const cgst = Number(pur.totalCgst || 0);
+      const sgst = Number(pur.totalSgst || 0);
+      const igst = Number(pur.totalIgst || 0);
+      const cess = Number(pur.totalCess || 0);
+
+      const isImport = pur.placeOfSupply?.toUpperCase() === 'OUTSIDE INDIA' || pur.placeOfSupply?.toUpperCase() === 'IMPORT';
+      const isRcm = !pur.supplierGstin && !pur.supplier?.gstinNumber; // Purchase from unregistered dealer trigger RCM
+
+      if (isImport) {
+        t4a1_igst += igst;
+      } else if (isRcm) {
+        t31d_taxable += taxable;
+        t31d_cgst += cgst;
+        t31d_sgst += sgst;
+        t31d_igst += igst;
+        t31d_cess += cess;
+
+        t4a3_cgst += cgst;
+        t4a3_sgst += sgst;
+        t4a3_igst += igst;
+      } else {
+        if (pur.invoiceType === 'PURCHASE_RETURN') {
+          t4b_cgst += cgst;
+          t4b_sgst += sgst;
+          t4b_igst += igst;
+        } else {
+          t4a5_cgst += cgst;
+          t4a5_sgst += sgst;
+          t4a5_igst += igst;
+        }
+      }
+    }
+
+    return {
+      table31: {
+        a: { label: '(a) Outward taxable supplies (other than zero rated, nil rated and exempted)', taxable: t31a_taxable, igst: t31a_igst, cgst: t31a_cgst, sgst: t31a_sgst, cess: t31a_cess },
+        b: { label: '(b) Outward taxable supplies (zero rated)', taxable: t31b_taxable, igst: t31b_igst, cgst: t31b_cgst, sgst: t31b_sgst, cess: t31b_cess },
+        c: { label: '(c) Other outward supplies (nil rated, exempted)', taxable: t31c_taxable, igst: 0, cgst: 0, sgst: 0, cess: 0 },
+        d: { label: '(d) Inward supplies liable to reverse charge', taxable: t31d_taxable, igst: t31d_igst, cgst: t31d_cgst, sgst: t31d_sgst, cess: t31d_cess },
+        e: { label: '(e) Non-GST outward supplies', taxable: t31e_taxable, igst: 0, cgst: 0, sgst: 0, cess: 0 }
+      },
+      table4: {
+        a1: { label: '(1) Import of goods', igst: t4a1_igst, cgst: 0, sgst: 0, cess: 0 },
+        a3: { label: '(3) Inward supplies liable to reverse charge', igst: t4a3_igst, cgst: t4a3_cgst, sgst: t4a3_sgst, cess: 0 },
+        a5: { label: '(5) All other ITC', igst: t4a5_igst, cgst: t4a5_cgst, sgst: t4a5_sgst, cess: 0 },
+        b: { label: '(B) ITC Reversed', igst: t4b_igst, cgst: t4b_cgst, sgst: t4b_sgst, cess: 0 }
+      },
+      interestLateFee: {
+        interest: 0,
+        lateFee: 0
+      }
+    };
+  }
+
+  async getGstAnalytics(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const startDate = startDateStr ? new Date(startDateStr) : new Date(new Date().getFullYear(), new Date().getMonth(), 1);
+    const endDate = endDateStr ? new Date(endDateStr) : new Date();
+
+    // Query sales and items
+    const sales = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate }
+      },
+      include: {
+        customer: { select: { accountName: true, gstinNumber: true } },
+        items: true
+      }
+    });
+
+    // Query purchases and items
+    const purchases = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate }
+      },
+      include: {
+        supplier: { select: { accountName: true, gstinNumber: true } },
+        items: true
+      }
+    });
+
+    // Helper functions to group data
+    const compileHsnSummary = (items: any[]) => {
+      const groups: Record<string, any> = {};
+      for (const item of items) {
+        const hsn = item.hsnNumber || 'Unknown';
+        if (!groups[hsn]) {
+          groups[hsn] = { hsnCode: hsn, uqc: 'CTS', carats: 0, pieces: 0, taxable: 0, cgst: 0, sgst: 0, igst: 0 };
+        }
+        groups[hsn].carats += Number(item.carats || 0);
+        groups[hsn].pieces += Number(item.pieces || 0);
+        groups[hsn].taxable += Number(item.grossAmount || 0);
+        groups[hsn].cgst += Number(item.cgstAmount || 0);
+        groups[hsn].sgst += Number(item.sgstAmount || 0);
+        groups[hsn].igst += Number(item.igstAmount || 0);
+      }
+      return Object.values(groups).map((g: any) => ({
+        ...g,
+        carats: Math.round(g.carats * 1000) / 1000,
+        taxable: Math.round(g.taxable * 100) / 100,
+        cgst: Math.round(g.cgst * 100) / 100,
+        sgst: Math.round(g.sgst * 100) / 100,
+        igst: Math.round(g.igst * 100) / 100,
+      }));
+    };
+
+    const compilePartySummary = (invoices: any[], isCustomer: boolean) => {
+      const groups: Record<string, any> = {};
+      for (const inv of invoices) {
+        const party = isCustomer ? inv.customer : inv.supplier;
+        const name = party?.accountName || (isCustomer ? 'Cash Customer' : 'Cash Supplier');
+        const gstin = inv.customerGstin || inv.supplierGstin || party?.gstinNumber || 'Unregistered';
+        const key = `${name}_${gstin}`;
+
+        if (!groups[key]) {
+          groups[key] = { partyName: name, gstin, taxable: 0, cgst: 0, sgst: 0, igst: 0 };
+        }
+        groups[key].taxable += Number(inv.totalGrossAmount || 0);
+        groups[key].cgst += Number(inv.totalCgst || 0);
+        groups[key].sgst += Number(inv.totalSgst || 0);
+        groups[key].igst += Number(inv.totalIgst || 0);
+      }
+      return Object.values(groups).map((g: any) => ({
+        ...g,
+        taxable: Math.round(g.taxable * 100) / 100,
+        cgst: Math.round(g.cgst * 100) / 100,
+        sgst: Math.round(g.sgst * 100) / 100,
+        igst: Math.round(g.igst * 100) / 100,
+      }));
+    };
+
+    const compileRateSummary = (items: any[]) => {
+      const groups: Record<number, any> = {};
+      for (const item of items) {
+        const rate = Number(item.gstPct || 0);
+        if (!groups[rate]) {
+          groups[rate] = { ratePct: rate, taxable: 0, cgst: 0, sgst: 0, igst: 0 };
+        }
+        groups[rate].taxable += Number(item.grossAmount || 0);
+        groups[rate].cgst += Number(item.cgstAmount || 0);
+        groups[rate].sgst += Number(item.sgstAmount || 0);
+        groups[rate].igst += Number(item.igstAmount || 0);
+      }
+      return Object.values(groups).map((g: any) => ({
+        ...g,
+        taxable: Math.round(g.taxable * 100) / 100,
+        cgst: Math.round(g.cgst * 100) / 100,
+        sgst: Math.round(g.sgst * 100) / 100,
+        igst: Math.round(g.igst * 100) / 100,
+      }));
+    };
+
+    // Flatten all line items
+    const saleItems = sales.flatMap(s => s.items);
+    const purchaseItems = purchases.flatMap(p => p.items);
+
+    return {
+      outward: {
+        hsn: compileHsnSummary(saleItems),
+        party: compilePartySummary(sales, true),
+        rate: compileRateSummary(saleItems)
+      },
+      inward: {
+        hsn: compileHsnSummary(purchaseItems),
+        party: compilePartySummary(purchases, false),
+        rate: compileRateSummary(purchaseItems)
+      }
+    };
+  }
 }
 

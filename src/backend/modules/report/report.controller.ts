@@ -104,4 +104,22 @@ export class ReportController {
       return { success: false, error: error.message || 'Failed to reconcile ITC' };
     }
   }
+
+  async handleGetGstr3bSummary(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getGstr3bSummary(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch GSTR-3B summary' };
+    }
+  }
+
+  async handleGetGstAnalytics(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getGstAnalytics(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch GST analytics' };
+    }
+  }
 }
