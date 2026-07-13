@@ -200,6 +200,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
         { path: '/reports/gst', label: 'GST Dashboard', icon: <FileText size={16} /> },
         { path: '/reports/gstr1', label: 'GSTR-1 Report', icon: <FileText size={16} /> },
+        { path: '/reports/gstr2', label: 'GSTR-2 & ITC Rec', icon: <FileText size={16} /> },
       ],
     },
     {

@@ -1529,16 +1529,197 @@ export class ReportService {
           csamt: h.csamt
         }))
       },
-      doc_issue: {
-        doc_det: [{
-          doc_num: 1,
-          doc_typ: "Invoices for outward supply",
-          from: report.docSummary.from,
-          to: report.docSummary.to,
-          totnum: report.docSummary.totnum,
-          cancel: report.docSummary.cancel,
-          net_issue: report.docSummary.net_issue
-        }]
+        doc_issue: {
+          doc_det: [{
+            doc_num: 1,
+            doc_typ: "Invoices for outward supply",
+            from: report.docSummary.from,
+            to: report.docSummary.to,
+            totnum: report.docSummary.totnum,
+            cancel: report.docSummary.cancel,
+            net_issue: report.docSummary.net_issue
+          }]
+        }
+      };
+    }
+
+  // ═══════════════════════════════════════════════════════════════
+  // GSTR-2 & ITC RECONCILIATION & REGISTERS
+  // ═══════════════════════════════════════════════════════════════
+
+  async getGstRegisters(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const now = new Date();
+    const fyStart = now.getMonth() >= 3
+      ? new Date(now.getFullYear(), 3, 1)
+      : new Date(now.getFullYear() - 1, 3, 1);
+    const startDate = startDateStr ? new Date(startDateStr) : fyStart;
+    const endDate = endDateStr ? new Date(endDateStr) : now;
+
+    // 1. Output Register (Sales)
+    const sales = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate },
+      },
+      include: {
+        customer: { select: { accountName: true, gstinNumber: true } }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+
+    const outputRegister = sales.map((inv, idx) => ({
+      id: `out_${idx}`,
+      date: inv.invoiceDate.toISOString().split('T')[0],
+      invoiceNo: inv.billNumber,
+      invoiceType: inv.invoiceType,
+      partyName: inv.customer?.accountName || 'Cash Sale',
+      partyGstin: inv.customerGstin || inv.customer?.gstinNumber || 'Unregistered',
+      taxableValue: Math.round(Number(inv.totalGrossAmount || 0) * 100) / 100,
+      cgst: Math.round(Number(inv.totalCgst || 0) * 100) / 100,
+      sgst: Math.round(Number(inv.totalSgst || 0) * 100) / 100,
+      igst: Math.round(Number(inv.totalIgst || 0) * 100) / 100,
+      cess: Math.round(Number(inv.totalCess || 0) * 100) / 100,
+      netAmount: Math.round(Number(inv.netAmount || 0) * 100) / 100,
+    }));
+
+    // 2. Input Register (Purchases)
+    const purchases = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: { in: ['SAVED', 'APPROVED'] as any[] },
+        invoiceDate: { gte: startDate, lte: endDate },
+      },
+      include: {
+        supplier: { select: { accountName: true, gstinNumber: true } }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+
+    const inputRegister = purchases.map((inv, idx) => ({
+      id: `in_${idx}`,
+      purchaseId: inv.id,
+      date: inv.invoiceDate.toISOString().split('T')[0],
+      billNo: inv.billNumber,
+      invoiceType: inv.invoiceType,
+      partyName: inv.supplier?.accountName || 'Cash Purchase',
+      partyGstin: inv.supplierGstin || inv.supplier?.gstinNumber || 'Unregistered',
+      taxableValue: Math.round(Number(inv.totalGrossAmount || 0) * 100) / 100,
+      cgst: Math.round(Number(inv.totalCgst || 0) * 100) / 100,
+      sgst: Math.round(Number(inv.totalSgst || 0) * 100) / 100,
+      igst: Math.round(Number(inv.totalIgst || 0) * 100) / 100,
+      cess: Math.round(Number(inv.totalCess || 0) * 100) / 100,
+      netAmount: Math.round(Number(inv.netAmount || 0) * 100) / 100,
+    }));
+
+    return {
+      outputRegister,
+      inputRegister
+    };
+  }
+
+  async reconcileItc(companyId: number, gstr2bList: any[], startDateStr?: string, endDateStr?: string) {
+    const registers = await this.getGstRegisters(companyId, startDateStr, endDateStr);
+    const localPurchases = registers.inputRegister;
+
+    const reconciled: any[] = [];
+    let matchedItc = 0;
+    let mismatchItc = 0;
+    let supplierPendingItc = 0;
+    let notInBooksItc = 0;
+
+    // Track GSTR-2B items that are matched
+    const matchedPortalIndices = new Set<number>();
+
+    // ── Reconcile Books against Portal ──
+    for (const local of localPurchases) {
+      const billNo = local.billNo;
+      const gstin = local.partyGstin;
+      const localTaxable = local.taxableValue;
+      const localTax = local.cgst + local.sgst + local.igst + local.cess;
+
+      // Find matching record in GSTR-2B
+      let matchIdx = -1;
+      let matchStatus: 'MATCHED' | 'MISMATCH' | 'MISSING_IN_PORTAL' = 'MISSING_IN_PORTAL';
+      let portalRecord: any = null;
+
+      for (let i = 0; i < gstr2bList.length; i++) {
+        if (matchedPortalIndices.has(i)) continue;
+        const portal = gstr2bList[i];
+
+        // Match criteria: GSTIN and Bill/Invoice Number (case insensitive)
+        if (portal.ctin?.toUpperCase() === gstin?.toUpperCase() && portal.inum?.toUpperCase() === billNo?.toUpperCase()) {
+          matchIdx = i;
+          portalRecord = portal;
+          break;
+        }
+      }
+
+      if (portalRecord) {
+        matchedPortalIndices.add(matchIdx);
+        const portalTaxable = Number(portalRecord.txval || 0);
+        const portalTax = Number(portalRecord.iamt || 0) + Number(portalRecord.camt || 0) + Number(portalRecord.samt || 0) + Number(portalRecord.csamt || 0);
+
+        const diffTaxable = Math.abs(localTaxable - portalTaxable);
+        const diffTax = Math.abs(localTax - portalTax);
+
+        // Tolerance: ±₹10.00
+        if (diffTaxable <= 10 && diffTax <= 10) {
+          matchStatus = 'MATCHED';
+          matchedItc += localTax;
+        } else {
+          matchStatus = 'MISMATCH';
+          mismatchItc += localTax;
+        }
+      } else {
+        supplierPendingItc += localTax;
+      }
+
+      reconciled.push({
+        id: `rec_${local.id}`,
+        purchaseId: local.purchaseId,
+        billNo,
+        partyName: local.partyName,
+        partyGstin: gstin,
+        localTaxable,
+        localTax,
+        portalTaxable: portalRecord ? Number(portalRecord.txval || 0) : null,
+        portalTax: portalRecord ? (Number(portalRecord.iamt || 0) + Number(portalRecord.camt || 0) + Number(portalRecord.samt || 0)) : null,
+        status: matchStatus
+      });
+    }
+
+    // ── Find Portal Records not in Books ──
+    for (let i = 0; i < gstr2bList.length; i++) {
+      if (matchedPortalIndices.has(i)) continue;
+      const portal = gstr2bList[i];
+      const portalTax = Number(portal.iamt || 0) + Number(portal.camt || 0) + Number(portal.samt || 0) + Number(portal.csamt || 0);
+
+      notInBooksItc += portalTax;
+
+      reconciled.push({
+        id: `portal_${i}`,
+        billNo: portal.inum,
+        partyName: 'Unknown (Not in Books)',
+        partyGstin: portal.ctin,
+        localTaxable: null,
+        localTax: null,
+        portalTaxable: Number(portal.txval || 0),
+        portalTax,
+        status: 'NOT_IN_BOOKS'
+      });
+    }
+
+    return {
+      reconciledList: reconciled,
+      summary: {
+        matchedItc: Math.round(matchedItc * 100) / 100,
+        mismatchItc: Math.round(mismatchItc * 100) / 100,
+        supplierPendingItc: Math.round(supplierPendingItc * 100) / 100,
+        notInBooksItc: Math.round(notInBooksItc * 100) / 100,
+        totalLocalItc: Math.round((matchedItc + mismatchItc + supplierPendingItc) * 100) / 100,
       }
     };
   }

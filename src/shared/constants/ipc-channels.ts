@@ -133,6 +133,8 @@ export const IPC = {
   REPORT_GST_DASHBOARD: 'report:gst-dashboard',
   REPORT_GSTR1: 'report:gstr1',
   REPORT_GSTR1_JSON: 'report:gstr1-json',
+  REPORT_GST_REGISTERS: 'report:gst-registers',
+  REPORT_RECONCILE_ITC: 'report:reconcile-itc',
 
   // ─── Settings (Stage 10) ─────────────────────────────
   SETTINGS_GET: 'settings:get',

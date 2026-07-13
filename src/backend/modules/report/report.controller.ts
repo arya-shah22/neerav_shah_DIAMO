@@ -86,4 +86,22 @@ export class ReportController {
       return { success: false, error: error.message || 'Failed to generate GSTR-1 offline utility JSON' };
     }
   }
+
+  async handleGetGstRegisters(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getGstRegisters(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch GST registers' };
+    }
+  }
+
+  async handleReconcileItc(payload: { companyId: number; gstr2bList: any[]; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.reconcileItc(payload.companyId, payload.gstr2bList, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to reconcile ITC' };
+    }
+  }
 }

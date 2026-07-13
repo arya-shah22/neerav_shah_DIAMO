@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useForm, useFieldArray, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
@@ -23,6 +23,7 @@ interface AccountObj {
   accountName: string;
   isBroker: boolean;
   stateCode: string | null;
+  gstinNumber?: string | null;
 }
 
 interface QualityObj {
@@ -47,6 +48,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const isSale = type.startsWith('SALE');
   const isEditMode = !!editId;
   const navigate = useNavigate();
+  const location = useLocation();
   const { showToast } = useToast();
   const { activeCompany, companyId, isReady } = useActiveCompany();
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
@@ -212,8 +214,31 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       ]);
 
       if (accRes.success && accRes.data) {
-        setParties(accRes.data.filter((a) => !a.isBroker));
+        const filteredParties = accRes.data.filter((a) => !a.isBroker);
+        setParties(filteredParties);
         setBrokers(accRes.data.filter((a) => a.isBroker));
+
+        // Apply prefill parameters if navigated from GSTR-2 Reconciliation
+        const prefill = location.state?.prefill;
+        if (prefill) {
+          if (prefill.billNumber) {
+            setValue('isManualBillNumber', true);
+            setValue('billNumber', prefill.billNumber);
+          }
+          if (prefill.supplierGstin) {
+            const matchedSupplier = filteredParties.find(
+              (p) => p.gstinNumber?.toUpperCase() === prefill.supplierGstin.toUpperCase()
+            );
+            if (matchedSupplier) {
+              setValue('customerId', matchedSupplier.id);
+            }
+          }
+          if (prefill.totalGrossAmount) {
+            setValue('items.0.rate', prefill.totalGrossAmount);
+            setValue('items.0.carats', 1);
+            setValue('items.0.pieces', 1);
+          }
+        }
       }
       if (qlyRes.success && qlyRes.data) {
         setQualities(qlyRes.data);
