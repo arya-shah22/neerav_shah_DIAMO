@@ -137,6 +137,8 @@ export const IPC = {
   REPORT_RECONCILE_ITC: 'report:reconcile-itc',
   REPORT_GSTR3B_SUMMARY: 'report:gstr3b-summary',
   REPORT_GST_ANALYTICS: 'report:gst-analytics',
+  REPORT_DAY_BOOK: 'report:day-book',
+  REPORT_DAY_BOOK_LIST: 'report:day-book-list',
 
   // ─── Settings (Stage 10) ─────────────────────────────
   SETTINGS_GET: 'settings:get',

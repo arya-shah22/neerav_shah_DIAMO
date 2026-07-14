@@ -203,6 +203,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/gstr2', label: 'GSTR-2 & ITC Rec', icon: <FileText size={16} /> },
         { path: '/reports/gstr3b', label: 'GSTR-3B Summary', icon: <FileText size={16} /> },
         { path: '/reports/gst-analytics', label: 'GST Analytics', icon: <FileText size={16} /> },
+        { path: '/reports/day-book', label: 'Day Book', icon: <FileText size={16} /> },
       ],
     },
     {

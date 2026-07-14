@@ -1970,5 +1970,209 @@ export class ReportService {
       }
     };
   }
+
+  async getDayBookSummary(companyId: number, dateStr: string) {
+    const start = new Date(dateStr + 'T00:00:00');
+    const end = new Date(dateStr + 'T23:59:59.999');
+
+    // Fetch all cash and bank accounts
+    const accounts = await this.prisma.account.findMany({
+      where: { companyId, isDeleted: false },
+      include: { accountGroup: true }
+    });
+
+    const cashAccounts = accounts.filter(a => 
+      a.accountGroup?.groupName.toLowerCase().includes('cash') || 
+      a.accountGroup?.nature?.toLowerCase() === 'asset' && a.accountGroup?.groupName.toLowerCase().includes('hand')
+    );
+    const bankAccounts = accounts.filter(a => 
+      a.accountGroup?.groupName.toLowerCase().includes('bank')
+    );
+
+    const computeBalance = async (accountId: number, limitDate: Date) => {
+      const account = accounts.find(a => a.id === accountId);
+      if (!account) return 0;
+
+      const prevEntries = await this.prisma.generalLedgerEntry.findMany({
+        where: {
+          companyId,
+          accountId,
+          voucherDate: { lt: limitDate }
+        }
+      });
+
+      let balance = account.openingBalanceType === 'DEBIT' 
+        ? Number(account.openingBalanceAmount || 0) 
+        : -Number(account.openingBalanceAmount || 0);
+
+      for (const ent of prevEntries) {
+        const amt = Number(ent.amount || 0);
+        if (ent.debitCreditType === 'DEBIT') {
+          balance += amt;
+        } else {
+          balance -= amt;
+        }
+      }
+      return balance;
+    };
+
+    // Calculate opening balances
+    let openingCash = 0;
+    let openingBank = 0;
+    for (const a of cashAccounts) {
+      openingCash += await computeBalance(a.id, start);
+    }
+    for (const a of bankAccounts) {
+      openingBank += await computeBalance(a.id, start);
+    }
+
+    // Calculate closing balances
+    let closingCash = 0;
+    let closingBank = 0;
+    const dayEndLimit = new Date(end.getTime() + 1); // lt next day
+    for (const a of cashAccounts) {
+      closingCash += await computeBalance(a.id, dayEndLimit);
+    }
+    for (const a of bankAccounts) {
+      closingBank += await computeBalance(a.id, dayEndLimit);
+    }
+
+    // Query all ledger entries on the selected date
+    const dayEntries = await this.prisma.generalLedgerEntry.findMany({
+      where: {
+        companyId,
+        voucherDate: { gte: start, lte: end }
+      },
+      include: {
+        account: true
+      },
+      orderBy: { id: 'asc' }
+    });
+
+    const transactions = dayEntries.map(e => ({
+      id: e.id,
+      voucherNumber: e.sourceBillNumber || '—',
+      voucherType: e.sourceVoucherType || 'JV',
+      voucherDate: e.voucherDate.toISOString().split('T')[0],
+      accountName: e.account?.accountName || 'Unknown Account',
+      debitCreditType: e.debitCreditType,
+      amount: Number(e.amount || 0),
+      narration: e.narration || ''
+    }));
+
+    return {
+      openingCash: Math.round(openingCash * 100) / 100,
+      openingBank: Math.round(openingBank * 100) / 100,
+      closingCash: Math.round(closingCash * 100) / 100,
+      closingBank: Math.round(closingBank * 100) / 100,
+      transactions
+    };
+  }
+
+  async getDayBookDatesList(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const currentMonth = now.getMonth();
+    const fyStartStr = currentMonth >= 3 ? `${currentYear}-04-01` : `${currentYear - 1}-04-01`;
+    const todayStr = now.toISOString().split('T')[0];
+
+    const startLimitStr = startDateStr || fyStartStr;
+    const endLimitStr = endDateStr || todayStr;
+
+    const startLimit = new Date(startLimitStr + 'T12:00:00');
+    const endLimit = new Date(endLimitStr + 'T12:00:00');
+
+    // Query entries on these dates to build transaction count map
+    const filter: any = {
+      companyId,
+      voucherDate: {
+        gte: new Date(startLimitStr + 'T00:00:00'),
+        lte: new Date(endLimitStr + 'T23:59:59.999')
+      }
+    };
+
+    const rawEntries = await this.prisma.generalLedgerEntry.findMany({
+      where: filter,
+      select: { voucherDate: true }
+    });
+
+    const dateMap: Record<string, number> = {};
+    for (const ent of rawEntries) {
+      const dStr = ent.voucherDate.toISOString().split('T')[0];
+      dateMap[dStr] = (dateMap[dStr] || 0) + 1;
+    }
+
+    // Generate every calendar date in sequence
+    const datesArray: string[] = [];
+    let current = new Date(startLimit);
+    while (current <= endLimit) {
+      datesArray.push(current.toISOString().split('T')[0]);
+      current.setDate(current.getDate() + 1);
+    }
+
+    const sortedDates = datesArray.sort((a, b) => b.localeCompare(a));
+    const results = [];
+
+    // Fetch cash/bank accounts
+    const accounts = await this.prisma.account.findMany({
+      where: { companyId, isDeleted: false },
+      include: { accountGroup: true }
+    });
+    const cashAccounts = accounts.filter(a => 
+      a.accountGroup?.groupName.toLowerCase().includes('cash') || 
+      a.accountGroup?.nature?.toLowerCase() === 'asset' && a.accountGroup?.groupName.toLowerCase().includes('hand')
+    );
+    const bankAccounts = accounts.filter(a => 
+      a.accountGroup?.groupName.toLowerCase().includes('bank')
+    );
+
+    const computeBalance = async (accountId: number, limitDate: Date) => {
+      const account = accounts.find(a => a.id === accountId);
+      if (!account) return 0;
+      const prevEntries = await this.prisma.generalLedgerEntry.findMany({
+        where: { companyId, accountId, voucherDate: { lt: limitDate } }
+      });
+      let balance = account.openingBalanceType === 'DEBIT' 
+        ? Number(account.openingBalanceAmount || 0) 
+        : -Number(account.openingBalanceAmount || 0);
+      for (const ent of prevEntries) {
+        const amt = Number(ent.amount || 0);
+        if (ent.debitCreditType === 'DEBIT') balance += amt;
+        else balance -= amt;
+      }
+      return balance;
+    };
+
+    for (const dStr of sortedDates) {
+      const dayStart = new Date(dStr + 'T00:00:00');
+      const dayEndNext = new Date(dStr + 'T23:59:59.999');
+      dayEndNext.setMilliseconds(dayEndNext.getMilliseconds() + 1);
+
+      let openingCash = 0;
+      let openingBank = 0;
+      let closingCash = 0;
+      let closingBank = 0;
+
+      for (const a of cashAccounts) {
+        openingCash += await computeBalance(a.id, dayStart);
+        closingCash += await computeBalance(a.id, dayEndNext);
+      }
+      for (const a of bankAccounts) {
+        openingBank += await computeBalance(a.id, dayStart);
+        closingBank += await computeBalance(a.id, dayEndNext);
+      }
+
+      results.push({
+        dateStr: dStr,
+        transactionCount: dateMap[dStr] || 0,
+        openingCash: Math.round(openingCash * 100) / 100,
+        openingBank: Math.round(openingBank * 100) / 100,
+        closingCash: Math.round(closingCash * 100) / 100,
+        closingBank: Math.round(closingBank * 100) / 100,
+      });
+    }
+
+    return results;
+  }
 }
 

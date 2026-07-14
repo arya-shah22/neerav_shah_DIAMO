@@ -122,4 +122,22 @@ export class ReportController {
       return { success: false, error: error.message || 'Failed to fetch GST analytics' };
     }
   }
+
+  async handleGetDayBookSummary(payload: { companyId: number; dateStr: string }) {
+    try {
+      const data = await this.service.getDayBookSummary(payload.companyId, payload.dateStr);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch Day Book' };
+    }
+  }
+
+  async handleGetDayBookDatesList(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getDayBookDatesList(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch Day Book list' };
+    }
+  }
 }
