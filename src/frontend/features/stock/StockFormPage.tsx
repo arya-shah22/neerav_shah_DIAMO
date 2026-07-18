@@ -32,6 +32,7 @@ export const StockFormPage: React.FC = () => {
   const [previewId, setPreviewId] = useState('');
   const [useManualId, setUseManualId] = useState(false);
   const [editBlocked, setEditBlocked] = useState(false);
+  const [piecesNotCounted, setPiecesNotCounted] = useState(false);
 
   const { invoke: fetchStock } = useIpc<IStockPacket>('stock:get');
   const { invoke: createStock, loading: creating } = useIpc('stock:create');
@@ -105,6 +106,7 @@ export const StockFormPage: React.FC = () => {
         if (!EDITABLE_STOCK_STATUSES.includes(s.currentStatus)) {
           setEditBlocked(true);
         }
+        setPiecesNotCounted(s.pieceCount === 0);
         reset({
           stockIdNumber: s.stockIdNumber,
           qualityId: s.qualityId,
@@ -288,7 +290,7 @@ export const StockFormPage: React.FC = () => {
               searchable={false}
               clearable={false}
             />
-            <Input label="Location / Vault" {...register('currentLocation')} />
+            <Input label="Remarks" {...register('currentLocation')} />
           </div>
           {isEdit && currentStatus && (
             <div style={{ marginTop: '12px' }}>
@@ -318,7 +320,30 @@ export const StockFormPage: React.FC = () => {
               )}
             />
             <Input label="Carat Weight *" type="number" step="0.001" error={errors.caratWeight?.message} {...register('caratWeight', { valueAsNumber: true })} />
-            <Input label="Piece Count" type="number" error={errors.pieceCount?.message} {...register('pieceCount', { valueAsNumber: true })} />
+            <div>
+              <Input
+                label="Piece Count"
+                type="number"
+                disabled={piecesNotCounted}
+                error={errors.pieceCount?.message}
+                {...register('pieceCount', { valueAsNumber: true })}
+              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: 'var(--text-small)', cursor: 'pointer', userSelect: 'none' }}>
+                <input
+                  type="checkbox"
+                  checked={piecesNotCounted}
+                  onChange={(e) => {
+                    setPiecesNotCounted(e.target.checked);
+                    if (e.target.checked) {
+                      setValue('pieceCount', 0);
+                    } else {
+                      setValue('pieceCount', 1);
+                    }
+                  }}
+                />
+                Pieces are not counted
+              </label>
+            </div>
             <Input label="Color" {...register('color')} />
             <Input 
               label="Clarity" 

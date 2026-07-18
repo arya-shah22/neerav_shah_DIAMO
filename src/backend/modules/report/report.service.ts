@@ -884,6 +884,107 @@ export class ReportService {
       totalValue: q.value,
     }));
 
+    // 4. Advanced Analytics (Ageing, Concentrations, Turnover)
+    const today = new Date();
+    const ageing = {
+      days_0_30: { count: 0, carats: 0, value: 0 },
+      days_31_90: { count: 0, carats: 0, value: 0 },
+      days_91_180: { count: 0, carats: 0, value: 0 },
+      days_181_365: { count: 0, carats: 0, value: 0 },
+      above_365: { count: 0, carats: 0, value: 0 },
+    };
+
+    const shapeMap = new Map<string, { count: number; carats: number; value: number }>();
+    const clarityMap = new Map<string, { count: number; carats: number; value: number }>();
+
+    let totalCogs = 0;
+    let soldPacketsCountForAge = 0;
+    let totalDaysToSell = 0;
+
+    for (const p of allPackets) {
+      let carats = Number(p.caratWeight || 0);
+      if (carats === 0 && (p.currentStatus === 'SOLD' || p.currentStatus === 'RETURNED' || p.currentStatus === 'DAMAGED')) {
+        const outMov = p.movements?.find(m => m.movementType === 'SALES' || m.movementType === 'PURCHASE_RETURN');
+        if (outMov) {
+          carats = Number(outMov.carats || 0);
+        }
+      }
+
+      const rate = Number(p.costPerCarat || 0);
+      const value = carats * rate;
+
+      const shape = (p.shape || 'OTHER').toUpperCase();
+      const clarity = (p.clarity || 'UNKNOWN').toUpperCase();
+
+      if (['AVAILABLE', 'HOLD', 'JOB_WORK', 'CREATED', 'PURCHASED'].includes(p.currentStatus)) {
+        if (!shapeMap.has(shape)) shapeMap.set(shape, { count: 0, carats: 0, value: 0 });
+        const sh = shapeMap.get(shape)!;
+        sh.count++;
+        sh.carats += carats;
+        sh.value += value;
+
+        if (!clarityMap.has(clarity)) clarityMap.set(clarity, { count: 0, carats: 0, value: 0 });
+        const cl = clarityMap.get(clarity)!;
+        cl.count++;
+        cl.carats += carats;
+        cl.value += value;
+
+        const regDate = p.registrationDate ? new Date(p.registrationDate) : today;
+        const diffTime = Math.abs(today.getTime() - regDate.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        if (diffDays <= 30) {
+          ageing.days_0_30.count++;
+          ageing.days_0_30.carats += carats;
+          ageing.days_0_30.value += value;
+        } else if (diffDays <= 90) {
+          ageing.days_31_90.count++;
+          ageing.days_31_90.carats += carats;
+          ageing.days_31_90.value += value;
+        } else if (diffDays <= 180) {
+          ageing.days_91_180.count++;
+          ageing.days_91_180.carats += carats;
+          ageing.days_91_180.value += value;
+        } else if (diffDays <= 365) {
+          ageing.days_181_365.count++;
+          ageing.days_181_365.carats += carats;
+          ageing.days_181_365.value += value;
+        } else {
+          ageing.above_365.count++;
+          ageing.above_365.carats += carats;
+          ageing.above_365.value += value;
+        }
+      }
+
+      if (p.currentStatus === 'SOLD') {
+        totalCogs += value;
+        const salesMov = p.movements?.find(m => m.movementType === 'SALES');
+        if (salesMov) {
+          const regDate = p.registrationDate ? new Date(p.registrationDate) : today;
+          const sellDate = new Date(salesMov.movementDate);
+          const days = Math.ceil(Math.abs(sellDate.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24));
+          totalDaysToSell += days;
+          soldPacketsCountForAge++;
+        }
+      }
+    }
+
+    const shapeConcentration = Array.from(shapeMap.entries()).map(([name, val]) => ({
+      name,
+      ...val,
+      percentage: totalValuation > 0 ? (val.value / totalValuation) * 100 : 0
+    })).sort((a, b) => b.value - a.value);
+
+    const clarityConcentration = Array.from(clarityMap.entries()).map(([name, val]) => ({
+      name,
+      ...val,
+      percentage: totalValuation > 0 ? (val.value / totalValuation) * 100 : 0
+    })).sort((a, b) => b.value - a.value);
+
+    const avgInventoryVal = totalValuation / 2 || 1;
+    const turnoverRatio = avgInventoryVal > 0 ? totalCogs / avgInventoryVal : 0;
+    const avgHoldingPeriod = soldPacketsCountForAge > 0 ? totalDaysToSell / soldPacketsCountForAge : 0;
+
     return {
       summary: {
         totalPackets,
@@ -898,7 +999,12 @@ export class ReportService {
           returned: { count: returnedCount, carats: returnedCarats, value: returnedValuation },
           damaged: { count: damagedCount, carats: damagedCarats, value: damagedValuation },
           archived: { count: archivedCount, carats: archivedCarats, value: archivedValuation },
-        }
+        },
+        ageing,
+        shapeConcentration,
+        clarityConcentration,
+        turnoverRatio,
+        avgHoldingPeriod,
       },
       qualityAggregates,
       packets: packets.map(p => {
@@ -922,6 +1028,7 @@ export class ReportService {
           totalValue: carats * Number(p.costPerCarat || 0),
           currentStatus: p.currentStatus,
           location: p.currentLocation || (p.currentStatus === 'JOB_WORK' ? 'Worker Vault' : 'Central Vault'),
+          registrationDate: p.registrationDate,
         };
       }),
     };

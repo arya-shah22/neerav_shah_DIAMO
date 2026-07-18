@@ -101,8 +101,8 @@ export const StockDetailPage: React.FC = () => {
               <DetailRow label="Cut" value={packet.cut} />
               <DetailRow label="Polish" value={packet.polish} />
               <DetailRow label="Symmetry" value={packet.symmetry} />
-              <DetailRow label="Pieces" value={packet.pieceCount} />
-              <DetailRow label="Location" value={packet.currentLocation} />
+              <DetailRow label="Pieces" value={packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount} />
+              <DetailRow label="Remarks" value={packet.currentLocation} />
             </div>
           </div>
 

@@ -1,5 +1,19 @@
 import { z } from 'zod';
 
+const optionalNumber = z.preprocess((val) => {
+  if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+    return undefined;
+  }
+  return Number(val);
+}, z.number().min(0).optional());
+
+const optionalPctNumber = z.preprocess((val) => {
+  if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+    return undefined;
+  }
+  return Number(val);
+}, z.number().min(0).max(100).optional());
+
 export const stockSchema = z
   .object({
     stockIdNumber: z.string().max(30).optional(),
@@ -12,17 +26,22 @@ export const stockSchema = z
     currentLocation: z.string().max(100).optional(),
     shape: z.string().max(30).optional(),
     caratWeight: z.number({ invalid_type_error: 'Carat weight is required' }).positive('Carat weight must be greater than zero'),
-    pieceCount: z.number().int().min(1, 'At least 1 piece').default(1),
+    pieceCount: z.preprocess((val) => {
+      if (val === '' || val === null || val === undefined || (typeof val === 'number' && isNaN(val))) {
+        return undefined;
+      }
+      return Number(val);
+    }, z.number().int().min(0, 'Cannot be negative').default(1)),
     color: z.string().max(30).optional(),
     clarity: z.string().max(30).optional(),
     cut: z.string().max(30).optional(),
     polish: z.string().max(30).optional(),
     symmetry: z.string().max(30).optional(),
-    lengthMm: z.number().min(0).optional(),
-    widthMm: z.number().min(0).optional(),
-    depthMm: z.number().min(0).optional(),
-    totalDepthPct: z.number().min(0).max(100).optional(),
-    tablePct: z.number().min(0).max(100).optional(),
+    lengthMm: optionalNumber,
+    widthMm: optionalNumber,
+    depthMm: optionalNumber,
+    totalDepthPct: optionalPctNumber,
+    tablePct: optionalPctNumber,
     certificateType: z.string().max(20).optional(),
     certificateNumber: z.string().max(50).optional(),
     costPerCarat: z.number().min(0).default(0),

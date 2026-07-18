@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Printer, Download, ArrowLeft, FileText, Filter } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -19,15 +20,53 @@ interface IQuality {
 
 export const StockReportPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const [activeTab, setActiveTab] = useState<'REGISTER' | 'QUALITY'>('REGISTER');
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'REGISTER' | 'QUALITY'>('DASHBOARD');
 
   // Filters State
   const [statusFilter, setStatusFilter] = useState('');
   const [qualityFilter, setQualityFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [agingThreshold, setAgingThreshold] = useState<number>(() => {
+    const saved = localStorage.getItem('diamo:aging-threshold');
+    return saved ? Number(saved) : 180;
+  });
 
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
+
+  // Modal State for watching stock details
+  const [activeDetailId, setActiveDetailId] = useState<number | null>(null);
+  const [modalPacket, setModalPacket] = useState<any>(null);
+  const [modalTimeline, setModalTimeline] = useState<any[]>([]);
+  const [modalLoading, setModalLoading] = useState<boolean>(false);
+
+  const { invoke: getStockDetail } = useIpc<any>('stock:get');
+  const { invoke: getStockTimeline } = useIpc<any[]>('stock:timeline');
+
+  useEffect(() => {
+    const fetchModalDetails = async () => {
+      if (!activeDetailId || !companyId) {
+        setModalPacket(null);
+        setModalTimeline([]);
+        return;
+      }
+      setModalLoading(true);
+      try {
+        const [pRes, tRes] = await Promise.all([
+          getStockDetail({ id: activeDetailId, companyId }),
+          getStockTimeline({ id: activeDetailId, companyId }),
+        ]);
+        if (pRes.success) setModalPacket(pRes.data);
+        if (tRes.success) setModalTimeline(tRes.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setModalLoading(false);
+      }
+    };
+    fetchModalDetails();
+  }, [activeDetailId, companyId, getStockDetail, getStockTimeline]);
 
   // IPC Hooks
   const { data: reportData, loading, invoke: fetchStockReport } = useIpc<any>('report:stock');
@@ -539,10 +578,52 @@ export const StockReportPage: React.FC = () => {
           onChange={(e) => setSearchQuery(e.target.value)}
           style={{ width: '240px', height: '32px' }}
         />
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', whiteSpace: 'nowrap' }}>
+            Aging Threshold:
+          </span>
+          <input
+            type="number"
+            min="1"
+            value={agingThreshold}
+            onChange={(e) => {
+              const val = Math.max(1, Number(e.target.value) || 1);
+              setAgingThreshold(val);
+              localStorage.setItem('diamo:aging-threshold', String(val));
+            }}
+            style={{
+              width: '80px',
+              height: '32px',
+              borderRadius: '4px',
+              border: '1px solid var(--color-border)',
+              background: 'transparent',
+              padding: '0 8px',
+              fontSize: '13px',
+              color: 'var(--color-text-primary)',
+              textAlign: 'center',
+            }}
+          />
+          <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Days</span>
+        </div>
       </div>
 
       {/* Tab Selectors */}
       <div className="no-print" style={{ display: 'flex', gap: '8px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+        <button
+          onClick={() => setActiveTab('DASHBOARD')}
+          style={{
+            padding: '8px 16px',
+            background: activeTab === 'DASHBOARD' ? 'var(--color-primary)' : 'transparent',
+            color: activeTab === 'DASHBOARD' ? '#ffffff' : 'var(--color-text-secondary)',
+            fontWeight: 600,
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          Valuation Dashboard
+        </button>
         <button
           onClick={() => setActiveTab('REGISTER')}
           style={{
@@ -573,35 +654,538 @@ export const StockReportPage: React.FC = () => {
         </button>
       </div>
 
-      {/* Grid view */}
-      <div className="no-print" style={{
-        background: 'var(--color-surface)',
-        border: '1px solid var(--color-border)',
-        borderRadius: '8px',
-        padding: '20px',
-      }}>
-        {activeTab === 'REGISTER' ? (
-          <DataGrid
-            columns={columns}
-            data={reportData?.packets || []}
-            keyField="id"
-            loading={loading}
-            emptyTitle="No Packets Found"
-            emptyDescription="No packets match your search and filter criteria."
-          />
+      {/* Grid/Dashboard view */}
+      <div className="no-print">
+        {activeTab === 'DASHBOARD' && reportData ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Top Row: Business Intelligence Cards */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '16px' }}>
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Inventory Turnover Ratio</span>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-success)', marginTop: '8px' }}>
+                  {reportData.summary.turnoverRatio ? reportData.summary.turnoverRatio.toFixed(2) : '0.00'}x
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px', lineHeight: '1.4' }}>
+                  Measures how fast stock is sold and replaced during the period. Higher means faster sales velocity.
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Average Holding Period</span>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: 'var(--color-primary)', marginTop: '8px' }}>
+                  {reportData.summary.avgHoldingPeriod ? Math.round(reportData.summary.avgHoldingPeriod) : '0'} Days
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px', lineHeight: '1.4' }}>
+                  Average duration in days a diamond packet stays in the vault before being successfully sold.
+                </div>
+              </div>
+
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+                <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Active Stock in Vault</span>
+                <div style={{ fontSize: '28px', fontWeight: 700, color: '#06b6d4', marginTop: '8px' }}>
+                  {((reportData.summary.statusBreakdown.available.value / (reportData.summary.totalValuation || 1)) * 100).toFixed(1)}%
+                </div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px', lineHeight: '1.4' }}>
+                  Percentage of total diamond asset value that is currently available in-vault for immediate sales.
+                </div>
+              </div>
+            </div>
+
+            {/* Middle Row: Status Donut Chart & Ageing Bar Graph */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+              {/* SVG Donut Chart */}
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '20px' }}>Inventory Status Breakdown</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '24px' }}>
+                  <div style={{ position: 'relative', width: '160px', height: '160px', flexShrink: 0 }}>
+                    <svg width="160" height="160" viewBox="0 0 160 160">
+                      <circle cx="80" cy="80" r="60" fill="transparent" stroke="var(--color-border)" strokeWidth="16" />
+                      {(() => {
+                        const total = reportData.summary.totalValuation || 1;
+                        const availablePct = (reportData.summary.statusBreakdown.available.value / total) * 100;
+                        const reservedPct = (reportData.summary.statusBreakdown.reserved.value / total) * 100;
+                        const jobWorkPct = (reportData.summary.statusBreakdown.jobWork.value / total) * 100;
+                        const soldPct = (reportData.summary.statusBreakdown.sold.value / total) * 100;
+                        
+                        const circumference = 2 * Math.PI * 60;
+                        
+                        let accumulatedOffset = 0;
+
+                        const items = [
+                          { pct: availablePct, color: 'var(--color-primary)' },
+                          { pct: reservedPct, color: '#6366f1' },
+                          { pct: jobWorkPct, color: 'var(--color-warning)' },
+                          { pct: soldPct, color: 'var(--color-success)' },
+                        ];
+
+                        return items.map((item, i) => {
+                          if (item.pct <= 0) return null;
+                          const strokeLength = (item.pct / 100) * circumference;
+                          const strokeOffset = circumference - strokeLength + accumulatedOffset;
+                          accumulatedOffset -= strokeLength;
+
+                          return (
+                            <circle
+                              key={i}
+                              cx="80"
+                              cy="80"
+                              r="60"
+                              fill="transparent"
+                              stroke={item.color}
+                              strokeWidth="16"
+                              strokeDasharray={`${strokeLength} ${circumference}`}
+                              strokeDashoffset={strokeOffset}
+                              transform="rotate(-90 80 80)"
+                            />
+                          );
+                        });
+                      })()}
+                    </svg>
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      width: '100%',
+                      height: '100%',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                    }}>
+                      <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>TOTAL VALUE</span>
+                      <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text-primary)', marginTop: '2px' }}>
+                        ₹{Math.round(reportData.summary.totalValuation / 100000)}L
+                      </span>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', width: '100%' }}>
+                    {[
+                      { name: 'Available', color: 'var(--color-primary)', value: reportData.summary.statusBreakdown.available.value, count: reportData.summary.statusBreakdown.available.count },
+                      { name: 'Reserved', color: '#6366f1', value: reportData.summary.statusBreakdown.reserved.value, count: reportData.summary.statusBreakdown.reserved.count },
+                      { name: 'Job Work', color: 'var(--color-warning)', value: reportData.summary.statusBreakdown.jobWork.value, count: reportData.summary.statusBreakdown.jobWork.count },
+                      { name: 'Sold', color: 'var(--color-success)', value: reportData.summary.statusBreakdown.sold.value, count: reportData.summary.statusBreakdown.sold.count },
+                    ].map((item, idx) => (
+                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: item.color }} />
+                          <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{item.name} ({item.count})</span>
+                        </div>
+                        <span style={{ color: 'var(--color-text-secondary)', fontWeight: 700 }}>
+                          ₹{item.value.toLocaleString('en-IN')}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* Ageing Bar Graph */}
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '20px' }}>Inventory Ageing Analysis</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', height: '140px', paddingBottom: '10px' }}>
+                  {[
+                    { label: '0-30 Days', key: 'days_0_30', color: 'var(--color-primary-light)', barColor: 'var(--color-primary)' },
+                    { label: '31-90 Days', key: 'days_31_90', color: '#e0e7ff', barColor: '#6366f1' },
+                    { label: '91-180 Days', key: 'days_91_180', color: '#ffedd5', barColor: 'var(--color-warning)' },
+                    { label: '181-365 Days', key: 'days_181_365', color: '#fee2e2', barColor: '#ef4444' },
+                    { label: '365+ Days', key: 'above_365', color: '#f3f4f6', barColor: '#6b7280' },
+                  ].map((bracket, idx) => {
+                    const data = reportData.summary.ageing[bracket.key];
+                    const val = data?.value || 0;
+                    
+                    const maxVal = Math.max(
+                      reportData.summary.ageing.days_0_30?.value || 1,
+                      reportData.summary.ageing.days_31_90?.value || 1,
+                      reportData.summary.ageing.days_91_180?.value || 1,
+                      reportData.summary.ageing.days_181_365?.value || 1,
+                      reportData.summary.ageing.above_365?.value || 1
+                    );
+                    const pctHeight = maxVal > 0 ? (val / maxVal) * 100 : 0;
+
+                    return (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '18%', gap: '8px' }}>
+                        <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                          ₹{Math.round(val / 1000)}K
+                        </div>
+                        <div style={{
+                          width: '100%',
+                          height: '90px',
+                          background: bracket.color,
+                          borderRadius: '4px 4px 0 0',
+                          position: 'relative',
+                          display: 'flex',
+                          alignItems: 'flex-end',
+                          overflow: 'hidden'
+                        }}>
+                          <div style={{
+                            width: '100%',
+                            height: `${pctHeight}%`,
+                            background: bracket.barColor,
+                            transition: 'height 0.4s ease-out',
+                          }} />
+                        </div>
+                        <div style={{ fontSize: '10px', fontWeight: 600, color: 'var(--color-text-secondary)', textAlign: 'center', whiteSpace: 'nowrap' }}>
+                          {bracket.label}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Bottom Row: Shape & Quality Value Concentrations */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '20px' }}>
+              {/* Shape Concentration */}
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '20px' }}>Valuation by Diamond Shape</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {(reportData.summary.shapeConcentration || []).slice(0, 5).map((shape: any, idx: number) => (
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ color: 'var(--color-text-primary)' }}>{shape.name}</span>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>
+                          ₹{shape.value.toLocaleString('en-IN')} ({shape.percentage.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${shape.percentage}%`, height: '100%', background: 'var(--color-primary)', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                  ))}
+                  {(!reportData.summary.shapeConcentration || reportData.summary.shapeConcentration.length === 0) && (
+                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+                      No shape concentration statistics available.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Clarity Concentration */}
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '20px' }}>Valuation by Clarity Grade</h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  {(reportData.summary.clarityConcentration || []).slice(0, 5).map((clarity: any, idx: number) => (
+                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+                        <span style={{ color: 'var(--color-text-primary)' }}>{clarity.name}</span>
+                        <span style={{ color: 'var(--color-text-secondary)' }}>
+                          ₹{clarity.value.toLocaleString('en-IN')} ({clarity.percentage.toFixed(1)}%)
+                        </span>
+                      </div>
+                      <div style={{ width: '100%', height: '8px', background: 'var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${clarity.percentage}%`, height: '100%', background: '#6366f1', borderRadius: '4px' }} />
+                      </div>
+                    </div>
+                  ))}
+                  {(!reportData.summary.clarityConcentration || reportData.summary.clarityConcentration.length === 0) && (
+                    <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
+                      No clarity concentration statistics available.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Third Row: Aging Alerts & Dead Stock Recommendations */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '16px' }}>
+                Aging Alerts & Recommendations
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {(() => {
+                  const today = new Date();
+                  const agingPackets = (reportData.packets || [])
+                    .filter((p: any) => ['AVAILABLE', 'HOLD', 'JOB_WORK'].includes(p.currentStatus))
+                    .map((p: any) => {
+                      const regDate = p.registrationDate ? new Date(p.registrationDate) : today;
+                      const ageInDays = Math.ceil(Math.abs(today.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24));
+                      return { ...p, ageInDays };
+                    })
+                    .filter((p: any) => p.ageInDays >= agingThreshold)
+                    .sort((a: any, b: any) => b.ageInDays - a.ageInDays);
+
+                  if (agingPackets.length === 0) {
+                    return (
+                      <div style={{
+                        padding: '16px',
+                        background: 'var(--color-success-light)',
+                        border: '1px solid var(--color-success)',
+                        borderRadius: '6px',
+                        color: 'var(--color-success)',
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        textAlign: 'center',
+                      }}>
+                        All active vault inventory is fresh! No packets exceed the {agingThreshold}-day aging threshold.
+                      </div>
+                    );
+                  }
+
+                  return agingPackets.map((pkt: any, idx: number) => {
+                    const cycle = Math.floor(pkt.ageInDays / agingThreshold);
+                    const isMultiple = pkt.ageInDays % agingThreshold === 0;
+                    
+                    const badgeBg = cycle >= 2 ? 'var(--color-danger-light)' : 'var(--color-warning-light)';
+                    const badgeColor = cycle >= 2 ? 'var(--color-danger)' : 'var(--color-warning)';
+                    const recommendation = cycle >= 2
+                      ? `Critical Dead Stock (Reminder Cycle ${cycle}). No sales movement for over ${cycle * agingThreshold} days. Recommended Action: Mount this packet into finished jewelry, or offer an additional 5% brokerage commission incentive to liquidating brokers.`
+                      : `Aging Stock (Reminder Cycle ${cycle}). Held for over ${agingThreshold} days. Recommended Action: Check recent Rapaport price lists to adjust base rates, or request a fresh lab grading report to increase marketability.`;
+
+                    return (
+                      <div key={idx} style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '8px',
+                        padding: '16px',
+                        background: '#f8fafc',
+                        border: '1px solid var(--color-border)',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                            <span style={{ fontWeight: 700, color: 'var(--color-text-primary)' }}>{pkt.stockIdNumber}</span>
+                            <span style={{ color: 'var(--color-text-secondary)' }}>
+                              ({pkt.shape} • {pkt.caratWeight.toFixed(3)} Cts • {pkt.color || '—'} {pkt.clarity || '—'})
+                            </span>
+                            <button
+                              onClick={() => setActiveDetailId(pkt.id)}
+                              style={{
+                                padding: '2px 8px',
+                                background: 'transparent',
+                                border: '1px solid var(--color-primary)',
+                                color: 'var(--color-primary)',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                transition: 'all 0.2s',
+                              }}
+                              onMouseEnter={(e) => {
+                                e.currentTarget.style.background = 'var(--color-primary)';
+                                e.currentTarget.style.color = '#ffffff';
+                              }}
+                              onMouseLeave={(e) => {
+                                e.currentTarget.style.background = 'transparent';
+                                e.currentTarget.style.color = 'var(--color-primary)';
+                              }}
+                            >
+                              Watch Stock
+                            </button>
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px' }}>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              background: '#e0f2fe',
+                              color: '#0369a1',
+                            }}>
+                              Cycle {cycle} Alert
+                            </span>
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 700,
+                              padding: '4px 8px',
+                              borderRadius: '4px',
+                              background: badgeBg,
+                              color: badgeColor,
+                            }}>
+                              {pkt.ageInDays} Days Old
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
+              </div>
+            </div>
+          </div>
+        ) : activeTab === 'REGISTER' ? (
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+            <DataGrid
+              columns={columns}
+              data={reportData?.packets || []}
+              keyField="id"
+              loading={loading}
+              emptyTitle="No Packets Found"
+              emptyDescription="No packets match your search and filter criteria."
+            />
+          </div>
         ) : (
-          <DataGrid
-            columns={qualityColumns}
-            data={reportData?.qualityAggregates || []}
-            keyField="qualityName"
-            loading={loading}
-            emptyTitle="No Qualities Aggregated"
-            emptyDescription="Register stock packets to compute quality aggregates."
-          />
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+            <DataGrid
+              columns={qualityColumns}
+              data={reportData?.qualityAggregates || []}
+              keyField="qualityName"
+              loading={loading}
+              emptyTitle="No Qualities Aggregated"
+              emptyDescription="Register stock packets to compute quality aggregates."
+            />
+          </div>
         )}
       </div>
 
       {/* Choose Print Destination Modal */}
+      {/* Watch Stock Details Popup Modal */}
+      {activeDetailId && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          width: '100vw',
+          height: '100vh',
+          background: 'rgba(15, 23, 42, 0.4)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1001,
+        }}>
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '850px',
+            width: '90%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.25)',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '20px',
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px' }}>
+              <div>
+                <h3 style={{ fontSize: '18px', fontWeight: 800, color: 'var(--color-primary)', fontFamily: 'monospace' }}>
+                  {modalPacket ? modalPacket.stockIdNumber : 'Loading...'}
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                  {modalPacket?.quality?.qualityName || 'Packet'} Details
+                </p>
+              </div>
+              <button 
+                onClick={() => setActiveDetailId(null)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-text-secondary)',
+                  fontSize: '18px',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  padding: '4px',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            {modalLoading ? (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)', padding: '40px' }}>Loading packet specs...</p>
+            ) : modalPacket ? (
+              <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '24px' }}>
+                {/* Left Side: Specs Grid */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Diamond Specifications</h4>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+                    {[
+                      { label: 'Status', value: modalPacket.currentStatus },
+                      { label: 'Category', value: modalPacket.category },
+                      { label: 'Registration Date', value: new Date(modalPacket.registrationDate).toLocaleDateString('en-IN') },
+                      { label: 'Carats', value: `${Number(modalPacket.caratWeight).toFixed(3)} Cts` },
+                      { label: 'Pieces', value: modalPacket.pieceCount === 0 ? 'Not Counted' : modalPacket.pieceCount },
+                      { label: 'Shape', value: modalPacket.shape || '—' },
+                      { label: 'Color', value: modalPacket.color || '—' },
+                      { label: 'Clarity', value: modalPacket.clarity || '—' },
+                      { label: 'Cut Grade', value: modalPacket.cut || '—' },
+                      { label: 'Polish Grade', value: modalPacket.polish || '—' },
+                      { label: 'Symmetry', value: modalPacket.symmetry || '—' },
+                      {label: 'Remarks', value: modalPacket.currentLocation || '—'},
+                      { label: 'Lab Cert Number', value: modalPacket.certificateNumber || '—' },
+                    ].map((row, idx) => (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>{row.label}</span>
+                        <span style={{ fontSize: '13px', color: 'var(--color-text-primary)', fontWeight: 600 }}>{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ background: '#f8fafc', padding: '16px', borderRadius: '8px', border: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Cost / Carat</span>
+                      <span style={{ fontSize: '15px', color: 'var(--color-success)', fontWeight: 700 }}>
+                        ₹{Number(modalPacket.costPerCarat || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', alignItems: 'flex-end' }}>
+                      <span style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Total Cost</span>
+                      <span style={{ fontSize: '15px', color: 'var(--color-success)', fontWeight: 700 }}>
+                        ₹{Number(modalPacket.totalCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Side: Timeline movements */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Packet History & Logs</h4>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', maxHeight: '340px', overflowY: 'auto', paddingRight: '4px' }}>
+                    {(modalTimeline || []).map((mov, i) => (
+                      <div key={i} style={{ padding: '12px', background: '#f8fafc', borderLeft: '4px solid var(--color-primary)', borderRadius: '0 6px 6px 0', fontSize: '12px', border: '1px solid var(--color-border)', borderLeftWidth: '4px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontWeight: 700, color: 'var(--color-text-primary)' }}>
+                          <span>{mov.movementType}</span>
+                          <span style={{ color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                            {new Date(mov.movementDate).toLocaleDateString('en-IN')}
+                          </span>
+                        </div>
+                        <div style={{ marginTop: '6px', color: 'var(--color-text-secondary)', fontSize: '11px' }}>
+                          Status changed: {mov.previousStatus} ➜ {mov.newStatus}
+                        </div>
+                        {mov.remarks && (
+                          <div style={{ marginTop: '4px', fontStyle: 'italic', color: 'var(--color-text-secondary)' }}>
+                            "{mov.remarks}"
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {(!modalTimeline || modalTimeline.length === 0) && (
+                      <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '20px' }}>No transaction history logged.</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <p style={{ textAlign: 'center', color: 'var(--color-text-secondary)' }}>Failed to load packet info.</p>
+            )}
+
+            {/* Modal Footer */}
+            <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: '12px' }}>
+              <button 
+                onClick={() => setActiveDetailId(null)}
+                style={{
+                  padding: '8px 20px',
+                  background: 'var(--color-primary)',
+                  color: '#ffffff',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                }}
+              >
+                Close Details
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
       {showPrintModal && (
         <div style={{
           position: 'fixed',

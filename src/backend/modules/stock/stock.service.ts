@@ -182,12 +182,12 @@ export class StockService {
           companyId,
           qualityId,
           stockIdNumber,
-          category: (data.category as StockCategory) || StockCategory.NON_CERTIFIED,
+          category: ((data.category as StockCategory) || StockCategory.NON_CERTIFIED).toUpperCase() as StockCategory,
           registrationDate,
-          shape: emptyToNull(data.shape),
+          shape: toUpperOrNull(data.shape),
           caratWeight,
           pieceCount,
-          color: emptyToNull(data.color),
+          color: toUpperOrNull(data.color),
           clarity: toUpperOrNull(data.clarity),
           cut: toUpperOrNull(data.cut),
           polish: toUpperOrNull(data.polish),
@@ -197,13 +197,13 @@ export class StockService {
           depthMm: toDecimalOrNull(data.depthMm),
           totalDepthPct: toDecimalOrNull(data.totalDepthPct),
           tablePct: toDecimalOrNull(data.tablePct),
-          certificateType: emptyToNull(data.certificateType),
+          certificateType: toUpperOrNull(data.certificateType),
           certificateNumber: emptyToNull(data.certificateNumber),
           costPerCarat,
           totalCost,
           currentStatus: targetStatus,
           currentOwnership: StockOwnership.COMPANY,
-          currentLocation: emptyToNull(data.currentLocation),
+          currentLocation: toUpperOrNull(data.currentLocation),
           createdBy: userId ?? null,
         },
         include: STOCK_INCLUDE,
@@ -285,14 +285,14 @@ export class StockService {
         where: { id },
         data: {
           qualityId,
-          category: (data.category as StockCategory) ?? existing.category,
+           category: data.category !== undefined ? (data.category as StockCategory)?.toUpperCase() as StockCategory : existing.category,
           registrationDate: data.registrationDate
             ? new Date(data.registrationDate as string)
             : existing.registrationDate,
-          shape: data.shape !== undefined ? emptyToNull(data.shape) : existing.shape,
+          shape: data.shape !== undefined ? toUpperOrNull(data.shape) : existing.shape,
           caratWeight,
           pieceCount,
-          color: data.color !== undefined ? emptyToNull(data.color) : existing.color,
+          color: data.color !== undefined ? toUpperOrNull(data.color) : existing.color,
           clarity: data.clarity !== undefined ? toUpperOrNull(data.clarity) : existing.clarity,
           cut: data.cut !== undefined ? toUpperOrNull(data.cut) : existing.cut,
           polish: data.polish !== undefined ? toUpperOrNull(data.polish) : existing.polish,
@@ -308,7 +308,7 @@ export class StockService {
             data.tablePct !== undefined ? toDecimalOrNull(data.tablePct) : existing.tablePct,
           certificateType:
             data.certificateType !== undefined
-              ? emptyToNull(data.certificateType)
+              ? toUpperOrNull(data.certificateType)
               : existing.certificateType,
           certificateNumber:
             data.certificateNumber !== undefined
@@ -319,7 +319,7 @@ export class StockService {
           currentStatus: newStatus,
           currentLocation:
             data.currentLocation !== undefined
-              ? emptyToNull(data.currentLocation)
+              ? toUpperOrNull(data.currentLocation)
               : existing.currentLocation,
           updatedBy: userId ?? null,
           version: { increment: 1 },
@@ -602,12 +602,12 @@ export class StockService {
               companyId,
               qualityId,
               stockIdNumber,
-              category: (row.category as StockCategory) || StockCategory.NON_CERTIFIED,
+              category: ((row.category as StockCategory) || StockCategory.NON_CERTIFIED).toUpperCase() as StockCategory,
               registrationDate: new Date(),
-              shape: emptyToNull(row.shape),
+              shape: toUpperOrNull(row.shape),
               caratWeight,
               pieceCount,
-              color: emptyToNull(row.color),
+              color: toUpperOrNull(row.color),
               clarity: toUpperOrNull(row.clarity),
               cut: toUpperOrNull(row.cut),
               polish: toUpperOrNull(row.polish),
@@ -617,7 +617,7 @@ export class StockService {
               depthMm: toDecimalOrNull(row.depthMm),
               totalDepthPct: toDecimalOrNull(row.totalDepthPct),
               tablePct: toDecimalOrNull(row.tablePct),
-              certificateType: emptyToNull(row.certificateType),
+              certificateType: toUpperOrNull(row.certificateType),
               certificateNumber: emptyToNull(row.certificateNumber),
               costPerCarat,
               totalCost,
