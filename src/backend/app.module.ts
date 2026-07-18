@@ -20,6 +20,7 @@ import { JournalModule } from './modules/journal/journal.module';
 import { CashBankModule } from './modules/cashbank/cashbank.module';
 import { LoanModule } from './modules/loan/loan.module';
 import { ReportModule } from './modules/report/report.module';
+import { ReportValidationModule } from './modules/report-validation/report-validation.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { ReportModule } from './modules/report/report.module';
     CashBankModule,
     LoanModule,
     ReportModule,
+    ReportValidationModule,
   ],
   controllers: [],
   providers: [

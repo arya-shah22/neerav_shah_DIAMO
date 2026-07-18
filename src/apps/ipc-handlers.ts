@@ -19,6 +19,7 @@ import { JournalController } from '../backend/modules/journal/journal.controller
 import { CashBankController } from '../backend/modules/cashbank/cashbank.controller';
 import { LoanController } from '../backend/modules/loan/loan.controller';
 import { ReportController } from '../backend/modules/report/report.controller';
+import { ReportValidationController } from '../backend/modules/report-validation/report-validation.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -54,6 +55,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const cashBankController = nestApp.get(CashBankController);
   const loanController = nestApp.get(LoanController);
   const reportController = nestApp.get(ReportController);
+  const reportValidationController = nestApp.get(ReportValidationController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -424,4 +426,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   // ─── Phase 11.2: Financial Statement Additions ─────────────
   ipcHandle(ipcMain, 'report:cash-flow', (payload) => reportController.handleGetCashFlow(payload));
   ipcHandle(ipcMain, 'report:fund-flow', (payload) => reportController.handleGetFundFlow(payload));
+
+  // ─── Phase 11.10: Enterprise Report Validation & Auditing ───
+  ipcHandle(ipcMain, 'report:run-health-checks', (payload) => reportValidationController.handleRunHealthChecks(payload));
+  ipcHandle(ipcMain, 'report:get-validation-history', (payload) => reportValidationController.handleGetValidationHistory(payload));
+  ipcHandle(ipcMain, 'report:generate-certificate', (payload) => reportValidationController.handleGenerateCertificate(payload));
 }

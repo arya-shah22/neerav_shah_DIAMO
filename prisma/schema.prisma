@@ -1746,6 +1746,22 @@ model AuditLog {
   @@map("audit_logs")
 }
 
+model ReportValidationLog {
+  id             Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId      Int      @map("company_id") @db.UnsignedInt
+  validationDate DateTime @default(now()) @map("validation_date")
+  checkType      String   @map("check_type") @db.VarChar(50)
+  status         String   @map("status") @db.VarChar(20)
+  summary        String   @map("summary") @db.VarChar(255)
+  detailsJson    String   @map("details_json") @db.LongText
+  certifiedBy    String   @map("certified_by") @db.VarChar(50)
+  certificateNo  String   @unique @map("certificate_no") @db.VarChar(50)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([companyId, validationDate], map: "IX_report_validation_company_date")
+  @@map("report_validation_logs")
+}
+
 /// User-facing notification/alert records.
 model NotificationRecord {
   id               Int                  @id @default(autoincrement()) @db.UnsignedInt

@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { Search, Star, Play, FileText, Archive, Calendar, Plus, Trash2, ArrowRight, Folder } from 'lucide-react';
+import { Search, Star, Play, FileText, Archive, Calendar, Plus, Trash2, ArrowRight, Folder, ShieldCheck, ShieldAlert, CheckCircle, AlertTriangle, Lock, Unlock, Printer, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input } from '../../components/ui';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -28,7 +28,7 @@ import {
   getOutstandingPDFHtml
 } from '../../utils/reportExports';
 
-type IntelligenceTab = 'SEARCH_LIBRARY' | 'AUTOMATION' | 'ARCHIVES';
+type IntelligenceTab = 'SEARCH_LIBRARY' | 'AUTOMATION' | 'ARCHIVES' | 'AUDIT';
 
 interface ReportDefinition {
   path: string;
@@ -68,7 +68,6 @@ export const ReportIntelligencePage: React.FC = () => {
   const [favorites, setFavorites] = useState<string[]>([]);
   const [schedules, setSchedules] = useState<any[]>([]);
   const [archives, setArchives] = useState<any[]>([]);
-
   // State for new schedule modal/inputs
   const [newSched, setNewSched] = useState({
     reportPath: '/reports/balance-sheet',
@@ -76,6 +75,14 @@ export const ReportIntelligencePage: React.FC = () => {
     frequency: 'Monthly',
     format: 'PDF'
   });
+
+  // Audit & System Validation States
+  const [validating, setValidating] = useState(false);
+  const [validationResult, setValidationResult] = useState<any>(null);
+  const [validationHistory, setValidationHistory] = useState<any[]>([]);
+  const [periodLocked, setPeriodLocked] = useState(false);
+  const [lockDate, setLockDate] = useState('2026-03-31');
+  const [certifiedBy, setCertifiedBy] = useState('Auditor Arya Shah');
 
   useEffect(() => {
     // Load favorites
@@ -118,7 +125,22 @@ export const ReportIntelligencePage: React.FC = () => {
       setArchives(initialArch);
       localStorage.setItem('diamo_report_archives', JSON.stringify(initialArch));
     }
-  }, []);
+
+    // Load Period Lock Configurations
+    const isLocked = localStorage.getItem('diamo_period_locked') === 'true';
+    setPeriodLocked(isLocked);
+    const lockedUntil = localStorage.getItem('diamo_lock_date') || '2026-03-31';
+    setLockDate(lockedUntil);
+
+    // Load validation history
+    if (companyId) {
+      window.api.invoke('report:get-validation-history', { companyId }).then((res: any) => {
+        if (res && res.success) {
+          setValidationHistory(res.history);
+        }
+      });
+    }
+  }, [companyId]);
 
   // Synchronise state from background scheduler when updates occur in localStorage
   useEffect(() => {
@@ -228,6 +250,135 @@ export const ReportIntelligencePage: React.FC = () => {
     const updated = archives.filter(a => a.id !== id);
     setArchives(updated);
     localStorage.setItem('diamo_report_archives', JSON.stringify(updated));
+  };
+
+  // Run Health diagnostics reconciliation matrix
+  const runHealthDiagnostics = async () => {
+    if (!companyId) return;
+    setValidating(true);
+    try {
+      const res = await window.api.invoke('report:run-health-checks', { companyId });
+      if (res && res.success) {
+        setValidationResult(res);
+      } else {
+        alert(`Validation check failed: ${res?.error || 'Unknown error'}`);
+      }
+    } catch (e: any) {
+      alert(`Error running health checks: ${e.message}`);
+    } finally {
+      setValidating(false);
+    }
+  };
+
+  // Sign and Certify report validation certificate
+  const signAndCertify = async () => {
+    if (!companyId || !validationResult) return;
+    try {
+      const payload = {
+        companyId,
+        checkType: 'HEALTH_AND_RECONCILIATION',
+        status: validationResult.status,
+        summary: validationResult.summary,
+        certifiedBy,
+        details: validationResult.checks
+      };
+      const res = await window.api.invoke('report:generate-certificate', payload);
+      if (res && res.success) {
+        alert(`Validation Certificate successfully generated & registered!\nCertificate No: ${res.certificateNo}`);
+        // Reload history list
+        const histRes = await window.api.invoke('report:get-validation-history', { companyId });
+        if (histRes && histRes.success) {
+          setValidationHistory(histRes.history);
+        }
+      } else {
+        alert(`Failed to save validation certificate: ${res?.error}`);
+      }
+    } catch (e: any) {
+      alert(`Error generating certificate: ${e.message}`);
+    }
+  };
+
+  // Toggle Period Lock
+  const togglePeriodLock = (locked: boolean) => {
+    setPeriodLocked(locked);
+    localStorage.setItem('diamo_period_locked', String(locked));
+    localStorage.setItem('diamo_lock_date', lockDate);
+    alert(`Financial postings ${locked ? 'LOCKED' : 'UNLOCKED'} prior to date: ${lockDate}`);
+  };
+
+  // Print Validation Certificate
+  const printCertificate = (cert: any) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+    const checksRows = (cert.details || []).map((c: any) => `
+      <tr>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; font-weight: 600;">${c.name}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; color: #666; font-size: 12px;">${c.description}</td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+          <span style="font-weight: 700; font-size: 11px; padding: 3px 8px; border-radius: 4px; background: ${c.status === 'PASS' ? '#d4edda' : '#f8d7da'}; color: ${c.status === 'PASS' ? '#155724' : '#721c24'}">${c.status}</span>
+        </td>
+        <td style="padding: 10px; border-bottom: 1px solid #ddd; font-size: 12px;">${c.details}</td>
+      </tr>
+    `).join('');
+
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>DIAMO ERP - Digital Validation Certificate</title>
+          <style>
+            body { font-family: 'Segoe UI', system-ui, sans-serif; padding: 40px; color: #333; }
+            .header { text-align: center; border-bottom: 3px double #1a365d; padding-bottom: 20px; margin-bottom: 30px; }
+            .cert-box { border: 2px solid #1a365d; padding: 30px; border-radius: 8px; }
+            h1 { color: #1a365d; margin: 0; font-size: 24px; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th { background: #f4f6f9; padding: 10px; text-align: left; border-bottom: 2px solid #ddd; }
+            .signature { margin-top: 40px; display: flex; justify-content: space-between; border-top: 1px solid #eee; padding-top: 20px; }
+          </style>
+        </head>
+        <body onload="window.print()">
+          <div class="cert-box">
+            <div class="header">
+              <h1>DIAMO ERP</h1>
+              <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #666; margin-top: 4px;">Official Digital Validation Report & Certificate</div>
+            </div>
+            
+            <div style="margin-bottom: 20px;">
+              <p><strong>Certificate No:</strong> ${cert.certificateNo}</p>
+              <p><strong>Validation Date:</strong> ${new Date(cert.validationDate).toLocaleString('en-IN')}</p>
+              <p><strong>Status:</strong> <span style="font-weight:700; color: ${cert.status === 'PASS' ? '#27ae60' : '#c0392b'}">${cert.status}</span></p>
+              <p><strong>Summary:</strong> ${cert.summary}</p>
+            </div>
+
+            <h3>Audit Check Results</h3>
+            <table>
+              <thead>
+                <tr>
+                  <th>Check Name</th>
+                  <th>Objective</th>
+                  <th>Status</th>
+                  <th>Audit Finding Details</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${checksRows}
+              </tbody>
+            </table>
+
+            <div class="signature">
+              <div>
+                <p><strong>System Identification</strong></p>
+                <p style="font-size:12px; color:#888;">DIAMO ERP Validation Engine v1.0</p>
+              </div>
+              <div style="text-align: right;">
+                <p><strong>Certified & Signed By:</strong></p>
+                <p><u>${cert.certifiedBy}</u></p>
+              </div>
+            </div>
+          </div>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
   };
 
   const generateReportHTML = (reportPath: string, companyName: string, d: any): string => {
@@ -769,6 +920,9 @@ export const ReportIntelligencePage: React.FC = () => {
         <button style={activeTabStyle('ARCHIVES')} onClick={() => setActiveTab('ARCHIVES')}>
           Generated Archives
         </button>
+        <button style={activeTabStyle('AUDIT')} onClick={() => setActiveTab('AUDIT')}>
+          Reconciliation & Auditing
+        </button>
       </div>
 
       {/* Tab Contents */}
@@ -994,6 +1148,165 @@ export const ReportIntelligencePage: React.FC = () => {
                 </div>
               ))}
             </div>
+          </div>
+        )}
+
+        {activeTab === 'AUDIT' && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+            
+            {/* Health check / validation matrix */}
+            <div style={cardStyle}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <div>
+                  <h3 style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <ShieldCheck size={18} style={{ color: 'var(--color-primary)' }} /> Automated Health Diagnostics
+                  </h3>
+                  <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                    Verify system variance, cash books, stock valuation, and double-entry consistency equations.
+                  </p>
+                </div>
+                <Button 
+                  variant="primary" 
+                  disabled={validating}
+                  onClick={runHealthDiagnostics}
+                  style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '12px' }}
+                >
+                  <RefreshCw size={14} className={validating ? 'spin-anim' : ''} /> {validating ? 'Verifying ledgers...' : 'Run Health Checks'}
+                </Button>
+              </div>
+
+              {validationResult && (
+                <div style={{ marginTop: '20px', borderTop: '1px solid var(--color-border)', paddingTop: '20px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '14px', borderRadius: '6px', background: validationResult.status === 'PASS' ? 'rgba(46, 204, 113, 0.1)' : 'rgba(231, 76, 60, 0.1)', marginBottom: '20px' }}>
+                    {validationResult.status === 'PASS' ? (
+                      <CheckCircle size={22} style={{ color: '#2ecc71' }} />
+                    ) : (
+                      <AlertTriangle size={22} style={{ color: '#e74c3c' }} />
+                    )}
+                    <div>
+                      <div style={{ fontWeight: 700, fontSize: '14px', color: validationResult.status === 'PASS' ? '#27ae60' : '#c0392b' }}>
+                        System Diagnostics Result: {validationResult.status}
+                      </div>
+                      <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                        {validationResult.summary}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {validationResult.checks.map((c: any, i: number) => (
+                      <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', border: '1px solid var(--color-border)', borderRadius: '6px' }}>
+                        <div>
+                          <div style={{ fontWeight: 600, fontSize: '13px' }}>{c.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>{c.description}</div>
+                          <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-primary)', marginTop: '6px' }}>Audit: {c.details}</div>
+                        </div>
+                        <span style={{
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '4px',
+                          background: c.status === 'PASS' ? '#e8f8f5' : (c.status === 'WARNING' ? '#fef9e7' : '#fadbd8'),
+                          color: c.status === 'PASS' ? '#1abc9c' : (c.status === 'WARNING' ? '#f1c40f' : '#e74c3c')
+                        }}>{c.status}</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Certify Form */}
+                  <div style={{ marginTop: '20px', background: 'var(--color-bg-light)', padding: '14px', borderRadius: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid var(--color-border)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      <span style={{ fontSize: '13px', fontWeight: 600 }}>Certified By:</span>
+                      <input 
+                        type="text" 
+                        value={certifiedBy} 
+                        onChange={(e) => setCertifiedBy(e.target.value)} 
+                        style={{ border: '1px solid var(--color-border)', padding: '6px 12px', fontSize: '12px', borderRadius: '4px', outline: 'none', background: 'var(--color-surface)', color: 'var(--color-text-primary)' }}
+                      />
+                    </div>
+                    <Button variant="primary" onClick={signAndCertify} style={{ padding: '6px 16px', fontSize: '12px' }}>
+                      Sign & Register Certificate
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Period locking cards */}
+            <div style={cardStyle}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                {periodLocked ? <Lock size={18} style={{ color: 'var(--color-error)' }} /> : <Unlock size={18} style={{ color: 'var(--color-primary)' }} />} Period Locking (Closed Books)
+              </h3>
+              <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                Strict audit control: Lock posting of journals, invoices, and cash transactions prior to a set historical date.
+              </p>
+              
+              <div style={{ display: 'flex', gap: '16px', alignItems: 'center', marginTop: '16px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Lock Postings Prior To:</span>
+                  <input 
+                    type="date" 
+                    value={lockDate} 
+                    onChange={(e) => setLockDate(e.target.value)}
+                    style={{ border: '1px solid var(--color-border)', padding: '6px 12px', fontSize: '12px', borderRadius: '4px', outline: 'none', background: 'var(--color-surface)', color: 'var(--color-text-primary)' }}
+                  />
+                </div>
+
+                <div style={{ marginTop: '18px' }}>
+                  {periodLocked ? (
+                    <Button variant="outline" onClick={() => togglePeriodLock(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '12px' }}>
+                      <Unlock size={14} /> Unlock Financial Postings
+                    </Button>
+                  ) : (
+                    <Button variant="primary" onClick={() => togglePeriodLock(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '12px', background: 'var(--color-error)' }}>
+                      <Lock size={14} /> Lock Postings Strictly
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Digital certificates list */}
+            <div style={cardStyle}>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <FileText size={18} style={{ color: 'var(--color-primary)' }} /> Registered Validation Certificates
+              </h3>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+                {validationHistory.length === 0 ? (
+                  <div style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: '13px', padding: '20px' }}>
+                    No digital certificates generated yet. Run diagnostic checks to certify ledger balances.
+                  </div>
+                ) : (
+                  validationHistory.map((h, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px', border: '1px solid var(--color-border)', borderRadius: '6px' }}>
+                      <div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 700 }}>{h.certificateNo}</span>
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '2px 6px',
+                            borderRadius: '4px',
+                            background: h.status === 'PASS' ? '#e8f8f5' : '#fadbd8',
+                            color: h.status === 'PASS' ? '#1abc9c' : '#e74c3c'
+                          }}>{h.status}</span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+                          Certified By: {h.certifiedBy} | Date: {new Date(h.validationDate).toLocaleString('en-IN')}
+                        </div>
+                        <div style={{ fontSize: '12px', fontWeight: 500, color: 'var(--color-text-primary)', marginTop: '4px' }}>
+                          Summary: {h.summary}
+                        </div>
+                      </div>
+                      <Button variant="ghost" onClick={() => printCertificate(h)} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}>
+                        <Printer size={14} /> Print Certificate
+                      </Button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
           </div>
         )}
       </div>
