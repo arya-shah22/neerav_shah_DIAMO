@@ -104,6 +104,185 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
     }
   });
 
+  ipcMain.handle('system:save-file-direct', async (_, payload: { targetPath: string; filename: string; content: string; encoding?: string }) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const os = require('os');
+
+      let fullDir = payload.targetPath;
+      if (fullDir.startsWith('Documents')) {
+        fullDir = path.join(os.homedir(), 'Documents', fullDir.replace(/^Documents\/?/, ''));
+      } else if (fullDir.startsWith('Desktop')) {
+        fullDir = path.join(os.homedir(), 'Desktop', fullDir.replace(/^Desktop\/?/, ''));
+      } else if (!path.isAbsolute(fullDir)) {
+        fullDir = path.join(os.homedir(), fullDir);
+      }
+
+      if (!fs.existsSync(fullDir)) {
+        fs.mkdirSync(fullDir, { recursive: true });
+      }
+
+      const filePath = path.join(fullDir, payload.filename);
+      if (payload.encoding === 'base64') {
+        fs.writeFileSync(filePath, Buffer.from(payload.content, 'base64'));
+      } else {
+        fs.writeFileSync(filePath, payload.content, 'utf-8');
+      }
+      return { success: true, filePath };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to save file' };
+    }
+  });
+
+  ipcMain.handle('system:open-file', async (_, payload: { filePath: string }) => {
+    try {
+      const { shell } = require('electron');
+      const fs = require('fs');
+      if (!fs.existsSync(payload.filePath)) {
+        return { success: false, error: 'File does not exist on disk' };
+      }
+      await shell.openPath(payload.filePath);
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to open file' };
+    }
+  });
+
+  ipcMain.handle('system:filter-existing-files', async (_, payload: { archives: any[] }) => {
+    try {
+      const fs = require('fs');
+      const filtered = payload.archives.filter(a => {
+        let path = a.filePath;
+        if (!path && a.params && a.params.includes('Saved Path: ')) {
+          path = a.params.split('Saved Path: ')[1]?.trim();
+        }
+        if (!path) return true; // Keep initial metadata-only mocks
+        return fs.existsSync(path);
+      });
+      return { success: true, archives: filtered };
+    } catch (err: any) {
+      return { success: false, error: err.message, archives: payload.archives };
+    }
+  });
+
+  ipcMain.handle('system:print-pdf-direct', async (event, payload: { html: string; targetPath: string; filename: string }) => {
+    const { BrowserWindow } = require('electron');
+    const fs = require('fs');
+    const path = require('path');
+    const os = require('os');
+
+    const workerWin = new BrowserWindow({
+      show: false,
+      width: 1200,
+      height: 800,
+      webPreferences: {
+        nodeIntegration: false,
+        contextIsolation: true
+      }
+    });
+
+    const tempFilePath = path.join(os.tmpdir(), `diamo_temp_print_${Date.now()}.html`);
+
+    try {
+      // Extract active CSS styles and variables from main window, converting relative paths to absolute paths
+      let styles = '';
+      try {
+        styles = await event.sender.executeJavaScript(`
+          (() => {
+            const origin = window.location.origin;
+            return Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+              .map(el => {
+                if (el.tagName === 'LINK' && el.getAttribute('href')?.startsWith('/')) {
+                  const clone = el.cloneNode(true);
+                  clone.setAttribute('href', origin + el.getAttribute('href'));
+                  return clone.outerHTML;
+                }
+                return el.outerHTML;
+              })
+              .join('\\n');
+          })()
+        `);
+      } catch (e) {
+        console.error('Failed to extract styles from main window', e);
+      }
+
+      const resetStyles = `
+        <style>
+          html, body {
+            display: block !important;
+            flex-direction: column !important;
+            width: 100% !important;
+            height: auto !important;
+            background: #ffffff !important;
+            padding: 0 !important;
+            margin: 0 !important;
+          }
+          #print-area, .print-page {
+            display: block !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            padding: 20mm !important;
+            box-sizing: border-box !important;
+          }
+        </style>
+      `;
+
+      // Prepend extracted styles to the head tag
+      const styledHtml = payload.html.includes('</head>')
+        ? payload.html.replace('</head>', `${styles}${resetStyles}</head>`)
+        : `<head>${styles}${resetStyles}</head>${payload.html}`;
+
+      fs.writeFileSync(tempFilePath, styledHtml, 'utf-8');
+      await workerWin.loadFile(tempFilePath);
+
+      // Wait a moment for rendering and fonts to paint
+      await new Promise((resolve) => setTimeout(resolve, 250));
+
+      const data = await workerWin.webContents.printToPDF({
+        margins: {
+          top: 0.4,
+          bottom: 0.4,
+          left: 0.4,
+          right: 0.4
+        },
+        pageSize: 'A4',
+        printBackground: true,
+        landscape: false,
+      });
+
+      let fullDir = payload.targetPath;
+      if (fullDir.startsWith('Documents')) {
+        fullDir = path.join(os.homedir(), 'Documents', fullDir.replace(/^Documents\/?/, ''));
+      } else if (fullDir.startsWith('Desktop')) {
+        fullDir = path.join(os.homedir(), 'Desktop', fullDir.replace(/^Desktop\/?/, ''));
+      } else if (!path.isAbsolute(fullDir)) {
+        fullDir = path.join(os.homedir(), fullDir);
+      }
+
+      if (!fs.existsSync(fullDir)) {
+        fs.mkdirSync(fullDir, { recursive: true });
+      }
+
+      const filePath = path.join(fullDir, payload.filename);
+      fs.writeFileSync(filePath, data);
+
+      workerWin.close();
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {}
+
+      return { success: true, filePath };
+    } catch (err: any) {
+      workerWin.close();
+      try {
+        fs.unlinkSync(tempFilePath);
+      } catch (e) {}
+      return { success: false, error: err.message || 'Failed to print background PDF' };
+    }
+  });
+
   // ─── Stage 1: Auth ───────────────────────────────────────
   ipcHandle(ipcMain, 'auth:login', (payload) => authController.handleLogin(payload));
   ipcHandle(ipcMain, 'auth:logout', (payload) => authController.handleLogout(payload));
@@ -229,4 +408,20 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'report:gst-analytics', (payload) => reportController.handleGetGstAnalytics(payload));
   ipcHandle(ipcMain, 'report:day-book', (payload) => reportController.handleGetDayBookSummary(payload));
   ipcHandle(ipcMain, 'report:day-book-list', (payload) => reportController.handleGetDayBookDatesList(payload));
+
+  // ─── Phase 11.6: TDS & TCS Reports ────────────────────────
+  ipcHandle(ipcMain, 'report:tds-register', (payload) => reportController.handleGetTdsRegister(payload));
+  ipcHandle(ipcMain, 'report:tcs-register', (payload) => reportController.handleGetTcsRegister(payload));
+  ipcHandle(ipcMain, 'report:tds-tcs-dashboard', (payload) => reportController.handleGetTdsTcsDashboard(payload));
+  ipcHandle(ipcMain, 'report:tds-partywise', (payload) => reportController.handleGetTdsPartywise(payload));
+  ipcHandle(ipcMain, 'report:tcs-partywise', (payload) => reportController.handleGetTcsPartywise(payload));
+
+  // ─── Phase 11.8: Enterprise MIS & Business Analytics ─────
+  ipcHandle(ipcMain, 'report:mis-dashboard', (payload) => reportController.handleGetMisDashboard(payload));
+  ipcHandle(ipcMain, 'report:mis-stock-job', (payload) => reportController.handleGetMisStockJobAnalytics(payload));
+  ipcHandle(ipcMain, 'report:mis-ratios', (payload) => reportController.handleGetMisFinancialRatios(payload));
+
+  // ─── Phase 11.2: Financial Statement Additions ─────────────
+  ipcHandle(ipcMain, 'report:cash-flow', (payload) => reportController.handleGetCashFlow(payload));
+  ipcHandle(ipcMain, 'report:fund-flow', (payload) => reportController.handleGetFundFlow(payload));
 }

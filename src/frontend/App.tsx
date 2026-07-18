@@ -34,6 +34,11 @@ import { Gstr2ReconciliationPage } from './features/reports/Gstr2ReconciliationP
 import { Gstr3bReportPage } from './features/reports/Gstr3bReportPage';
 import { GstAnalyticsPage } from './features/reports/GstAnalyticsPage';
 import { DayBookPage } from './features/reports/DayBookPage';
+import { TdsTcsDashboardPage } from './features/reports/TdsTcsDashboardPage';
+import { MisDashboardPage } from './features/reports/MisDashboardPage';
+import { CashFlowPage } from './features/reports/CashFlowPage';
+import { FundFlowPage } from './features/reports/FundFlowPage';
+import { ReportIntelligencePage } from './features/reports/ReportIntelligencePage';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -402,6 +407,8 @@ const App: React.FC = () => {
                 <Route path="/reports/trial-balance" element={<TrialBalancePage />} />
                 <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
                 <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
+                <Route path="/reports/cash-flow" element={<CashFlowPage />} />
+                <Route path="/reports/fund-flow" element={<FundFlowPage />} />
                 <Route path="/reports/outstanding" element={<OutstandingReportPage />} />
                 <Route path="/reports/stock" element={<StockReportPage />} />
                 <Route path="/reports/gst" element={<GstDashboardPage />} />
@@ -409,6 +416,9 @@ const App: React.FC = () => {
                 <Route path="/reports/gstr2" element={<Gstr2ReconciliationPage />} />
                 <Route path="/reports/gstr3b" element={<Gstr3bReportPage />} />
                 <Route path="/reports/gst-analytics" element={<GstAnalyticsPage />} />
+                <Route path="/reports/tds-tcs" element={<TdsTcsDashboardPage />} />
+                <Route path="/reports/mis" element={<MisDashboardPage />} />
+                <Route path="/reports/intelligence" element={<ReportIntelligencePage />} />
                 <Route path="/reports/day-book" element={<DayBookPage />} />
 
                 {/* Legacy redirects */}

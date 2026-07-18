@@ -8,6 +8,7 @@ import { Printer, Download, ArrowLeft, FileText } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
+import { getBalanceSheetCSV } from '../../utils/reportExports';
 
 export const BalanceSheetPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
@@ -36,57 +37,7 @@ export const BalanceSheetPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!bsData) return;
-    const rows = [
-      ['LIABILITIES & CAPITAL', '', 'ASSETS', ''],
-      ['Group Name', 'Amount', 'Group Name', 'Amount'],
-    ];
-
-    const maxLength = Math.max(
-      bsData.capital.length + bsData.liabilities.length,
-      bsData.assets.length
-    );
-
-    const liabList = [
-      ...bsData.capital.map((c: any) => ({ name: c.groupName, amount: c.amount })),
-      ...bsData.liabilities.map((l: any) => ({ name: l.groupName, amount: l.amount }))
-    ];
-
-    for (let i = 0; i < maxLength; i++) {
-      const liab = liabList[i] || { name: '', amount: '' };
-      const asset = bsData.assets[i] || { name: '', amount: '' };
-      rows.push([
-        liab.name ? `"${liab.name}"` : '',
-        liab.amount,
-        asset.name ? `"${asset.name}"` : '',
-        asset.amount
-      ]);
-    }
-
-    rows.push([]);
-    rows.push([
-      '"Total Liabilities & Capital"',
-      bsData.totalLiabilities + bsData.totalCapital,
-      '"Total Assets"',
-      bsData.totalAssets
-    ]);
-
-    if (bsData.profitLossDetails) {
-      const pl = bsData.profitLossDetails;
-      rows.push([]);
-      rows.push(['TRADING & PROFIT & LOSS SUMMARY']);
-      rows.push(['Opening Stock', 0, 'Sales', pl.revenue.sales]);
-      rows.push(['Purchases', pl.costOfGoods.purchases, 'Direct Income', pl.revenue.jobWorkIncome]);
-      rows.push(['Direct Expenses', pl.costOfGoods.jobWorkExpense + pl.costOfGoods.directExpense, 'Indirect Income', pl.otherIncome]);
-      rows.push(['Indirect Expenses', pl.expenses.operatingExpense, 'Closing Stock', 0]);
-      rows.push([
-        pl.netProfit < 0 ? 'NET LOSS' : '',
-        pl.netProfit < 0 ? Math.abs(pl.netProfit) : '',
-        pl.netProfit >= 0 ? 'NET PROFIT' : '',
-        pl.netProfit >= 0 ? pl.netProfit : ''
-      ]);
-    }
-
-    const csvContent = rows.map(e => e.join(',')).join('\n');
+    const csvContent = getBalanceSheetCSV(bsData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

@@ -169,11 +169,9 @@ Logs all status changes:
 *   **Power BI Integration:** Direct APIs to export clean accounting data feeds to custom BI dashboards.
 *   **AI Ledger Audits:** Automatically scans ledger postings to flag classification anomalies.
 
----
-
 ## 26. Architect Recommendations
-1.  **Unique Barcode Constraints:** Enforce unique packet numbers to prevent overlapping dispatches.
-2.  **Stateless Tracking API:** Run ageing calculations in background worker processes to prevent UI lag.
+1.  **Profit Closure Automation:** Automatically calculate and transfer the current period's Profit & Loss net balance as reserves/retained earnings to the Capital section of the Balance Sheet.
+2.  **Cash Flow Double-Entry Classification:** Run direct-method cash flow class matching in memory using cached general ledger transactions to optimize performance and prevent database query round-trip overhead.
 
 ---
 

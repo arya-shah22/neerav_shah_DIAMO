@@ -23,7 +23,8 @@ import {
   Handshake,
   Package,
   ChevronDown,
-  ChevronRight
+  ChevronRight,
+  Brain
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -196,6 +197,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/trial-balance', label: 'Trial Balance', icon: <FileText size={16} /> },
         { path: '/reports/profit-loss', label: 'Profit & Loss', icon: <BarChart3 size={16} /> },
         { path: '/reports/balance-sheet', label: 'Balance Sheet', icon: <BarChart3 size={16} /> },
+        { path: '/reports/cash-flow', label: 'Cash Flow', icon: <FileText size={16} /> },
+        { path: '/reports/fund-flow', label: 'Fund Flow', icon: <FileText size={16} /> },
         { path: '/reports/outstanding', label: 'Outstanding Statements', icon: <FileText size={16} /> },
         { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
         { path: '/reports/gst', label: 'GST Dashboard', icon: <FileText size={16} /> },
@@ -203,6 +206,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/gstr2', label: 'GSTR-2 & ITC Rec', icon: <FileText size={16} /> },
         { path: '/reports/gstr3b', label: 'GSTR-3B Summary', icon: <FileText size={16} /> },
         { path: '/reports/gst-analytics', label: 'GST Analytics', icon: <FileText size={16} /> },
+        { path: '/reports/tds-tcs', label: 'TDS & TCS', icon: <FileText size={16} /> },
+        { path: '/reports/mis', label: 'MIS & Analytics', icon: <BarChart3 size={16} /> },
+        { path: '/reports/intelligence', label: 'Report Intelligence', icon: <Brain size={16} /> },
         { path: '/reports/day-book', label: 'Day Book', icon: <FileText size={16} /> },
       ],
     },

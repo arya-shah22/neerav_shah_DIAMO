@@ -117,9 +117,9 @@ Dashboard metrics and analytics refresh automatically when transactions are save
 ---
 
 ## 23. Business Rules
-1.  **Strict Balance Constraint:** Voucher save blocked if variance is not zero.
-2.  **No Edits on Reconciled Vouchers:** Reversing or editing a voucher requires first undoing its reconciliation.
-3.  **Approval Logs:** Historical approval records cannot be deleted.
+1.  **Ratio Formula Compliance:** Working capital ratio calculations must utilize verified ledger assets and outstanding receivables.
+2.  **Stock Aging Boundaries:** Inventory classification maps packets unmoved for over 90 days into slow-moving/inactive pools.
+3.  **Audit History Constraints:** Report parameters and execution logs are tracked and cannot be back-dated.
 
 ---
 
@@ -162,14 +162,14 @@ Logs all status changes:
 ---
 
 ## 30. Architect Recommendations
-1.  **Unique Barcode Constraints:** Enforce unique packet numbers to prevent overlapping dispatches.
-2.  **Stateless Tracking API:** Run ageing calculations in background worker processes to prevent UI lag.
+1.  **Materialized Aggregation:** Periodically cache or pre-aggregate monthly sales/purchase totals to prevent full table scans.
+2.  **Debounced Refresh Action:** UI refresh controls should be debounced to prevent duplicate concurrent query dispatches.
 
 ---
 
 ## 31. Final Completion Checklist
-*   [x] Document journal types and entry modes (Simple vs. Advanced).
-*   [x] Map the posting pipeline and double-entry validation equations.
-*   [x] Detail the reversal voucher workflow and status flows.
-*   [x] Map validations, permissions, and audit log rules.
-*   [x] Document report and ledger integrations.
+*   [x] Document key financial ratios and operational metrics.
+*   [x] Map database query aggregation and grouping strategies.
+*   [x] Detail slow-moving stock aging bands and job cycle times.
+*   [x] Document dashboard visual CSS charts and date range filtering.
+*   [x] Map print preview options modal and export rules.

@@ -9,6 +9,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
+import { getStockReportCSV } from '../../utils/reportExports';
 
 interface IQuality {
   id: number;
@@ -84,51 +85,7 @@ export const StockReportPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!reportData) return;
-    let rows: any[] = [];
-    
-    // Add summary header lines
-    rows.push(['STOCK REPORT SUMMARY']);
-    rows.push(['Total Packets', reportData.summary.totalPackets, `${reportData.summary.totalCarats.toFixed(3)} Cts`]);
-    rows.push(['Total Valuation', `₹${reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]);
-    rows.push(['Available Stock', `${reportData.summary.statusBreakdown.available.count} Pkts`, `${reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.available.value}`]);
-    rows.push(['Reserved / Hold', `${reportData.summary.statusBreakdown.reserved.count} Pkts`, `${reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.reserved.value}`]);
-    rows.push(['In Job Work', `${reportData.summary.statusBreakdown.jobWork.count} Pkts`, `${reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.jobWork.value}`]);
-    rows.push(['Transit / Created', `${reportData.summary.statusBreakdown.transit.count} Pkts`, `${reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.transit.value}`]);
-    rows.push(['Sold', `${reportData.summary.statusBreakdown.sold.count} Pkts`, `${reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.sold.value}`]);
-    rows.push(['Returned', `${reportData.summary.statusBreakdown.returned.count} Pkts`, `${reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.returned.value}`]);
-    rows.push(['Damaged', `${reportData.summary.statusBreakdown.damaged.count} Pkts`, `${reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.damaged.value}`]);
-    rows.push([]); // Empty spacing line
-    
-    if (activeTab === 'REGISTER') {
-      rows.push(['PACKET NUMBER', 'QUALITY', 'SHAPE', 'COLOR', 'CLARITY', 'CARATS', 'RATE', 'VALUE', 'STATUS', 'LOCATION']);
-      reportData.packets.forEach((p: any) => {
-        rows.push([
-          `"${p.stockIdNumber}"`,
-          `"${p.qualityName}"`,
-          `"${p.shape || '—'}"`,
-          `"${p.color || '—'}"`,
-          `"${p.clarity || '—'}"`,
-          p.caratWeight,
-          p.costRate,
-          p.totalValue,
-          `"${p.currentStatus}"`,
-          `"${p.location}"`
-        ]);
-      });
-    } else {
-      rows.push(['QUALITY GRADE', 'PACKET COUNT', 'TOTAL CARAT', 'AVERAGE RATE', 'TOTAL VALUE']);
-      reportData.qualityAggregates.forEach((q: any) => {
-        rows.push([
-          `"${q.qualityName}"`,
-          q.count,
-          q.carats,
-          q.averageRate,
-          q.totalValue
-        ]);
-      });
-    }
-
-    const csvContent = rows.map(e => e.join(',')).join('\n');
+    const csvContent = getStockReportCSV(reportData, activeTab);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

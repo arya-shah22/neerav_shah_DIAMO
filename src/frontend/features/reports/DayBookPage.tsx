@@ -10,6 +10,7 @@ import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { useCompanyStore, formatFinancialYearLabel } from '../../state/company-store';
+import { getDayBookCSV } from '../../utils/reportExports';
 
 export const DayBookPage: React.FC = () => {
   const { activeCompany, companyId } = useActiveCompany();
@@ -66,17 +67,7 @@ export const DayBookPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!detailData || !detailData.transactions) return;
-    const headers = ['VOUCHER NO', 'TYPE', 'PARTICULARS', 'DEBIT (DR)', 'CREDIT (CR)', 'NARRATION'];
-    const rows = detailData.transactions.map((t: any) => [
-      `"${t.voucherNumber}"`,
-      `"${t.voucherType}"`,
-      `"${t.accountName}"`,
-      t.debitCreditType === 'DEBIT' ? t.amount : 0,
-      t.debitCreditType === 'CREDIT' ? t.amount : 0,
-      `"${t.narration || ''}"`
-    ]);
-
-    const csvContent = [headers.join(','), ...rows.map((e: any) => e.join(','))].join('\n');
+    const csvContent = getDayBookCSV(detailData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

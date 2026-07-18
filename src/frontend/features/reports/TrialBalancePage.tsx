@@ -9,6 +9,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
+import { getTrialBalanceCSV } from '../../utils/reportExports';
 
 export const TrialBalancePage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
@@ -53,17 +54,7 @@ export const TrialBalancePage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!tbData || !tbData.groups) return;
-    const headers = ['ACCOUNT GROUP', 'DEBIT (Dr)', 'CREDIT (Cr)'];
-    const rows = tbData.groups.map((row: any) => [
-      `"${row.groupName}"`,
-      row.debit,
-      row.credit
-    ]);
-    
-    rows.push(['"Total Balance"', tbData.totalDebit, tbData.totalCredit]);
-    rows.push(['"Variance"', tbData.variance, '']);
-
-    const csvContent = [headers.join(','), ...rows.map((e: any) => e.join(','))].join('\n');
+    const csvContent = getTrialBalanceCSV(tbData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

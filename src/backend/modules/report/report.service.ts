@@ -2174,5 +2174,863 @@ export class ReportService {
 
     return results;
   }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 11.6: TDS & TCS REPORTS
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * TDS Register – all purchase invoices where TDS was deducted.
+   */
+  async getTdsRegister(companyId: number, startDate?: string, endDate?: string) {
+    const where: any = {
+      companyId,
+      isDeleted: false,
+      totalTds: { gt: 0 },
+    };
+    if (startDate) where.invoiceDate = { ...(where.invoiceDate || {}), gte: new Date(startDate) };
+    if (endDate) where.invoiceDate = { ...(where.invoiceDate || {}), lte: new Date(endDate) };
+
+    const invoices = await this.prisma.purchaseInvoice.findMany({
+      where,
+      include: {
+        supplier: { select: { id: true, accountName: true, panNumber: true } },
+      },
+      orderBy: { invoiceDate: 'desc' },
+    });
+
+    return invoices.map((inv) => ({
+      id: inv.id,
+      date: inv.invoiceDate,
+      voucherNumber: inv.voucherNumber,
+      billNumber: inv.billNumber,
+      partyName: inv.supplier.accountName,
+      panNumber: inv.supplier.panNumber || '—',
+      tdsSection: inv.tdsSection || '—',
+      deductibleValue: Number(inv.totalGrossAmount),
+      tdsRate: Number(inv.tdsRate),
+      tdsAmount: Number(inv.totalTds),
+      netPayment: Number(inv.netAmount),
+      deductionDate: inv.invoiceDate,
+    }));
+  }
+
+  /**
+   * TCS Register – all sale invoices where TCS was collected.
+   */
+  async getTcsRegister(companyId: number, startDate?: string, endDate?: string) {
+    const where: any = {
+      companyId,
+      isDeleted: false,
+      totalTcs: { gt: 0 },
+    };
+    if (startDate) where.invoiceDate = { ...(where.invoiceDate || {}), gte: new Date(startDate) };
+    if (endDate) where.invoiceDate = { ...(where.invoiceDate || {}), lte: new Date(endDate) };
+
+    const invoices = await this.prisma.saleInvoice.findMany({
+      where,
+      include: {
+        customer: { select: { id: true, accountName: true, panNumber: true } },
+      },
+      orderBy: { invoiceDate: 'desc' },
+    });
+
+    return invoices.map((inv) => ({
+      id: inv.id,
+      date: inv.invoiceDate,
+      voucherNumber: inv.voucherNumber,
+      billNumber: inv.billNumber,
+      partyName: inv.customer.accountName,
+      panNumber: inv.customer.panNumber || '—',
+      tcsSection: inv.tcsSection || '—',
+      taxableValue: Number(inv.totalGrossAmount),
+      tcsRate: Number(inv.tcsRate),
+      tcsAmount: Number(inv.totalTcs),
+      invoiceTotal: Number(inv.netAmount),
+      collectionDate: inv.invoiceDate,
+    }));
+  }
+
+  /**
+   * TDS/TCS Dashboard – summary KPIs + monthly trend data.
+   */
+  async getTdsTcsDashboard(companyId: number, startDate?: string, endDate?: string) {
+    const purchaseWhere: any = {
+      companyId,
+      isDeleted: false,
+      totalTds: { gt: 0 },
+    };
+    const saleWhere: any = {
+      companyId,
+      isDeleted: false,
+      totalTcs: { gt: 0 },
+    };
+    if (startDate) {
+      purchaseWhere.invoiceDate = { ...(purchaseWhere.invoiceDate || {}), gte: new Date(startDate) };
+      saleWhere.invoiceDate = { ...(saleWhere.invoiceDate || {}), gte: new Date(startDate) };
+    }
+    if (endDate) {
+      purchaseWhere.invoiceDate = { ...(purchaseWhere.invoiceDate || {}), lte: new Date(endDate) };
+      saleWhere.invoiceDate = { ...(saleWhere.invoiceDate || {}), lte: new Date(endDate) };
+    }
+
+    // Aggregate TDS
+    const tdsAgg = await this.prisma.purchaseInvoice.aggregate({
+      where: purchaseWhere,
+      _sum: { totalTds: true, totalGrossAmount: true },
+      _count: { id: true },
+    });
+
+    // Aggregate TCS
+    const tcsAgg = await this.prisma.saleInvoice.aggregate({
+      where: saleWhere,
+      _sum: { totalTcs: true, totalGrossAmount: true },
+      _count: { id: true },
+    });
+
+    // TDS section breakdown
+    const tdsInvoices = await this.prisma.purchaseInvoice.findMany({
+      where: purchaseWhere,
+      select: { tdsSection: true, totalTds: true, totalGrossAmount: true, tdsRate: true, invoiceDate: true },
+    });
+
+    const tdsSectionMap: Record<string, { count: number; taxableValue: number; tdsAmount: number; rates: number[] }> = {};
+    const tdsMonthlyMap: Record<string, number> = {};
+
+    for (const inv of tdsInvoices) {
+      const section = inv.tdsSection || 'Unspecified';
+      if (!tdsSectionMap[section]) tdsSectionMap[section] = { count: 0, taxableValue: 0, tdsAmount: 0, rates: [] };
+      tdsSectionMap[section].count += 1;
+      tdsSectionMap[section].taxableValue += Number(inv.totalGrossAmount);
+      tdsSectionMap[section].tdsAmount += Number(inv.totalTds);
+      tdsSectionMap[section].rates.push(Number(inv.tdsRate));
+
+      const monthKey = inv.invoiceDate.toISOString().slice(0, 7);
+      tdsMonthlyMap[monthKey] = (tdsMonthlyMap[monthKey] || 0) + Number(inv.totalTds);
+    }
+
+    // TCS section breakdown
+    const tcsInvoices = await this.prisma.saleInvoice.findMany({
+      where: saleWhere,
+      select: { tcsSection: true, totalTcs: true, totalGrossAmount: true, tcsRate: true, invoiceDate: true },
+    });
+
+    const tcsSectionMap: Record<string, { count: number; taxableValue: number; tcsAmount: number; rates: number[] }> = {};
+    const tcsMonthlyMap: Record<string, number> = {};
+
+    for (const inv of tcsInvoices) {
+      const section = inv.tcsSection || 'Unspecified';
+      if (!tcsSectionMap[section]) tcsSectionMap[section] = { count: 0, taxableValue: 0, tcsAmount: 0, rates: [] };
+      tcsSectionMap[section].count += 1;
+      tcsSectionMap[section].taxableValue += Number(inv.totalGrossAmount);
+      tcsSectionMap[section].tcsAmount += Number(inv.totalTcs);
+      tcsSectionMap[section].rates.push(Number(inv.tcsRate));
+
+      const monthKey = inv.invoiceDate.toISOString().slice(0, 7);
+      tcsMonthlyMap[monthKey] = (tcsMonthlyMap[monthKey] || 0) + Number(inv.totalTcs);
+    }
+
+    // Format section breakdowns
+    const tdsSections = Object.entries(tdsSectionMap).map(([code, d]) => ({
+      sectionCode: code,
+      transactionCount: d.count,
+      totalTaxableValue: Math.round(d.taxableValue * 100) / 100,
+      tdsAmount: Math.round(d.tdsAmount * 100) / 100,
+      averageRate: d.rates.length ? Math.round((d.rates.reduce((a, b) => a + b, 0) / d.rates.length) * 100) / 100 : 0,
+    }));
+
+    const tcsSections = Object.entries(tcsSectionMap).map(([code, d]) => ({
+      sectionCode: code,
+      transactionCount: d.count,
+      totalTaxableValue: Math.round(d.taxableValue * 100) / 100,
+      tcsAmount: Math.round(d.tcsAmount * 100) / 100,
+      averageRate: d.rates.length ? Math.round((d.rates.reduce((a, b) => a + b, 0) / d.rates.length) * 100) / 100 : 0,
+    }));
+
+    // Monthly trend (merge both)
+    const allMonths = new Set([...Object.keys(tdsMonthlyMap), ...Object.keys(tcsMonthlyMap)]);
+    const monthlyTrend = Array.from(allMonths).sort().map((month) => ({
+      month,
+      tdsAmount: Math.round((tdsMonthlyMap[month] || 0) * 100) / 100,
+      tcsAmount: Math.round((tcsMonthlyMap[month] || 0) * 100) / 100,
+    }));
+
+    return {
+      summary: {
+        totalTdsDeducted: Math.round(Number(tdsAgg._sum.totalTds || 0) * 100) / 100,
+        totalTdsTaxableValue: Math.round(Number(tdsAgg._sum.totalGrossAmount || 0) * 100) / 100,
+        tdsTransactionCount: tdsAgg._count.id,
+        totalTcsCollected: Math.round(Number(tcsAgg._sum.totalTcs || 0) * 100) / 100,
+        totalTcsTaxableValue: Math.round(Number(tcsAgg._sum.totalGrossAmount || 0) * 100) / 100,
+        tcsTransactionCount: tcsAgg._count.id,
+      },
+      tdsSections,
+      tcsSections,
+      monthlyTrend,
+    };
+  }
+
+  /**
+   * Party-wise TDS Report.
+   */
+  async getTdsPartywise(companyId: number, startDate?: string, endDate?: string) {
+    const where: any = {
+      companyId,
+      isDeleted: false,
+      totalTds: { gt: 0 },
+    };
+    if (startDate) where.invoiceDate = { ...(where.invoiceDate || {}), gte: new Date(startDate) };
+    if (endDate) where.invoiceDate = { ...(where.invoiceDate || {}), lte: new Date(endDate) };
+
+    const invoices = await this.prisma.purchaseInvoice.findMany({
+      where,
+      include: {
+        supplier: { select: { id: true, accountName: true, panNumber: true } },
+      },
+    });
+
+    const partyMap: Record<number, {
+      partyName: string;
+      pan: string;
+      sections: Set<string>;
+      billCount: number;
+      totalTaxableValue: number;
+      tdsDeducted: number;
+      netPayments: number;
+    }> = {};
+
+    for (const inv of invoices) {
+      const pid = inv.supplierId;
+      if (!partyMap[pid]) {
+        partyMap[pid] = {
+          partyName: inv.supplier.accountName,
+          pan: inv.supplier.panNumber || '—',
+          sections: new Set(),
+          billCount: 0,
+          totalTaxableValue: 0,
+          tdsDeducted: 0,
+          netPayments: 0,
+        };
+      }
+      partyMap[pid].billCount += 1;
+      partyMap[pid].totalTaxableValue += Number(inv.totalGrossAmount);
+      partyMap[pid].tdsDeducted += Number(inv.totalTds);
+      partyMap[pid].netPayments += Number(inv.netAmount);
+      if (inv.tdsSection) partyMap[pid].sections.add(inv.tdsSection);
+    }
+
+    return Object.values(partyMap).map((p) => ({
+      partyName: p.partyName,
+      pan: p.pan,
+      tdsSection: Array.from(p.sections).join(', ') || '—',
+      billCount: p.billCount,
+      totalTaxableValue: Math.round(p.totalTaxableValue * 100) / 100,
+      tdsDeducted: Math.round(p.tdsDeducted * 100) / 100,
+      netPayments: Math.round(p.netPayments * 100) / 100,
+    })).sort((a, b) => b.tdsDeducted - a.tdsDeducted);
+  }
+
+  /**
+   * Party-wise TCS Report.
+   */
+  async getTcsPartywise(companyId: number, startDate?: string, endDate?: string) {
+    const where: any = {
+      companyId,
+      isDeleted: false,
+      totalTcs: { gt: 0 },
+    };
+    if (startDate) where.invoiceDate = { ...(where.invoiceDate || {}), gte: new Date(startDate) };
+    if (endDate) where.invoiceDate = { ...(where.invoiceDate || {}), lte: new Date(endDate) };
+
+    const invoices = await this.prisma.saleInvoice.findMany({
+      where,
+      include: {
+        customer: { select: { id: true, accountName: true, panNumber: true } },
+      },
+    });
+
+    const partyMap: Record<number, {
+      partyName: string;
+      pan: string;
+      sections: Set<string>;
+      billCount: number;
+      totalTaxableValue: number;
+      tcsCollected: number;
+    }> = {};
+
+    for (const inv of invoices) {
+      const pid = inv.customerId;
+      if (!partyMap[pid]) {
+        partyMap[pid] = {
+          partyName: inv.customer.accountName,
+          pan: inv.customer.panNumber || '—',
+          sections: new Set(),
+          billCount: 0,
+          totalTaxableValue: 0,
+          tcsCollected: 0,
+        };
+      }
+      partyMap[pid].billCount += 1;
+      partyMap[pid].totalTaxableValue += Number(inv.totalGrossAmount);
+      partyMap[pid].tcsCollected += Number(inv.totalTcs);
+      if (inv.tcsSection) partyMap[pid].sections.add(inv.tcsSection);
+    }
+
+    return Object.values(partyMap).map((p) => ({
+      partyName: p.partyName,
+      pan: p.pan,
+      tcsSection: Array.from(p.sections).join(', ') || '—',
+      billCount: p.billCount,
+      totalTaxableValue: Math.round(p.totalTaxableValue * 100) / 100,
+      tcsCollected: Math.round(p.tcsCollected * 100) / 100,
+    })).sort((a, b) => b.tcsCollected - a.tcsCollected);
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // PHASE 11.8: ENTERPRISE MIS & BUSINESS ANALYTICS
+  // ═══════════════════════════════════════════════════════════════
+
+  async getMisDashboard(companyId: number, startDate?: string, endDate?: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const tomorrow = new Date(today);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+
+    // Date range filters
+    // Date range filters
+    const saleWhere: any = { companyId, isDeleted: false, invoiceType: 'SALE_INVOICE' };
+    const purchaseWhere: any = { companyId, isDeleted: false, invoiceType: 'PURCHASE_INVOICE' };
+    const cbWhere: any = { companyId, isDeleted: false };
+
+    if (startDate) {
+      const start = new Date(startDate);
+      saleWhere.invoiceDate = { ...(saleWhere.invoiceDate || {}), gte: start };
+      purchaseWhere.invoiceDate = { ...(purchaseWhere.invoiceDate || {}), gte: start };
+      cbWhere.voucherDate = { ...(cbWhere.voucherDate || {}), gte: start };
+    }
+    if (endDate) {
+      const end = new Date(endDate);
+      saleWhere.invoiceDate = { ...(saleWhere.invoiceDate || {}), lte: end };
+      purchaseWhere.invoiceDate = { ...(purchaseWhere.invoiceDate || {}), lte: end };
+      cbWhere.voucherDate = { ...(cbWhere.voucherDate || {}), lte: end };
+    }
+
+    // 1. Today's KPIs
+    const todaySales = await this.prisma.saleInvoice.aggregate({
+      where: { companyId, isDeleted: false, invoiceType: 'SALE_INVOICE', invoiceDate: { gte: today, lt: tomorrow } },
+      _sum: { netAmount: true },
+    });
+    const todayPurchases = await this.prisma.saleInvoice.aggregate({
+      where: { companyId, isDeleted: false, invoiceType: 'PURCHASE_INVOICE', invoiceDate: { gte: today, lt: tomorrow } },
+      _sum: { netAmount: true },
+    });
+
+    // 2. Period aggregates
+    const salesTotal = await this.prisma.saleInvoice.aggregate({
+      where: saleWhere,
+      _sum: { netAmount: true, totalGrossAmount: true, totalDiscount: true },
+      _count: { id: true },
+    });
+
+    const purchasesTotal = await this.prisma.saleInvoice.aggregate({
+      where: purchaseWhere,
+      _sum: { netAmount: true, totalGrossAmount: true },
+      _count: { id: true },
+    });
+
+    // 3. Monthly trend for CSS graph
+    const monthlySales = await this.prisma.saleInvoice.findMany({
+      where: saleWhere,
+      select: { invoiceDate: true, netAmount: true },
+    });
+    const monthlyPurchases = await this.prisma.saleInvoice.findMany({
+      where: purchaseWhere,
+      select: { invoiceDate: true, netAmount: true },
+    });
+
+    const monthlyMap: Record<string, { sales: number; purchases: number }> = {};
+    for (const s of monthlySales) {
+      const month = s.invoiceDate.toISOString().slice(0, 7);
+      if (!monthlyMap[month]) monthlyMap[month] = { sales: 0, purchases: 0 };
+      monthlyMap[month].sales += Number(s.netAmount);
+    }
+    for (const p of monthlyPurchases) {
+      const month = p.invoiceDate.toISOString().slice(0, 7);
+      if (!monthlyMap[month]) monthlyMap[month] = { sales: 0, purchases: 0 };
+      monthlyMap[month].purchases += Number(p.netAmount);
+    }
+
+    const monthlyTrend = Object.entries(monthlyMap).map(([month, data]) => ({
+      month,
+      sales: Math.round(data.sales * 100) / 100,
+      purchases: Math.round(data.purchases * 100) / 100,
+    })).sort((a, b) => a.month.localeCompare(b.month));
+
+    // 4. Top Customers & Suppliers
+    const topCustomersRaw = await this.prisma.saleInvoice.groupBy({
+      by: ['customerId'],
+      where: saleWhere,
+      _sum: { netAmount: true },
+      _count: { id: true },
+      orderBy: { _sum: { netAmount: 'desc' } },
+      take: 5,
+    });
+    const topCustomers = await Promise.all(topCustomersRaw.map(async (tc) => {
+      const acc = await this.prisma.account.findUnique({ where: { id: tc.customerId }, select: { accountName: true } });
+      return {
+        partyName: acc?.accountName || '—',
+        billCount: tc._count.id,
+        netAmount: Math.round(Number(tc._sum.netAmount || 0) * 100) / 100,
+      };
+    }));
+
+    const topSuppliersRaw = await this.prisma.saleInvoice.groupBy({
+      by: ['customerId'],
+      where: purchaseWhere,
+      _sum: { netAmount: true },
+      _count: { id: true },
+      orderBy: { _sum: { netAmount: 'desc' } },
+      take: 5,
+    });
+    const topSuppliers = await Promise.all(topSuppliersRaw.map(async (ts) => {
+      const acc = await this.prisma.account.findUnique({ where: { id: ts.customerId }, select: { accountName: true } });
+      return {
+        partyName: acc?.accountName || '—',
+        billCount: ts._count.id,
+        netAmount: Math.round(Number(ts._sum.netAmount || 0) * 100) / 100,
+      };
+    }));
+
+    return {
+      today: {
+        sales: Math.round(Number(todaySales._sum.netAmount || 0) * 100) / 100,
+        purchases: Math.round(Number(todayPurchases._sum.netAmount || 0) * 100) / 100,
+      },
+      summary: {
+        salesVolume: Math.round(Number(salesTotal._sum.netAmount || 0) * 100) / 100,
+        salesCount: salesTotal._count.id,
+        purchaseVolume: Math.round(Number(purchasesTotal._sum.netAmount || 0) * 100) / 100,
+        purchaseCount: purchasesTotal._count.id,
+      },
+      monthlyTrend,
+      topCustomers,
+      topSuppliers,
+    };
+  }
+
+  async getMisStockJobAnalytics(companyId: number) {
+    // 1. Stock Valuation (AVAILABLE + HOLD)
+    const packets = await this.prisma.stockPacket.findMany({
+      where: { companyId, isDeleted: false, currentStatus: { in: ['AVAILABLE', 'HOLD'] } },
+      select: { costPerCarat: true, caratWeight: true, createdAt: true },
+    });
+
+    let totalStockValue = 0;
+    let slowMovingValue = 0;
+    let totalCarats = 0;
+    const ninetyDaysAgo = new Date();
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+    for (const p of packets) {
+      const value = Number(p.costPerCarat || 0) * Number(p.caratWeight || 0);
+      totalStockValue += value;
+      totalCarats += Number(p.caratWeight || 0);
+      if (p.createdAt < ninetyDaysAgo) {
+        slowMovingValue += value;
+      }
+    }
+
+    // 2. Active Job Work Vouchers
+    const activeJobsCount = await this.prisma.jobVoucher.count({
+      where: { companyId, isDeleted: false, status: 'PENDING_APPROVAL' },
+    });
+
+    return {
+      stock: {
+        totalValue: Math.round(totalStockValue * 100) / 100,
+        totalCarats: Math.round(totalCarats * 1000) / 1000,
+        slowMovingValue: Math.round(slowMovingValue * 100) / 100,
+        slowMovingRatio: totalStockValue > 0 ? Math.round((slowMovingValue / totalStockValue) * 10000) / 100 : 0,
+      },
+      jobs: {
+        activeOrders: activeJobsCount,
+      },
+    };
+  }
+
+  async getMisFinancialRatios(companyId: number, dateStr?: string) {
+    const targetDate = dateStr ? new Date(dateStr) : new Date();
+
+    // 1. Receivables & Payables totals (Outstanding)
+    const activeReceivables = await this.prisma.outstandingBill.aggregate({
+      where: { companyId, billType: 'DEBIT', status: { in: ['UNPAID', 'PARTIAL'] }, billDate: { lte: targetDate } },
+      _sum: { outstandingAmount: true },
+    });
+    const activePayables = await this.prisma.outstandingBill.aggregate({
+      where: { companyId, billType: 'CREDIT', status: { in: ['UNPAID', 'PARTIAL'] }, billDate: { lte: targetDate } },
+      _sum: { outstandingAmount: true },
+    });
+
+    // 2. Cash and Bank Balances
+    const cashBankAccounts = await this.prisma.account.findMany({
+      where: { companyId, isDeleted: false, accountGroup: { groupName: { in: ['Cash Accounts', 'Bank Accounts'] } } },
+      select: { id: true },
+    });
+
+    let cashBankBalance = 0;
+    for (const acc of cashBankAccounts) {
+      const debitSum = await this.prisma.generalLedgerEntry.aggregate({
+        where: { companyId, accountId: acc.id, debitCreditType: 'DEBIT', voucherDate: { lte: targetDate } },
+        _sum: { amount: true },
+      });
+      const creditSum = await this.prisma.generalLedgerEntry.aggregate({
+        where: { companyId, accountId: acc.id, debitCreditType: 'CREDIT', voucherDate: { lte: targetDate } },
+        _sum: { amount: true },
+      });
+      cashBankBalance += (Number(debitSum._sum.amount || 0) - Number(creditSum._sum.amount || 0));
+    }
+
+    // 3. Stock value
+    const packets = await this.prisma.stockPacket.findMany({
+      where: { companyId, isDeleted: false, currentStatus: { in: ['AVAILABLE', 'HOLD'] }, createdAt: { lte: targetDate } },
+      select: { costPerCarat: true, caratWeight: true },
+    });
+    const stockValue = packets.reduce((sum, p) => sum + (Number(p.costPerCarat || 0) * Number(p.caratWeight || 0)), 0);
+
+    // Current Assets & Liabilities
+    const receivables = Number(activeReceivables._sum.outstandingAmount || 0);
+    const payables = Number(activePayables._sum.outstandingAmount || 0);
+
+    const currentAssets = cashBankBalance + receivables + stockValue;
+    const currentLiabilities = payables || 1; // Prevent div by zero
+
+    const currentRatio = currentAssets / currentLiabilities;
+    const quickRatio = (cashBankBalance + receivables) / currentLiabilities;
+
+    return {
+      currentRatio: Math.round(currentRatio * 100) / 100,
+      quickRatio: Math.round(quickRatio * 100) / 100,
+      cashBankBalance: Math.round(cashBankBalance * 100) / 100,
+      receivables: Math.round(receivables * 100) / 100,
+      payables: Math.round(payables * 100) / 100,
+      stockValue: Math.round(stockValue * 100) / 100,
+    };
+  }
+
+  // ── CASH FLOW STATEMENT ──────────────────────────────────────────
+  async getCashFlow(companyId: number, startDate?: string, endDate?: string) {
+    const start = startDate ? new Date(startDate) : null;
+    const end = endDate ? new Date(endDate) : new Date();
+
+    // 1. Identify Cash & Bank Accounts
+    const cbAccounts = await this.prisma.account.findMany({
+      where: { companyId, isDeleted: false, accountGroup: { groupName: { in: ['Cash Accounts', 'Bank Accounts'] } } },
+      select: { id: true, accountName: true },
+    });
+    const cbAccountIds = cbAccounts.map(a => a.id);
+    const cbAccountIdSet = new Set(cbAccountIds);
+
+    // 2. Fetch all GL entries for the company up to end date
+    const rangeFilter: any = { companyId, voucherDate: { lte: end } };
+    if (start) {
+      rangeFilter.voucherDate.gte = start;
+    }
+
+    const allEntries = await this.prisma.generalLedgerEntry.findMany({
+      where: rangeFilter,
+      include: {
+        account: {
+          include: { accountGroup: true },
+        },
+      },
+    });
+
+    // 3. Group entries by voucher
+    const voucherMap = new Map<string, typeof allEntries>();
+    for (const ent of allEntries) {
+      const key = `${ent.sourceVoucherType}:${ent.sourceVoucherId}`;
+      if (!voucherMap.has(key)) voucherMap.set(key, []);
+      voucherMap.get(key)!.push(ent);
+    }
+
+    let operatingInflow = 0;
+    let operatingOutflow = 0;
+    let investingInflow = 0;
+    let investingOutflow = 0;
+    let financingInflow = 0;
+    let financingOutflow = 0;
+
+    const details: any[] = [];
+
+    for (const [vKey, vEntries] of voucherMap.entries()) {
+      // Find cash entries in this voucher
+      const cashEnts = vEntries.filter(e => cbAccountIdSet.has(e.accountId));
+      if (cashEnts.length === 0) continue;
+
+      // Find non-cash entries in this voucher
+      const nonCashEnts = vEntries.filter(e => !cbAccountIdSet.has(e.accountId));
+
+      // Calculate net cash movement in this voucher
+      // Debit to Cash = Inflow (+)
+      // Credit to Cash = Outflow (-)
+      let netMovement = 0;
+      for (const ce of cashEnts) {
+        const amt = Number(ce.amount);
+        if (ce.debitCreditType === 'DEBIT') {
+          netMovement += amt;
+        } else {
+          netMovement -= amt;
+        }
+      }
+
+      if (netMovement === 0) continue;
+
+      // Classify based on the counterparties (nonCashEnts)
+      let category: 'OPERATING' | 'INVESTING' | 'FINANCING' = 'OPERATING';
+      let description = 'Operating Transaction';
+
+      if (nonCashEnts.length > 0) {
+        // Look at the first primary counterparty account group
+        const primaryAcc = nonCashEnts[0].account;
+        const grpName = primaryAcc?.accountGroup?.groupName || '';
+        const grpLower = grpName.toLowerCase();
+        description = `${primaryAcc?.accountName || 'Counterparty'} (${grpName})`;
+
+        if (grpLower.includes('fixed asset') || grpLower.includes('investment') || grpLower.includes('asset')) {
+          if (!grpLower.includes('current asset')) {
+            category = 'INVESTING';
+          }
+        } else if (grpLower.includes('capital') || grpLower.includes('equity') || grpLower.includes('reserve') || grpLower.includes('loan') || grpLower.includes('borrowing')) {
+          if (!grpLower.includes('current')) {
+            category = 'FINANCING';
+          }
+        }
+      }
+
+      if (category === 'OPERATING') {
+        if (netMovement > 0) operatingInflow += netMovement;
+        else operatingOutflow += Math.abs(netMovement);
+      } else if (category === 'INVESTING') {
+        if (netMovement > 0) investingInflow += netMovement;
+        else investingOutflow += Math.abs(netMovement);
+      } else {
+        if (netMovement > 0) financingInflow += netMovement;
+        else financingOutflow += Math.abs(netMovement);
+      }
+
+      details.push({
+        voucherKey: vKey,
+        date: cashEnts[0].voucherDate,
+        description,
+        category,
+        amount: netMovement,
+      });
+    }
+
+    // Sort details by date desc
+    details.sort((a, b) => b.date.getTime() - a.date.getTime());
+
+    // Calculate opening cash balances
+    const openingBalances = await this.prisma.account.findMany({
+      where: { companyId, isDeleted: false, accountGroup: { groupName: { in: ['Cash Accounts', 'Bank Accounts'] } } },
+      include: {
+        generalLedgerEntries: {
+          where: start ? { voucherDate: { lt: start } } : { id: 0 },
+        }
+      }
+    });
+
+    let openingCash = 0;
+    for (const acc of openingBalances) {
+      const opVal = Number(acc.openingBalanceAmount || 0);
+      if (acc.openingBalanceType === 'DEBIT') openingCash += opVal;
+      else openingCash -= opVal;
+
+      for (const ent of acc.generalLedgerEntries) {
+        const amt = Number(ent.amount);
+        if (ent.debitCreditType === 'DEBIT') openingCash += amt;
+        else openingCash -= amt;
+      }
+    }
+
+    const netChange = (operatingInflow - operatingOutflow) + (investingInflow - investingOutflow) + (financingInflow - financingOutflow);
+    const closingCash = openingCash + netChange;
+
+    return {
+      openingCash: Math.round(openingCash * 100) / 100,
+      operating: {
+        inflow: Math.round(operatingInflow * 100) / 100,
+        outflow: Math.round(operatingOutflow * 100) / 100,
+        net: Math.round((operatingInflow - operatingOutflow) * 100) / 100,
+      },
+      investing: {
+        inflow: Math.round(investingInflow * 100) / 100,
+        outflow: Math.round(investingOutflow * 100) / 100,
+        net: Math.round((investingInflow - investingOutflow) * 100) / 100,
+      },
+      financing: {
+        inflow: Math.round(financingInflow * 100) / 100,
+        outflow: Math.round(financingOutflow * 100) / 100,
+        net: Math.round((financingInflow - financingOutflow) * 100) / 100,
+      },
+      netChange: Math.round(netChange * 100) / 100,
+      closingCash: Math.round(closingCash * 100) / 100,
+      details: details.map(d => ({
+        ...d,
+        amount: Math.round(d.amount * 100) / 100,
+      })),
+    };
+  }
+
+  // ── FUND FLOW STATEMENT ──────────────────────────────────────────
+  async getFundFlow(companyId: number, startDateStr?: string, endDateStr?: string) {
+    const end = endDateStr ? new Date(endDateStr) : new Date();
+    const start = startDateStr ? new Date(startDateStr) : new Date(end.getFullYear(), 3, 1);
+
+    const accounts = await this.prisma.account.findMany({
+      where: { companyId, isDeleted: false },
+      include: {
+        accountGroup: true,
+        generalLedgerEntries: {
+          where: { voucherDate: { lte: end } }
+        }
+      }
+    });
+
+    const getAccountBalances = (targetDate: Date) => {
+      const balanceMap = new Map<number, number>();
+      for (const acc of accounts) {
+        let bal = 0;
+        const opVal = Number(acc.openingBalanceAmount || 0);
+        if (acc.openingBalanceType === 'DEBIT') bal += opVal;
+        else bal -= opVal;
+
+        for (const ent of acc.generalLedgerEntries) {
+          if (ent.voucherDate > targetDate) continue;
+          const amt = Number(ent.amount);
+          if (ent.debitCreditType === 'DEBIT') bal += amt;
+          else bal -= amt;
+        }
+        balanceMap.set(acc.id, bal);
+      }
+      return balanceMap;
+    };
+
+    const startBalances = getAccountBalances(new Date(start.getTime() - 24 * 60 * 60 * 1000));
+    const endBalances = getAccountBalances(end);
+
+    let openingCurrentAssets = 0;
+    let closingCurrentAssets = 0;
+    let openingCurrentLiabilities = 0;
+    let closingCurrentLiabilities = 0;
+
+    const workingCapitalDetails: any[] = [];
+
+    for (const acc of accounts) {
+      const grpName = acc.accountGroup?.groupName || '';
+      const grpLower = grpName.toLowerCase();
+      
+      const isCurrentAsset = grpLower.includes('cash') || grpLower.includes('bank') || grpLower.includes('sundry debtors') || grpLower.includes('receivable') || grpLower.includes('stock');
+      const isCurrentLiability = grpLower.includes('sundry creditors') || grpLower.includes('payable') || grpLower.includes('tax') || grpLower.includes('provision') || grpLower.includes('short term');
+
+      if (!isCurrentAsset && !isCurrentLiability) continue;
+
+      const opBal = startBalances.get(acc.id) || 0;
+      const clBal = endBalances.get(acc.id) || 0;
+
+      const opening = Math.abs(opBal);
+      const closing = Math.abs(clBal);
+      const change = closing - opening;
+
+      workingCapitalDetails.push({
+        accountId: acc.id,
+        accountName: acc.accountName,
+        groupName: grpName,
+        type: isCurrentAsset ? 'ASSET' : 'LIABILITY',
+        opening: Math.round(opening * 100) / 100,
+        closing: Math.round(closing * 100) / 100,
+        change: Math.round(change * 100) / 100,
+      });
+
+      if (isCurrentAsset) {
+        openingCurrentAssets += opening;
+        closingCurrentAssets += closing;
+      } else {
+        openingCurrentLiabilities += opening;
+        closingCurrentLiabilities += closing;
+      }
+    }
+
+    const openingWorkingCapital = openingCurrentAssets - openingCurrentLiabilities;
+    const closingWorkingCapital = closingCurrentAssets - closingCurrentLiabilities;
+    const changeInWorkingCapital = closingWorkingCapital - openingWorkingCapital;
+
+    let sourcesTotal = 0;
+    let applicationsTotal = 0;
+
+    const sourcesDetails: any[] = [];
+    const applicationsDetails: any[] = [];
+
+    const pl = await this.getProfitLoss(companyId, start.toISOString(), end.toISOString());
+    if (pl.netProfit > 0) {
+      sourcesDetails.push({ description: 'Funds from Operations (Net Profit)', amount: pl.netProfit });
+      sourcesTotal += pl.netProfit;
+    } else if (pl.netProfit < 0) {
+      applicationsDetails.push({ description: 'Funds Lost in Operations (Net Loss)', amount: Math.abs(pl.netProfit) });
+      applicationsTotal += Math.abs(pl.netProfit);
+    }
+
+    for (const acc of accounts) {
+      const grpName = acc.accountGroup?.groupName || '';
+      const grpLower = grpName.toLowerCase();
+      
+      const isNonCurrentAsset = grpLower.includes('fixed asset') || grpLower.includes('investment');
+      const isNonCurrentLiability = grpLower.includes('capital') || grpLower.includes('equity') || grpLower.includes('secured') || grpLower.includes('unsecured') || grpLower.includes('long term');
+
+      if (!isNonCurrentAsset && !isNonCurrentLiability) continue;
+
+      const opBal = startBalances.get(acc.id) || 0;
+      const clBal = endBalances.get(acc.id) || 0;
+      const diff = clBal - opBal;
+
+      if (Math.abs(diff) < 0.01) continue;
+
+      if (isNonCurrentAsset) {
+        if (diff > 0) {
+          applicationsDetails.push({ description: `Purchase of ${acc.accountName}`, amount: diff });
+          applicationsTotal += diff;
+        } else {
+          sourcesDetails.push({ description: `Sale of ${acc.accountName}`, amount: Math.abs(diff) });
+          sourcesTotal += Math.abs(diff);
+        }
+      } else {
+        if (diff < 0) {
+          sourcesDetails.push({ description: `Capital/Loan inflow from ${acc.accountName}`, amount: Math.abs(diff) });
+          sourcesTotal += Math.abs(diff);
+        } else {
+          applicationsDetails.push({ description: `Repayment/Withdrawal of ${acc.accountName}`, amount: diff });
+          applicationsTotal += diff;
+        }
+      }
+    }
+
+    return {
+      workingCapital: {
+        openingCurrentAssets: Math.round(openingCurrentAssets * 100) / 100,
+        closingCurrentAssets: Math.round(closingCurrentAssets * 100) / 100,
+        openingCurrentLiabilities: Math.round(openingCurrentLiabilities * 100) / 100,
+        closingCurrentLiabilities: Math.round(closingCurrentLiabilities * 100) / 100,
+        openingWorkingCapital: Math.round(openingWorkingCapital * 100) / 100,
+        closingWorkingCapital: Math.round(closingWorkingCapital * 100) / 100,
+        change: Math.round(changeInWorkingCapital * 100) / 100,
+        details: workingCapitalDetails,
+      },
+      sources: sourcesDetails.map(s => ({ ...s, amount: Math.round(s.amount * 100) / 100 })),
+      applications: applicationsDetails.map(a => ({ ...a, amount: Math.round(a.amount * 100) / 100 })),
+      sourcesTotal: Math.round(sourcesTotal * 100) / 100,
+      applicationsTotal: Math.round(applicationsTotal * 100) / 100,
+    };
+  }
 }
+
 

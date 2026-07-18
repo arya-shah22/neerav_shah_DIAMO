@@ -140,4 +140,101 @@ export class ReportController {
       return { success: false, error: error.message || 'Failed to fetch Day Book list' };
     }
   }
+
+  // ─── Phase 11.6: TDS & TCS Reports ─────────────────────────
+
+  async handleGetTdsRegister(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getTdsRegister(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch TDS register' };
+    }
+  }
+
+  async handleGetTcsRegister(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getTcsRegister(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch TCS register' };
+    }
+  }
+
+  async handleGetTdsTcsDashboard(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getTdsTcsDashboard(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate TDS/TCS dashboard' };
+    }
+  }
+
+  async handleGetTdsPartywise(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getTdsPartywise(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch party-wise TDS report' };
+    }
+  }
+
+  async handleGetTcsPartywise(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getTcsPartywise(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch party-wise TCS report' };
+    }
+  }
+
+  // ─── Phase 11.8: Enterprise MIS & Business Analytics ─────
+
+  async handleGetMisDashboard(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getMisDashboard(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate MIS dashboard' };
+    }
+  }
+
+  async handleGetMisStockJobAnalytics(payload: { companyId: number }) {
+    try {
+      const data = await this.service.getMisStockJobAnalytics(payload.companyId);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to generate MIS stock and job analytics' };
+    }
+  }
+
+  async handleGetMisFinancialRatios(payload: { companyId: number; dateStr?: string }) {
+    try {
+      const data = await this.service.getMisFinancialRatios(payload.companyId, payload.dateStr);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to calculate MIS financial ratios' };
+    }
+  }
+
+  // ─── Phase 11.2: Financial Statement Additions ─────────────
+
+  async handleGetCashFlow(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getCashFlow(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch Cash Flow Statement' };
+    }
+  }
+
+  async handleGetFundFlow(payload: { companyId: number; startDate?: string; endDate?: string }) {
+    try {
+      const data = await this.service.getFundFlow(payload.companyId, payload.startDate, payload.endDate);
+      return { success: true, data };
+    } catch (error: any) {
+      return { success: false, error: error.message || 'Failed to fetch Fund Flow Statement' };
+    }
+  }
 }
+

@@ -8,6 +8,7 @@ import { Printer, Download, ArrowLeft, FileText } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
+import { getProfitLossCSV } from '../../utils/reportExports';
 
 export const ProfitLossPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
@@ -41,28 +42,7 @@ export const ProfitLossPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!plData) return;
-    const rows = [
-      ['SECTION', 'PARTICULARS', 'AMOUNT'],
-      ['1. REVENUE', 'Sales Income', plData.revenue.sales],
-      ['', 'Job Work Income', plData.revenue.jobWorkIncome],
-      ['', 'Total Revenue (A)', plData.revenue.total],
-      [],
-      ['2. COST OF SALES', 'Purchases', plData.costOfGoods.purchases],
-      ['', 'Job Work Expenses', plData.costOfGoods.jobWorkExpense],
-      ['', 'Direct Expenses', plData.costOfGoods.directExpense],
-      ['', 'Total Cost of Sales (B)', plData.costOfGoods.total],
-      [],
-      ['GROSS PROFIT', 'Gross Profit (A - B)', plData.grossProfit],
-      [],
-      ['3. OPERATING EXPENSES', 'Indirect & Operating Expenses', plData.expenses.operatingExpense],
-      ['', 'Total Operating Expenses (C)', plData.expenses.total],
-      [],
-      ['4. OTHER INDIRECT INCOME', 'Interest & Other Incomes (D)', plData.otherIncome],
-      [],
-      ['NET PROFIT', 'Net Profit For The Period', plData.netProfit]
-    ];
-
-    const csvContent = rows.map(e => e.map(val => typeof val === 'string' ? `"${val}"` : val).join(',')).join('\n');
+    const csvContent = getProfitLossCSV(plData);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');

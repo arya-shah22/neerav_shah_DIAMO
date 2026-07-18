@@ -10,11 +10,15 @@ import { StatusFooter } from './StatusFooter';
 import { LoadingOverlay } from '../feedback/LoadingOverlay';
 import { useSessionBootstrap } from '../../hooks/useSessionBootstrap';
 import { useAuthStore } from '../../state/auth-store';
+import { useReportScheduler } from '../../hooks/useReportScheduler';
 
 export const AppShell: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const { isReady, isRestoring } = useSessionBootstrap();
+
+  // Run the background automated export scheduler catch-up
+  useReportScheduler();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
