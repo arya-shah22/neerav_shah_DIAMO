@@ -25,9 +25,13 @@ export const LoanPage: React.FC = () => {
   const { invoke: getOnHandMoney } = useIpc<number>('loan:onhand');
   const { invoke: generatePdf } = useIpc<{ pdfBase64: string }>('loan:pdf');
   const { invoke: getBalance } = useIpc<number>('cashbank:balance');
+  const { invoke: fetchPreviewNo } = useIpc<string>('loan:preview-number');
 
   // Page level lists
   const [parties, setParties] = useState<IAccount[]>([]);
+  const [billNumber, setBillNumber] = useState('');
+  const [isManualBillNumber, setIsManualBillNumber] = useState(false);
+  const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [cashBankAccounts, setCashBankAccounts] = useState<IAccount[]>([]);
   const [onHandCash, setOnHandCash] = useState<number>(0);
   const [bankMoney, setBankMoney] = useState<number>(0);
@@ -96,6 +100,18 @@ export const LoanPage: React.FC = () => {
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    if (activeFinancialYear) {
+      fetchPreviewNo({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+        if (res.success && res.data) {
+          setPreviewVoucherNo(res.data);
+          setBillNumber(res.data);
+        }
+      });
+    }
+  }, [companyId, activeFinancialYear, fetchPreviewNo]);
 
   // Real-time preview calculation
   useEffect(() => {
@@ -166,10 +182,12 @@ export const LoanPage: React.FC = () => {
 
     const res = await createLoan({
       companyId,
-      financialYearId: activeFinancialYear?.id || 1,
+      financialYearId: activeFinancialYear?.id,
       partyId: Number(partyId),
       cashBankAccountId: Number(cashBankAccountId),
       loanType,
+      isManualBillNumber,
+      billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
       principalAmount,
       interestRate,
       interestType,
@@ -375,10 +393,9 @@ export const LoanPage: React.FC = () => {
       </div>
 
       <div style={{
-        display: 'grid',
-        gridTemplateColumns: 'minmax(320px, 380px) 1fr',
-        gap: '24px',
-        alignItems: 'start'
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px'
       }}>
         {/* Creation Form Panel */}
         <div style={{
@@ -393,33 +410,69 @@ export const LoanPage: React.FC = () => {
           <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Create Loan Entry</h2>
           
           <form onSubmit={handleSaveLoan} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-            <Select
-              label="Loan Direction *"
-              options={loanTypeOptions}
-              value={loanType}
-              onChange={(val) => setLoanType(val)}
-              required
-            />
+            {/* Bill Number Config Row */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+                <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} />
+                Enter bill number manually
+              </label>
+              <div style={{ flex: 1, maxWidth: '300px' }}>
+                <Input 
+                  placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
+                  disabled={!isManualBillNumber} 
+                  value={billNumber}
+                  onChange={(e) => setBillNumber(e.target.value)}
+                />
+              </div>
+            </div>
 
-            <Select
-              label="Select Party Account *"
-              options={partyOptions}
-              value={partyId}
-              onChange={(val) => setPartyId(val)}
-              placeholder="Select account"
-              required
-            />
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '16px',
+              alignItems: 'end'
+            }}>
+              <Select
+                label="Loan Direction *"
+                options={loanTypeOptions}
+                value={loanType}
+                onChange={(val) => setLoanType(val)}
+                required
+              />
 
-            <Select
-              label="Cash / Bank Account *"
-              options={cashBankOptions}
-              value={cashBankAccountId}
-              onChange={(val) => setCashBankAccountId(val)}
-              placeholder="Select asset account"
-              required
-            />
+              <Select
+                label="Select Party Account *"
+                options={partyOptions}
+                value={partyId}
+                onChange={(val) => setPartyId(val)}
+                placeholder="Select account"
+                required
+              />
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              <Select
+                label="Cash / Bank Account *"
+                options={cashBankOptions}
+                value={cashBankAccountId}
+                onChange={(val) => setCashBankAccountId(val)}
+                placeholder="Select asset account"
+                required
+              />
+
+              <Input
+                type="date"
+                label="Loan Date *"
+                value={loanDate}
+                onChange={(e) => setLoanDate(e.target.value)}
+                required
+              />
+            </div>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '16px',
+              alignItems: 'end'
+            }}>
               <Input
                 type="number"
                 label="Principal Amount *"
@@ -428,12 +481,29 @@ export const LoanPage: React.FC = () => {
                 required
                 error={isOverLimit ? 'Principal exceeds available cash' : undefined}
               />
+
               <Input
                 type="number"
                 step="0.01"
                 label="Rate (Annual %)"
                 value={interestRate ?? 0}
                 onChange={(e) => setInterestRate(Number(e.target.value))}
+                required
+              />
+
+              <Select
+                label="Interest Type *"
+                options={interestTypeOptions}
+                value={interestType}
+                onChange={(val) => setInterestType(val)}
+                required
+              />
+
+              <Input
+                type="number"
+                label="Duration (Months) *"
+                value={durationMonths || ''}
+                onChange={(e) => setDurationMonths(Number(e.target.value))}
                 required
               />
             </div>
@@ -444,79 +514,81 @@ export const LoanPage: React.FC = () => {
               </p>
             )}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <Select
-                label="Interest Type *"
-                options={interestTypeOptions}
-                value={interestType}
-                onChange={(val) => setInterestType(val)}
-                required
-              />
-              <Input
-                type="number"
-                label="Duration (Months) *"
-                value={durationMonths || ''}
-                onChange={(e) => setDurationMonths(Number(e.target.value))}
-                required
-              />
-            </div>
-
-            {interestType === 'COMPOUND' && (
-              <Select
-                label="Compounding Frequency *"
-                options={frequencyOptions}
-                value={compoundingFrequency}
-                onChange={(val) => setCompoundingFrequency(val)}
-                required
-              />
-            )}
-
-            <Input
-              type="date"
-              label="Loan Date *"
-              value={loanDate}
-              onChange={(e) => setLoanDate(e.target.value)}
-              required
-            />
-
-            <Input
-              type="text"
-              label="Narration / Remarks"
-              placeholder="Enter remarks"
-              value={narration}
-              onChange={(e) => setNarration(e.target.value)}
-            />
-
-            {/* Calculations Preview Panel */}
             <div style={{
-              background: 'var(--color-surface-hover)',
-              border: '1px solid var(--color-border)',
-              borderRadius: '6px',
-              padding: '12px',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '6px'
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gap: '16px',
+              alignItems: 'end'
             }}>
-              <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                Preview Calculation
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--color-text)' }}>
-                <span>Principal:</span>
-                <span style={{ fontWeight: 600 }}>₹ {principalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'var(--color-text)' }}>
-                <span>Interest:</span>
-                <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>₹ {previewInterest.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-              </div>
-              <div style={{ borderTop: '1px solid var(--color-border)', margin: '4px 0', padding: '4px 0 0 0', display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, color: 'var(--color-success)' }}>
-                <span>Repayable:</span>
-                <span>₹ {previewRepayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              {interestType === 'COMPOUND' ? (
+                <Select
+                  label="Compounding Frequency *"
+                  options={frequencyOptions}
+                  value={compoundingFrequency}
+                  onChange={(val) => setCompoundingFrequency(val)}
+                  required
+                />
+              ) : (
+                <div />
+              )}
+
+              <div style={{ gridColumn: 'span 3' }}>
+                <Input
+                  type="text"
+                  label="Narration / Remarks"
+                  placeholder="Enter remarks"
+                  value={narration}
+                  onChange={(e) => setNarration(e.target.value)}
+                />
               </div>
             </div>
 
-            <Button type="submit" disabled={isOverLimit} style={{ width: '100%' }}>
-              Save Loan Voucher
-            </Button>
+            {/* Calculations Preview and Submit Row */}
+            <div style={{
+              display: 'flex',
+              gap: '20px',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              borderTop: '1px solid var(--color-border)',
+              paddingTop: '16px',
+              marginTop: '8px'
+            }}>
+              {/* Calculations Preview Panel */}
+              <div style={{
+                background: 'var(--color-surface-hover)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '6px',
+                padding: '12px',
+                display: 'flex',
+                gap: '24px',
+                flex: 1,
+                alignItems: 'center'
+              }}>
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  Preview Calculation:
+                </div>
+                <div style={{ display: 'flex', gap: '20px', flex: 1, justifyContent: 'space-around' }}>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>
+                    <span>Principal: </span>
+                    <span style={{ fontWeight: 600 }}>₹ {principalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>
+                    <span>Interest: </span>
+                    <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>₹ {previewInterest.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-success)' }}>
+                    <span>Repayable: </span>
+                    <span>₹ {previewRepayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div style={{ minWidth: '220px' }}>
+                <Button type="submit" disabled={isOverLimit} style={{ width: '100%' }}>
+                  Save Loan Voucher
+                </Button>
+              </div>
+            </div>
           </form>
         </div>
 

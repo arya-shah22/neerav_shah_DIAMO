@@ -1,0 +1,355 @@
+// ═══════════════════════════════════════════════════════════════
+// DIAMO ERP — Settings Page (Stock ID & Voucher Naming Configuration)
+// ═══════════════════════════════════════════════════════════════
+
+import React, { useState, useEffect } from 'react';
+import { Save, RefreshCw, Barcode, FileText, Settings, ShieldAlert } from 'lucide-react';
+import { useIpc } from '../../hooks/useIpc';
+import { useActiveCompany } from '../../hooks/useActiveCompany';
+import { Button, Input, useToast } from '../../components/ui';
+import { useCompanyStore } from '../../state/company-store';
+
+interface VoucherTypeDefinition {
+  type: string;
+  label: string;
+  defaultPrefix: string;
+}
+
+const VOUCHER_TYPES: VoucherTypeDefinition[] = [
+  { type: 'STOCK_ENTRY', label: 'Stock Packet Naming ID', defaultPrefix: 'DM' },
+  { type: 'SALE_INVOICE', label: 'Sale Invoice', defaultPrefix: 'SI' },
+  { type: 'SALE_RETURN', label: 'Sale Return Credit Note', defaultPrefix: 'SR' },
+  { type: 'SALE_DEBIT_NOTE', label: 'Sale Debit Note', defaultPrefix: 'SDN' },
+  { type: 'PURCHASE_INVOICE', label: 'Purchase Invoice', defaultPrefix: 'PI' },
+  { type: 'PURCHASE_RETURN', label: 'Purchase Return Debit Note', defaultPrefix: 'PR' },
+  { type: 'PURCHASE_DEBIT_NOTE', label: 'Purchase Credit Note', defaultPrefix: 'PDN' },
+  { type: 'CHALLAN_TRADING', label: 'Jhanghad Trading', defaultPrefix: 'CH-T' },
+  { type: 'CHALLAN_JOB_WORK', label: 'Job Work Issue', defaultPrefix: 'CH-JW' },
+  { type: 'CHALLAN_SALE_ORDER', label: 'Sale Order', defaultPrefix: 'CH-SO' },
+  { type: 'CHALLAN_PURCHASE_ORDER', label: 'Purchase Order', defaultPrefix: 'CH-PO' },
+  { type: 'JOB_INCOME', label: 'Job Book Income', defaultPrefix: 'JI' },
+  { type: 'JOB_EXPENSE', label: 'Job Book Expense', defaultPrefix: 'JE' },
+  { type: 'JOURNAL_VOUCHER', label: 'Journal Voucher', defaultPrefix: 'JV' },
+  { type: 'CASH_PAYMENT', label: 'Cash Payment', defaultPrefix: 'CP' },
+  { type: 'CASH_RECEIPT', label: 'Cash Receipt', defaultPrefix: 'CR' },
+  { type: 'BANK_PAYMENT', label: 'Bank Payment', defaultPrefix: 'BP' },
+  { type: 'BANK_RECEIPT', label: 'Bank Receipt', defaultPrefix: 'BR' },
+  { type: 'LOAN_VOUCHER', label: 'Loan Book Voucher', defaultPrefix: 'LN' }
+];
+
+export const SettingsPage: React.FC = () => {
+  const { companyId, isReady } = useActiveCompany();
+  const { showToast } = useToast();
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+
+  // ─── Voucher Configs State ───
+  const { invoke: getAllVoucherConfigs } = useIpc<any>('stock:get-all-configs');
+  const { invoke: saveVoucherConfig, loading: savingVoucher } = useIpc<any>('stock:save-voucher-config');
+  const [voucherConfigs, setVoucherConfigs] = useState<Record<string, any>>({});
+  const [selectedVType, setSelectedVType] = useState<string>('STOCK_ENTRY');
+
+  // Selected Voucher Edit States
+  const [vPrefix, setVPrefix] = useState('');
+  const [vSeparator, setVSeparator] = useState('-');
+  const [vSuffix, setVSuffix] = useState('');
+  const [vDigitLength, setVDigitLength] = useState(6);
+  const [vIncludeYear, setVIncludeYear] = useState(true);
+
+  // Load All configurations
+  const loadConfigurations = React.useCallback(() => {
+    if (!companyId || !activeFinancialYear?.id) return;
+
+    // Load all configs
+    getAllVoucherConfigs({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+      if (res.success && res.data) {
+        const mapped: Record<string, any> = {};
+        res.data.forEach((cfg: any) => {
+          mapped[cfg.voucherType] = cfg;
+        });
+        setVoucherConfigs(mapped);
+      }
+    });
+  }, [companyId, activeFinancialYear?.id, getAllVoucherConfigs]);
+
+  useEffect(() => {
+    loadConfigurations();
+  }, [loadConfigurations]);
+
+  // Sync selected voucher form when selection changes
+  useEffect(() => {
+    const vDef = VOUCHER_TYPES.find((v) => v.type === selectedVType);
+    const config = voucherConfigs[selectedVType];
+    if (config) {
+      setVPrefix(config.prefix || vDef?.defaultPrefix || '');
+      setVSeparator(config.separator || '-');
+      setVSuffix(config.suffix || '');
+      setVDigitLength(config.digitLength || 6);
+      setVIncludeYear(config.includeYear !== false);
+    } else {
+      setVPrefix(vDef?.defaultPrefix || '');
+      setVSeparator('-');
+      setVSuffix('');
+      setVDigitLength(6);
+      setVIncludeYear(true);
+    }
+  }, [selectedVType, voucherConfigs]);
+
+  // Live previews
+  const getVoucherPreview = () => {
+    const padded = '1'.padStart(vDigitLength, '0');
+    const prefixStr = vPrefix || selectedVType.split('_')[0];
+    const suffixStr = vSuffix ? `${vSeparator}${vSuffix}` : '';
+
+    if (selectedVType === 'STOCK_ENTRY') {
+      const year = new Date().getFullYear();
+      if (vIncludeYear) {
+        return `${prefixStr}${vSeparator}${year}${vSeparator}${padded}${suffixStr}`;
+      }
+      return `${prefixStr}${vSeparator}${padded}${suffixStr}`;
+    }
+
+    const yearLabel = activeFinancialYear?.label ? activeFinancialYear.label.replace(/-/g, '') : '2627';
+    const yearSuffix = yearLabel.slice(-4); // e.g. 2627
+    if (vIncludeYear) {
+      return `${prefixStr}${vSeparator}${yearSuffix}${vSeparator}${padded}${suffixStr}`;
+    }
+    return `${prefixStr}${vSeparator}${padded}${suffixStr}`;
+  };
+
+  const handleSaveVoucher = async () => {
+    if (!companyId || !activeFinancialYear?.id) return;
+    if (!vPrefix.trim()) {
+      showToast('Prefix is required', 'error');
+      return;
+    }
+    const res = await saveVoucherConfig({
+      companyId,
+      financialYearId: activeFinancialYear.id,
+      voucherType: selectedVType,
+      data: {
+        prefix: vPrefix.toUpperCase().trim(),
+        separator: vSeparator,
+        suffix: vSuffix.toUpperCase().trim(),
+        digitLength: vDigitLength,
+        includeYear: vIncludeYear,
+      },
+    });
+     if (res.success) {
+      if (res.data?.message) {
+        showToast(res.data.message, 'success');
+      } else {
+        showToast(`${VOUCHER_TYPES.find(v => v.type === selectedVType)?.label} configuration updated`, 'success');
+      }
+      loadConfigurations();
+    } else {
+      showToast(res.error || 'Failed to save voucher configuration', 'error');
+    }
+  };
+
+  if (!isReady) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '400px', gap: '16px' }}>
+        <ShieldAlert size={48} color="var(--color-primary-light)" />
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: '15px' }}>Please select an active company first.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%', maxWidth: '1200px' }}>
+      <div>
+        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+          Document Numbering & Stock ID Rules
+        </h1>
+        <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
+          Customize ID generation rules, prefixes, separators, suffixes, and counter digits for diamond packets and transactions.
+        </p>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '24px', alignItems: 'start' }}>
+        {/* Left Panel: List of Vouchers */}
+        <div style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          overflow: 'hidden',
+          maxHeight: '650px',
+          overflowY: 'auto',
+        }}>
+          <div style={{ padding: '16px', borderBottom: '1px solid var(--color-border)', background: '#fafafa' }}>
+            <h3 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Auto-Generation Rules</h3>
+            <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>Select any item to configure its naming layout.</p>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            {VOUCHER_TYPES.map((v) => {
+              const config = voucherConfigs[v.type];
+              const active = selectedVType === v.type;
+              return (
+                <button
+                  key={v.type}
+                  onClick={() => setSelectedVType(v.type)}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'flex-start',
+                    padding: '12px 16px',
+                    border: 'none',
+                    borderBottom: '1px solid var(--color-border)',
+                    background: active ? '#eff6ff' : 'transparent',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                    width: '100%',
+                    transition: 'background 0.2s',
+                  }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: active ? 'var(--color-primary)' : 'var(--color-text-primary)' }}>
+                    {v.label}
+                  </span>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px', fontFamily: 'monospace' }}>
+                    Prefix: {config?.prefix || v.defaultPrefix} {config?.suffix ? `| Suffix: ${config.suffix}` : ''}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Right Panel: Editing Form Card */}
+        <div style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '24px',
+        }}>
+          <div>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)', marginBottom: '8px' }}>
+              Configure: {VOUCHER_TYPES.find(v => v.type === selectedVType)?.label}
+            </h2>
+            <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>
+              Customize how your {VOUCHER_TYPES.find(v => v.type === selectedVType)?.label} IDs are generated.
+            </p>
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+            {/* Prefix */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Prefix *
+              </label>
+              <Input
+                value={vPrefix}
+                onChange={(e) => setVPrefix(e.target.value.toUpperCase())}
+                placeholder="Prefix"
+              />
+            </div>
+
+            {/* Suffix */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Suffix
+              </label>
+              <Input
+                value={vSuffix}
+                onChange={(e) => setVSuffix(e.target.value.toUpperCase())}
+                placeholder="Suffix (optional)"
+              />
+            </div>
+
+            {/* Separator */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Separator
+              </label>
+              <select
+                value={vSeparator}
+                onChange={(e) => setVSeparator(e.target.value)}
+                style={{
+                  height: '38px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  background: 'transparent',
+                  padding: '0 12px',
+                  fontSize: '14px',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                <option value="-">- (Hyphen)</option>
+                <option value="/">/ (Forward Slash)</option>
+                <option value=".">. (Dot)</option>
+                <option value="_">_ (Underscore)</option>
+              </select>
+            </div>
+
+            {/* Digit Length */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+              <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Digit Counter Length
+              </label>
+              <select
+                value={vDigitLength}
+                onChange={(e) => setVDigitLength(Number(e.target.value))}
+                style={{
+                  height: '38px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-border)',
+                  background: 'transparent',
+                  padding: '0 12px',
+                  fontSize: '14px',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                {[3, 4, 5, 6, 7, 8].map((len) => (
+                  <option key={len} value={len}>{len} Digits</option>
+                ))}
+              </select>
+            </div>
+
+            {/* Include Year checkbox */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                id="includeYearCheck"
+                checked={vIncludeYear}
+                onChange={(e) => setVIncludeYear(e.target.checked)}
+                style={{ width: '16px', height: '16px' }}
+              />
+              <label htmlFor="includeYearCheck" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Include Year
+              </label>
+            </div>
+          </div>
+
+          {/* Live Preview block */}
+          <div style={{
+            background: '#f8fafc',
+            border: '1px dashed var(--color-primary-light)',
+            borderRadius: '8px',
+            padding: '16px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', fontWeight: 700, color: 'var(--color-primary)' }}>
+              <RefreshCw size={14} className="animate-spin" /> LIVE PREVIEW
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700, fontFamily: 'monospace', letterSpacing: '1px' }}>
+              {getVoucherPreview()}
+            </div>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+              This is a representation of the next generated ID.
+            </span>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
+            <Button variant="primary" onClick={handleSaveVoucher} loading={savingVoucher} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Save size={16} /> Save Configurations
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};

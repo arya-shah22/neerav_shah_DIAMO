@@ -5,6 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { JournalType, VoucherStatus, DebitCreditType, VoucherType } from '@prisma/client';
+import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 
 @Injectable()
 export class JournalService {
@@ -39,7 +40,7 @@ export class JournalService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
+      where: { companyId, voucherType: VoucherType.JOURNAL_VOUCHER },
     });
     if (!config) {
       config = await this.prisma.voucherNumberConfig.create({
@@ -83,9 +84,45 @@ export class JournalService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    const seqStr = String(nextNum).padStart(config.digitLength, '0');
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'JV', company.companyCode);
+  }
 
-    return `${company.companyCode}-${yearSuffix}-JV-${seqStr}`;
+  async previewVoucherNumber(companyId: number, financialYearId: number): Promise<string> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
+
+    if (!company || !fy) {
+      throw new BadRequestException('Company or Financial Year not found');
+    }
+
+    let config = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType: VoucherType.JOURNAL_VOUCHER },
+    });
+    if (!config) {
+      config = await this.prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType: VoucherType.JOURNAL_VOUCHER,
+          method: 'AUTOMATIC',
+          separator: '-',
+          digitLength: 6,
+          includeYear: true,
+          resetAnnually: true,
+        },
+      });
+    }
+
+    const sequence = await this.prisma.voucherNumberSequence.findFirst({
+      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
+    });
+
+    const nextNum = (sequence?.currentNumber || 0) + 1;
+
+    const startYear = fy.fromDate.getFullYear();
+    const endYear = fy.toDate.getFullYear();
+    const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'JV', company.companyCode);
   }
 
   /**
@@ -116,7 +153,10 @@ export class JournalService {
       tds: Number(data.tds) || 0,
     });
 
-    const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId);
+    const isManual = data.isManualBillNumber === true;
+    const voucherNumber = isManual && data.billNumber
+      ? String(data.billNumber)
+      : await this.generateVoucherNumber(companyId, financialYearId);
 
     return this.prisma.$transaction(async (tx) => {
       // Create Voucher Header

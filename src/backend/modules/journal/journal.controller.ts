@@ -36,4 +36,13 @@ export class JournalController {
       return { success: false, error: e.message };
     }
   }
+
+  async handlePreviewNumber(payload: { companyId: number; financialYearId: number }) {
+    try {
+      const data = await this.journalService.previewVoucherNumber(payload.companyId, payload.financialYearId);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
 }

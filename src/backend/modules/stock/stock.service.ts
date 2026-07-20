@@ -113,8 +113,267 @@ export class StockService {
     return mapPacketWithMediaLinks(packet);
   }
 
-  async previewStockId(companyId: number) {
-    return previewNextStockIdNumber(this.prisma, companyId);
+  async previewStockId(companyId: number, financialYearId?: number) {
+    return previewNextStockIdNumber(this.prisma, companyId, {}, financialYearId);
+  }
+
+  async getStockIdConfig(companyId: number) {
+    const config = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType: 'STOCK_ENTRY' },
+    });
+    if (!config) {
+      return {
+        prefix: 'DM',
+        separator: '-',
+        includeYear: true,
+        sequenceLength: 6,
+      };
+    }
+    return {
+      prefix: config.prefix || 'DM',
+      separator: config.separator || '-',
+      includeYear: config.includeYear,
+      sequenceLength: config.digitLength,
+    };
+  }
+
+  async saveStockIdConfig(companyId: number, financialYearId: number, data: { prefix: string; separator: string; includeYear: boolean; sequenceLength: number }) {
+    const existing = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType: 'STOCK_ENTRY' },
+    });
+
+    if (existing) {
+      return this.prisma.voucherNumberConfig.update({
+        where: { id: existing.id },
+        data: {
+          prefix: data.prefix,
+          separator: data.separator,
+          includeYear: data.includeYear,
+          digitLength: data.sequenceLength,
+          financialYearId,
+        },
+      });
+    } else {
+      return this.prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType: 'STOCK_ENTRY',
+          prefix: data.prefix,
+          separator: data.separator,
+          includeYear: data.includeYear,
+          digitLength: data.sequenceLength,
+        },
+      });
+    }
+  }
+
+  async getAllVoucherConfigs(companyId: number, financialYearId: number) {
+    const configs = await this.prisma.voucherNumberConfig.findMany({
+      where: { companyId },
+    });
+    return configs;
+  }
+
+  private async scanMaxVoucherSequence(
+    companyId: number,
+    financialYearId: number,
+    voucherType: VoucherType,
+    pattern: string,
+  ): Promise<number> {
+    let list: string[] = [];
+
+    if (voucherType === 'SALE_INVOICE' || voucherType === 'SALE_RETURN' || voucherType === 'SALE_DEBIT_NOTE') {
+      const rows = await this.prisma.saleInvoice.findMany({
+        where: { companyId, financialYearId, invoiceType: voucherType, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (voucherType === 'PURCHASE_INVOICE' || voucherType === 'PURCHASE_RETURN' || voucherType === 'PURCHASE_DEBIT_NOTE') {
+      const rows = await this.prisma.purchaseInvoice.findMany({
+        where: { companyId, financialYearId, invoiceType: voucherType, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (
+      voucherType === 'CHALLAN_TRADING' ||
+      voucherType === 'CHALLAN_JOB_WORK' ||
+      voucherType === 'CHALLAN_SALE_ORDER' ||
+      voucherType === 'CHALLAN_PURCHASE_ORDER' ||
+      voucherType === 'CHALLAN_CERTIFICATION' ||
+      voucherType === 'CHALLAN_INTERNAL'
+    ) {
+      let purpose = 'TRADING_JHANGHAD';
+      if (voucherType === 'CHALLAN_JOB_WORK') purpose = 'JOB_WORK';
+      else if (voucherType === 'CHALLAN_SALE_ORDER') purpose = 'SALE_ORDER';
+      else if (voucherType === 'CHALLAN_PURCHASE_ORDER') purpose = 'PURCHASE_ORDER';
+      else if (voucherType === 'CHALLAN_CERTIFICATION') purpose = 'CERTIFICATION';
+      else if (voucherType === 'CHALLAN_INTERNAL') purpose = 'INTERNAL';
+
+      const rows = await this.prisma.challanVoucher.findMany({
+        where: { companyId, financialYearId, purpose, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (voucherType === 'JOB_INCOME' || voucherType === 'JOB_EXPENSE') {
+      const rows = await this.prisma.jobVoucher.findMany({
+        where: { companyId, financialYearId, jobType: voucherType, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (voucherType === 'JOURNAL_VOUCHER') {
+      const rows = await this.prisma.journalVoucher.findMany({
+        where: { companyId, financialYearId, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (
+      voucherType === 'CASH_PAYMENT' ||
+      voucherType === 'CASH_RECEIPT' ||
+      voucherType === 'BANK_PAYMENT' ||
+      voucherType === 'BANK_RECEIPT'
+    ) {
+      const rows = await this.prisma.cashBankVoucher.findMany({
+        where: { companyId, financialYearId, transactionType: voucherType, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (voucherType === 'LOAN_VOUCHER') {
+      const rows = await this.prisma.loan.findMany({
+        where: { companyId, financialYearId, voucherNumber: { startsWith: pattern } },
+        select: { voucherNumber: true },
+      });
+      list = rows.map((r) => r.voucherNumber);
+    } else if (voucherType === 'STOCK_ENTRY') {
+      const rows = await this.prisma.stockPacket.findMany({
+        where: { companyId, stockIdNumber: { startsWith: pattern } },
+        select: { stockIdNumber: true },
+      });
+      list = rows.map((r) => r.stockIdNumber);
+    }
+
+    let maxSeq = 0;
+    for (const val of list) {
+      const segment = val.slice(pattern.length);
+      const match = segment.match(/^(\d+)/);
+      if (match) {
+        const parsed = parseInt(match[1], 10);
+        if (parsed > maxSeq) {
+          maxSeq = parsed;
+        }
+      }
+    }
+    return maxSeq;
+  }
+
+  async saveVoucherConfig(
+    companyId: number,
+    financialYearId: number,
+    voucherType: VoucherType,
+    data: { prefix: string; separator: string; suffix: string; digitLength: number; includeYear: boolean }
+  ) {
+    const existing = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType },
+    });
+
+    let formatChanged = false;
+    if (existing) {
+      if (
+        existing.prefix !== data.prefix ||
+        existing.separator !== data.separator ||
+        existing.suffix !== data.suffix ||
+        existing.digitLength !== data.digitLength ||
+        existing.includeYear !== data.includeYear
+      ) {
+        formatChanged = true;
+      }
+
+      await this.prisma.voucherNumberConfig.update({
+        where: { id: existing.id },
+        data: {
+          prefix: data.prefix,
+          separator: data.separator,
+          suffix: data.suffix,
+          digitLength: data.digitLength,
+          includeYear: data.includeYear,
+        },
+      });
+    } else {
+      formatChanged = true;
+      await this.prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType,
+          method: 'AUTOMATIC',
+          prefix: data.prefix,
+          separator: data.separator,
+          suffix: data.suffix,
+          digitLength: data.digitLength,
+          includeYear: data.includeYear,
+        },
+      });
+    }
+
+    let message: string | null = null;
+
+    if (formatChanged) {
+      let yearSuffix = '';
+      if (voucherType === 'STOCK_ENTRY') {
+        const year = new Date().getFullYear();
+        yearSuffix = String(year);
+      } else {
+        const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
+        if (fy) {
+          const startYear = fy.fromDate.getFullYear();
+          const endYear = fy.toDate.getFullYear();
+          yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+        }
+      }
+
+      const separator = data.separator || '-';
+      const pattern = data.includeYear !== false
+        ? `${data.prefix}${separator}${yearSuffix}${separator}`
+        : `${data.prefix}${separator}`;
+
+      const maxSeq = await this.scanMaxVoucherSequence(companyId, financialYearId, voucherType, pattern);
+
+      if (maxSeq > 0) {
+        message = `This prefix format was already used so entry will start from number ${maxSeq + 1}`;
+        
+        const sequence = await this.prisma.voucherNumberSequence.findFirst({
+          where: { companyId, financialYearId, voucherType },
+        });
+        if (sequence) {
+          await this.prisma.voucherNumberSequence.update({
+            where: { id: sequence.id },
+            data: { currentNumber: maxSeq },
+          });
+        } else {
+          await this.prisma.voucherNumberSequence.create({
+            data: {
+              companyId,
+              financialYearId,
+              voucherType,
+              currentNumber: maxSeq,
+              lastGeneratedAt: new Date(),
+            },
+          });
+        }
+      } else {
+        const sequence = await this.prisma.voucherNumberSequence.findFirst({
+          where: { companyId, financialYearId, voucherType },
+        });
+        if (sequence) {
+          await this.prisma.voucherNumberSequence.update({
+            where: { id: sequence.id },
+            data: { currentNumber: 0 },
+          });
+        }
+      }
+    }
+
+    return { success: true, message };
   }
 
   /** Built-in shapes plus shapes previously used on stock packets for this company. */
@@ -162,7 +421,11 @@ export class StockService {
     const pieceCount = Number(data.pieceCount) || 1;
     if (pieceCount < 1) throw new BadRequestException('Piece count must be at least 1');
 
-    const stockIdNumber = await this.resolveStockIdNumber(companyId, data.stockIdNumber as string | undefined);
+    const stockIdNumber = await this.resolveStockIdNumber(
+      companyId,
+      data.stockIdNumber as string | undefined,
+      data.financialYearId ? Number(data.financialYearId) : undefined
+    );
     await this.validateUniqueStockId(companyId, stockIdNumber);
     await this.validateCertificateNumber(data.certificateNumber as string | undefined);
 
@@ -389,10 +652,10 @@ export class StockService {
     });
   }
 
-  private async resolveStockIdNumber(companyId: number, manual?: string): Promise<string> {
+  private async resolveStockIdNumber(companyId: number, manual?: string, financialYearId?: number): Promise<string> {
     const trimmed = manual?.trim();
     if (trimmed) return trimmed;
-    return generateStockIdNumber(this.prisma, companyId);
+    return generateStockIdNumber(this.prisma, companyId, {}, financialYearId);
   }
 
   private async validateQuality(companyId: number, qualityId: number) {

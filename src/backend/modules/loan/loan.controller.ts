@@ -67,4 +67,13 @@ export class LoanController {
       return { success: false, error: e.message || 'Failed to generate PDF statement' };
     }
   }
+
+  async handlePreviewNumber(payload: { companyId: number; financialYearId: number }): Promise<IApiResponse> {
+    try {
+      const data = await this.loanService.previewVoucherNumber(payload.companyId, payload.financialYearId);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Failed to preview loan number' };
+    }
+  }
 }

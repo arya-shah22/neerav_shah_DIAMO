@@ -11,9 +11,12 @@ import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { IAccount } from '../account/account.types';
 import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
+import { useCompanyStore } from '../../state/company-store';
+
 export const JVBookPage: React.FC = () => {
   const { showToast } = useToast();
   const { companyId } = useActiveCompany();
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const [printData, setPrintData] = useState<any | null>(null);
 
   // IPC hooks
@@ -21,8 +24,12 @@ export const JVBookPage: React.FC = () => {
   const { invoke: createJournal } = useIpc('journal:create');
   const { data: journals, loading, invoke: refreshJournals } = useIpc<any[]>('journal:list');
   const { invoke: deleteJournal } = useIpc('journal:delete');
+  const { invoke: fetchPreviewNo } = useIpc<string>('journal:preview-number');
 
   // Form states
+  const [billNumber, setBillNumber] = useState('');
+  const [isManualBillNumber, setIsManualBillNumber] = useState(false);
+  const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
   const [drAccountId, setDrAccountId] = useState<number | null>(null);
   const [crAccountId, setCrAccountId] = useState<number | null>(null);
@@ -58,6 +65,18 @@ export const JVBookPage: React.FC = () => {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    if (activeFinancialYear) {
+      fetchPreviewNo({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+        if (res.success && res.data) {
+          setPreviewVoucherNo(res.data);
+          setBillNumber(res.data);
+        }
+      });
+    }
+  }, [companyId, activeFinancialYear, fetchPreviewNo]);
 
   // Bidirectional calculations
   const handleAmountChange = (val: number) => {
@@ -134,11 +153,13 @@ export const JVBookPage: React.FC = () => {
     }
 
     const payload = {
-      financialYearId: 1, // Default FY in backend
+      financialYearId: activeFinancialYear?.id,
       voucherDate,
       drAccountId,
       crAccountId,
       amount,
+      isManualBillNumber,
+      billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
       sgst: sgstPct,
       cgst: cgstPct,
       igst: igstPct,
@@ -324,6 +345,22 @@ export const JVBookPage: React.FC = () => {
         flexDirection: 'column',
         gap: '20px',
       }}>
+        {/* Bill Number Config Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+            <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} />
+            Enter bill number manually
+          </label>
+          <div style={{ flex: 1, maxWidth: '300px' }}>
+            <Input 
+              placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
+              disabled={!isManualBillNumber} 
+              value={billNumber}
+              onChange={(e) => setBillNumber(e.target.value)}
+            />
+          </div>
+        </div>
+
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',

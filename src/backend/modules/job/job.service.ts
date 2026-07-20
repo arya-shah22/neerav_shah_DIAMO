@@ -5,6 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { JobType, VoucherStatus, StockStatus } from '@prisma/client';
+import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 
 @Injectable()
 export class JobService {
@@ -102,7 +103,7 @@ export class JobService {
     const dbVoucherType = type === JobType.JOB_INCOME ? 'JOB_INCOME' : 'JOB_EXPENSE';
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: dbVoucherType as any },
+      where: { companyId, voucherType: dbVoucherType as any },
     });
     if (!config) {
       config = await this.prisma.voucherNumberConfig.create({
@@ -148,9 +149,52 @@ export class JobService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
 
     const typeAbbr = type === JobType.JOB_INCOME ? 'JINC' : 'JEXP';
-    const seqStr = String(nextNum).padStart(config.digitLength, '0');
+    const typeCode = type === JobType.JOB_INCOME ? 'JI' : 'JE';
 
-    return `${company.companyCode}-${yearSuffix}-${typeAbbr}-${seqStr}`;
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
+  }
+
+  async previewVoucherNumber(companyId: number, financialYearId: number, type: JobType): Promise<string> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
+
+    if (!company || !fy) {
+      throw new BadRequestException('Company or Financial Year not found');
+    }
+
+    const dbVoucherType = type === JobType.JOB_INCOME ? 'JOB_INCOME' : 'JOB_EXPENSE';
+
+    let config = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType: dbVoucherType as any },
+    });
+    if (!config) {
+      config = await this.prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType: dbVoucherType as any,
+          method: 'AUTOMATIC',
+          separator: '-',
+          digitLength: 6,
+          includeYear: true,
+          resetAnnually: true,
+        },
+      });
+    }
+
+    const sequence = await this.prisma.voucherNumberSequence.findFirst({
+      where: { companyId, financialYearId, voucherType: dbVoucherType as any },
+    });
+
+    const nextNum = (sequence?.currentNumber || 0) + 1;
+
+    const startYear = fy.fromDate.getFullYear();
+    const endYear = fy.toDate.getFullYear();
+    const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+
+    const typeCode = type === JobType.JOB_INCOME ? 'JI' : 'JE';
+
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
   }
 
   /**
@@ -167,7 +211,10 @@ export class JobService {
     const party = await this.prisma.account.findUnique({ where: { id: partyId } });
     if (!company || !party) throw new BadRequestException('Company or Party not found');
 
-    const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId, jobType);
+    const isManual = data.isManualBillNumber === true;
+    const voucherNumber = isManual && data.billNumber
+      ? String(data.billNumber)
+      : await this.generateVoucherNumber(companyId, financialYearId, jobType);
     const billNumber = billNumberInput || voucherNumber;
 
     // Accounts for double entry GL postings

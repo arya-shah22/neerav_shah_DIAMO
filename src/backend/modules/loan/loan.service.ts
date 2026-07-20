@@ -14,6 +14,7 @@ import {
   DebitCreditType,
   CashBankType
 } from '@prisma/client';
+import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
 
@@ -89,7 +90,7 @@ export class LoanService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.LOAN_VOUCHER },
+      where: { companyId, voucherType: VoucherType.LOAN_VOUCHER },
     });
     if (!config) {
       config = await this.prisma.voucherNumberConfig.create({
@@ -133,9 +134,45 @@ export class LoanService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    const seqStr = String(nextNum).padStart(config.digitLength, '0');
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'LN', company.companyCode);
+  }
 
-    return `${company.companyCode}-${yearSuffix}-LN-${seqStr}`;
+  async previewVoucherNumber(companyId: number, financialYearId: number): Promise<string> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
+
+    if (!company || !fy) {
+      throw new BadRequestException('Company or Financial Year not found');
+    }
+
+    let config = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType: VoucherType.LOAN_VOUCHER },
+    });
+    if (!config) {
+      config = await this.prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType: VoucherType.LOAN_VOUCHER,
+          method: 'AUTOMATIC',
+          separator: '-',
+          digitLength: 6,
+          includeYear: true,
+          resetAnnually: true,
+        },
+      });
+    }
+
+    const sequence = await this.prisma.voucherNumberSequence.findFirst({
+      where: { companyId, financialYearId, voucherType: VoucherType.LOAN_VOUCHER },
+    });
+
+    const nextNum = (sequence?.currentNumber || 0) + 1;
+
+    const startYear = fy.fromDate.getFullYear();
+    const endYear = fy.toDate.getFullYear();
+    const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'LN', company.companyCode);
   }
 
   /**
@@ -279,7 +316,10 @@ export class LoanService {
       durationMonths
     );
 
-    const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId);
+    const isManual = data.isManualBillNumber === true;
+    const voucherNumber = isManual && data.billNumber
+      ? String(data.billNumber)
+      : await this.generateVoucherNumber(companyId, financialYearId);
 
     // Calculate due date
     const dueDate = new Date(loanDate);

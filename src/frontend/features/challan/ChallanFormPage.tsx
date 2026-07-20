@@ -69,6 +69,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
   const [expectedReturnDate, setExpectedReturnDate] = useState('');
   const [narration, setNarration] = useState('');
   const [challanNumber, setChallanNumber] = useState('');
+  const [isManualBillNumber, setIsManualBillNumber] = useState(false);
 
   // Items grid
   const [items, setItems] = useState<Partial<IChallanItem>[]>([
@@ -267,13 +268,17 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
     }
 
     const payload = {
+      companyId,
+      financialYearId: activeFinancialYear?.id,
       purpose,
       partyId: Number(partyId),
       partyName: parties.find(p => p.id === Number(partyId))?.accountName || '',
       challanDate,
       expectedReturnDate: expectedReturnDate || null,
       narration,
-      challanNumber: challanNumber || previewVoucherNo,
+      isManualBillNumber,
+      challanNumber: isManualBillNumber ? challanNumber : previewVoucherNo,
+      billNumber: isManualBillNumber ? challanNumber : previewVoucherNo,
       mobile: mobile || null,
       city: city || null,
       gstin: gstin || null,
@@ -659,13 +664,22 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
           disabled={viewMode}
         />
 
-        <Input
-          label="Manual Challan Ref"
-          value={challanNumber}
-          onChange={(e) => setChallanNumber(e.target.value)}
-          placeholder="Optional custom ref"
-          disabled={viewMode}
-        />
+      </div>
+
+      {/* Bill Number Config Row */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '16px', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+          <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} disabled={viewMode} />
+          Enter bill number manually
+        </label>
+        <div style={{ flex: 1, maxWidth: '300px' }}>
+          <Input 
+            placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
+            disabled={!isManualBillNumber || viewMode} 
+            value={challanNumber}
+            onChange={(e) => setChallanNumber(e.target.value)}
+          />
+        </div>
       </div>
 
       {/* Item Grid Table */}

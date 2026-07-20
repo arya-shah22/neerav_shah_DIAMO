@@ -46,4 +46,13 @@ export class JobController {
       return { success: false, error: e.message };
     }
   }
+
+  async handlePreviewNumber(payload: { companyId: number; financialYearId: number; type: JobType }) {
+    try {
+      const data = await this.jobService.previewVoucherNumber(payload.companyId, payload.financialYearId, payload.type);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
 }

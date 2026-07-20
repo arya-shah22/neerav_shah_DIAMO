@@ -5,6 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ChallanPurpose, ChallanStatus, StockStatus, VoucherType } from '@prisma/client';
+import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 
 export interface ChallanListFilters {
   purpose?: ChallanPurpose;
@@ -115,7 +116,7 @@ export class ChallanService {
     const vType = purposeToVoucherType(purpose);
 
     const config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: vType },
+      where: { companyId, voucherType: vType },
     });
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
       where: { companyId, financialYearId, voucherType: vType },
@@ -129,13 +130,20 @@ export class ChallanService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
 
     let typeAbbr = 'CHL';
-    if (purpose === 'JOB_WORK') typeAbbr = 'CHL-JW';
-    else if (purpose === 'TRADING_JHANGHAD') typeAbbr = 'CHL-JH';
-    else if (purpose === 'SALE_ORDER') typeAbbr = 'ORD-SL';
-    else if (purpose === 'PURCHASE_ORDER') typeAbbr = 'ORD-PR';
+    if (purpose === 'JOB_WORK') typeAbbr = 'CH-JW';
+    else if (purpose === 'TRADING_JHANGHAD') typeAbbr = 'CH-T';
+    else if (purpose === 'SALE_ORDER') typeAbbr = 'CH-SO';
+    else if (purpose === 'PURCHASE_ORDER') typeAbbr = 'CH-PO';
 
-    const seqStr = String(nextNum).padStart(digitLength, '0');
-    return `${company.companyCode}-${yearSuffix}-${typeAbbr}-${seqStr}`;
+    const activeConfig = config || {
+      prefix: typeAbbr,
+      separator: '-',
+      suffix: '',
+      digitLength: 6,
+      includeYear: true,
+    };
+
+    return formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company.companyCode);
   }
 
   async create(companyId: number, financialYearId: number, data: Record<string, any>, userId?: number) {

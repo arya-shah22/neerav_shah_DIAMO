@@ -39,6 +39,7 @@ import { MisDashboardPage } from './features/reports/MisDashboardPage';
 import { CashFlowPage } from './features/reports/CashFlowPage';
 import { FundFlowPage } from './features/reports/FundFlowPage';
 import { ReportIntelligencePage } from './features/reports/ReportIntelligencePage';
+import { SettingsPage } from './features/settings';
 import { useAuthStore } from './state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
@@ -420,6 +421,7 @@ const App: React.FC = () => {
                 <Route path="/reports/mis" element={<MisDashboardPage />} />
                 <Route path="/reports/intelligence" element={<ReportIntelligencePage />} />
                 <Route path="/reports/day-book" element={<DayBookPage />} />
+                <Route path="/settings" element={<SettingsPage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />

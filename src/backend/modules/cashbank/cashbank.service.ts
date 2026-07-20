@@ -5,6 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CashBankType, VoucherStatus, DebitCreditType, VoucherType, PaymentStatus, InvoiceStatus, InvoiceType } from '@prisma/client';
+import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 
 @Injectable()
 export class CashBankService {
@@ -301,7 +302,7 @@ export class CashBankService {
     const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: vType },
+      where: { companyId, voucherType: vType },
     });
     if (!config) {
       config = await this.prisma.voucherNumberConfig.create({
@@ -345,9 +346,53 @@ export class CashBankService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    const seqStr = String(nextNum).padStart(config.digitLength, '0');
+    const typeAbbr = transactionType === 'CASH_PAYMENT' || transactionType === 'CASH_RECEIPT' ? 'CASH' : 'BANK';
+    const typeCode = transactionType === 'CASH_PAYMENT' ? 'CP' : transactionType === 'CASH_RECEIPT' ? 'CR' : transactionType === 'BANK_PAYMENT' ? 'BP' : 'BR';
 
-    return `${company.companyCode}-${yearSuffix}-${typeLabel}-${seqStr}`;
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
+  }
+
+  async previewVoucherNumber(companyId: number, financialYearId: number, transactionType: CashBankType): Promise<string> {
+    const company = await this.prisma.company.findUnique({ where: { id: companyId } });
+    const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
+
+    if (!company || !fy) {
+      throw new BadRequestException('Company or Financial Year not found');
+    }
+
+    const isCash = transactionType === CashBankType.CASH_PAYMENT || transactionType === CashBankType.CASH_RECEIPT;
+    const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
+
+    let config = await this.prisma.voucherNumberConfig.findFirst({
+      where: { companyId, voucherType: vType },
+    });
+    if (!config) {
+      config = await this.prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType: vType,
+          method: 'AUTOMATIC',
+          separator: '-',
+          digitLength: 6,
+          includeYear: true,
+          resetAnnually: true,
+        },
+      });
+    }
+
+    const sequence = await this.prisma.voucherNumberSequence.findFirst({
+      where: { companyId, financialYearId, voucherType: vType },
+    });
+
+    const nextNum = (sequence?.currentNumber || 0) + 1;
+
+    const startYear = fy.fromDate.getFullYear();
+    const endYear = fy.toDate.getFullYear();
+    const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+    const typeCode = transactionType === 'CASH_PAYMENT' ? 'CP' : transactionType === 'CASH_RECEIPT' ? 'CR' : transactionType === 'BANK_PAYMENT' ? 'BP' : 'BR';
+
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
   }
 
   /**
@@ -375,7 +420,10 @@ export class CashBankService {
       throw new BadRequestException('Voucher amount must be greater than zero');
     }
 
-    const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId, transactionType);
+    const isManual = data.isManualBillNumber === true;
+    const voucherNumber = isManual && data.billNumber
+      ? String(data.billNumber)
+      : await this.generateVoucherNumber(companyId, financialYearId, transactionType);
 
     // Map CashBankType to corresponding VoucherType for GL Entries
     let vType: VoucherType;

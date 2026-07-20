@@ -13,6 +13,7 @@ import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, Combobox, FormSelect, useToast } from '../../components/ui';
 import { IQuality } from '../quality/quality.types';
 import { IStockPacket, CERTIFICATE_TYPES, STOCK_STATUS_LABELS, EDITABLE_STOCK_STATUSES } from './stock.types';
+import { useCompanyStore } from '../../state/company-store';
 
 const LIST_ROUTE = '/inventory/stock';
 
@@ -90,12 +91,14 @@ export const StockFormPage: React.FC = () => {
     loadShapes();
   }, [companyId, fetchQualities, loadShapes]);
 
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+
   useEffect(() => {
     if (!companyId || isEdit) return;
-    fetchPreviewId(companyId).then((res) => {
+    fetchPreviewId({ companyId, financialYearId: activeFinancialYear?.id }).then((res) => {
       if (res.success && res.data) setPreviewId(res.data);
     });
-  }, [companyId, isEdit, fetchPreviewId]);
+  }, [companyId, isEdit, fetchPreviewId, activeFinancialYear?.id]);
 
   useEffect(() => {
     if (!companyId || !isEdit || !id) return;
@@ -144,6 +147,7 @@ export const StockFormPage: React.FC = () => {
     const payload = {
       ...data,
       stockIdNumber: !isEdit && useManualId ? data.stockIdNumber : isEdit ? data.stockIdNumber : undefined,
+      financialYearId: activeFinancialYear?.id,
     };
     const res = isEdit
       ? await updateStock({ id: Number(id), companyId, data: payload })

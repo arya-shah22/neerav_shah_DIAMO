@@ -14,6 +14,7 @@ export interface StockIdConfig {
   prefix?: string;
   includeYear?: boolean;
   sequenceLength?: number;
+  separator?: string;
 }
 
 export function formatStockIdNumber(
@@ -23,21 +24,50 @@ export function formatStockIdNumber(
 ): string {
   const prefix = config.prefix ?? DEFAULT_PREFIX;
   const seqLen = config.sequenceLength ?? SEQUENCE_LENGTH;
+  const separator = config.separator ?? '-';
   const padded = String(sequence).padStart(seqLen, '0');
   if (config.includeYear !== false) {
-    return `${prefix}-${year}-${padded}`;
+    return `${prefix}${separator}${year}${separator}${padded}`;
   }
-  return `${prefix}-${padded}`;
+  return `${prefix}${separator}${padded}`;
 }
 
 export async function generateStockIdNumber(
   prisma: PrismaClient,
   companyId: number,
   config: StockIdConfig = {},
+  financialYearId?: number,
 ): Promise<string> {
-  const year = new Date().getFullYear();
-  const prefix = config.prefix ?? DEFAULT_PREFIX;
-  const pattern = config.includeYear !== false ? `${prefix}-${year}-` : `${prefix}-`;
+  let year = new Date().getFullYear();
+  if (financialYearId) {
+    const fy = await prisma.financialYear.findUnique({ where: { id: financialYearId } });
+    if (fy) {
+      year = fy.fromDate.getFullYear();
+    }
+  }
+
+  // Load configuration from database if not explicitly provided
+  let activeConfig = { ...config };
+  if (!config.prefix && config.includeYear === undefined && !config.sequenceLength && !config.separator) {
+    const dbConfig = await prisma.voucherNumberConfig.findFirst({
+      where: {
+        companyId,
+        voucherType: 'STOCK_ENTRY',
+      },
+    });
+    if (dbConfig) {
+      activeConfig = {
+        prefix: dbConfig.prefix ?? undefined,
+        includeYear: dbConfig.includeYear,
+        sequenceLength: dbConfig.digitLength,
+        separator: dbConfig.separator,
+      };
+    }
+  }
+
+  const prefix = activeConfig.prefix ?? DEFAULT_PREFIX;
+  const separator = activeConfig.separator ?? '-';
+  const pattern = activeConfig.includeYear !== false ? `${prefix}${separator}${year}${separator}` : `${prefix}${separator}`;
 
   const existing = await prisma.stockPacket.findMany({
     where: {
@@ -62,13 +92,14 @@ export async function generateStockIdNumber(
     nextSequence = maxSeq + 1;
   }
 
-  return formatStockIdNumber(nextSequence, config, year);
+  return formatStockIdNumber(nextSequence, activeConfig, year);
 }
 
 export async function previewNextStockIdNumber(
   prisma: PrismaClient,
   companyId: number,
   config: StockIdConfig = {},
+  financialYearId?: number,
 ): Promise<string> {
-  return generateStockIdNumber(prisma, companyId, config);
+  return generateStockIdNumber(prisma, companyId, config, financialYearId);
 }

@@ -345,7 +345,11 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'stock:delete', (payload) => stockController.handleDelete(payload));
   ipcHandle(ipcMain, 'stock:search', (payload) => stockController.handleSearch(payload));
   ipcHandle(ipcMain, 'stock:timeline', (payload) => stockController.handleTimeline(payload));
-  ipcHandle(ipcMain, 'stock:preview-id', (companyId: number) => stockController.handlePreviewId(companyId));
+  ipcHandle(ipcMain, 'stock:preview-id', (payload) => stockController.handlePreviewId(payload));
+  ipcHandle(ipcMain, 'stock:get-config', (companyId: number) => stockController.handleGetConfig(companyId));
+  ipcHandle(ipcMain, 'stock:save-config', (payload) => stockController.handleSaveConfig(payload));
+  ipcHandle(ipcMain, 'stock:get-all-configs', (payload) => stockController.handleGetAllVoucherConfigs(payload));
+  ipcHandle(ipcMain, 'stock:save-voucher-config', (payload) => stockController.handleSaveVoucherConfig(payload));
   ipcHandle(ipcMain, 'stock:shapes-list', (companyId: number) => stockController.handleListShapes(companyId));
   ipcHandle(ipcMain, 'stock:import-csv', (payload) => stockController.handleImportCsv(payload));
 
@@ -369,11 +373,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   // ─── Stage 8: Job Book ────────────────────────────────────
   ipcHandle(ipcMain, 'job:list', (payload) => jobController.handleList(payload));
   ipcHandle(ipcMain, 'job:get', (payload) => jobController.handleGet(payload));
+  ipcHandle(ipcMain, 'job:preview-number', (payload) => jobController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'job:create', (payload) => jobController.handleCreate(payload));
   ipcHandle(ipcMain, 'job:delete', (payload) => jobController.handleDelete(payload));
 
   // ─── Phase 8: Accounting (JV) ─────────────────────────────
   ipcHandle(ipcMain, 'journal:list', (payload) => journalController.handleList(payload));
+  ipcHandle(ipcMain, 'journal:preview-number', (payload) => journalController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'journal:create', (payload) => journalController.handleCreate(payload));
   ipcHandle(ipcMain, 'journal:delete', (payload) => journalController.handleDelete(payload));
 
@@ -383,11 +389,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'cashbank:unpaid-purchases', (payload) => cashBankController.handleListUnpaidPurchases(payload));
   ipcHandle(ipcMain, 'cashbank:unpaid-sales', (payload) => cashBankController.handleListUnpaidSales(payload));
   ipcHandle(ipcMain, 'cashbank:party-notes', (payload) => cashBankController.handleListPartyNotes(payload));
+  ipcHandle(ipcMain, 'cashbank:preview-number', (payload) => cashBankController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'cashbank:create', (payload) => cashBankController.handleCreate(payload));
   ipcHandle(ipcMain, 'cashbank:delete', (payload) => cashBankController.handleDelete(payload));
 
   // ─── Loan Management ──────────────────────────────────────
   ipcHandle(ipcMain, 'loan:list', (payload: number) => loanController.handleList(payload));
+  ipcHandle(ipcMain, 'loan:preview-number', (payload) => loanController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'loan:create', (payload) => loanController.handleCreate(payload));
   ipcHandle(ipcMain, 'loan:repay', (payload) => loanController.handleRepay(payload));
   ipcHandle(ipcMain, 'loan:delete', (payload) => loanController.handleDelete(payload));

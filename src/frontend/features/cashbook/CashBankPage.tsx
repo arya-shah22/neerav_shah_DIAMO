@@ -11,9 +11,12 @@ import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { IAccount } from '../account/account.types';
 import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
+import { useCompanyStore } from '../../state/company-store';
+
 export const CashBankPage: React.FC = () => {
   const { showToast } = useToast();
   const { companyId } = useActiveCompany();
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const [printData, setPrintData] = useState<any | null>(null);
 
   // IPC hooks
@@ -25,9 +28,12 @@ export const CashBankPage: React.FC = () => {
   const { invoke: fetchUnpaidPurchases } = useIpc<any[]>('cashbank:unpaid-purchases');
   const { invoke: fetchUnpaidSales } = useIpc<any[]>('cashbank:unpaid-sales');
   const { invoke: fetchPartyNotes } = useIpc<any[]>('cashbank:party-notes');
+  const { invoke: fetchPreviewNo } = useIpc<string>('cashbank:preview-number');
 
   // Form states
   const [transactionType, setTransactionType] = useState<'CASH_PAYMENT' | 'CASH_RECEIPT' | 'BANK_PAYMENT' | 'BANK_RECEIPT'>('CASH_PAYMENT');
+  const [isManualBillNumber, setIsManualBillNumber] = useState(false);
+  const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
   const [manualVoucherNo, setManualVoucherNo] = useState('');
   const [partyId, setPartyId] = useState<number | null>(null);
@@ -64,6 +70,18 @@ export const CashBankPage: React.FC = () => {
   useEffect(() => {
     refreshData();
   }, [refreshData]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    if (activeFinancialYear) {
+      fetchPreviewNo({ companyId, financialYearId: activeFinancialYear.id, type: transactionType }).then((res) => {
+        if (res.success && res.data) {
+          setPreviewVoucherNo(res.data);
+          setManualVoucherNo(res.data);
+        }
+      });
+    }
+  }, [companyId, transactionType, activeFinancialYear, fetchPreviewNo]);
 
   // Handoff default Cash vs Bank account selection
   const getAssetAccountId = useCallback((): number | null => {
@@ -233,13 +251,15 @@ export const CashBankPage: React.FC = () => {
     }
 
     const payload = {
-      financialYearId: 1,
+      financialYearId: activeFinancialYear?.id,
       voucherDate,
       transactionType,
       partyId,
       cashBankAccountId: assetAccountId,
-      amount: netAmountFlow, // We post the NET physical cash flow
-      manualVoucherNo,
+      amount: netAmountFlow,
+      isManualBillNumber,
+      billNumber: isManualBillNumber ? manualVoucherNo : previewVoucherNo,
+      manualVoucherNo: isManualBillNumber ? manualVoucherNo : previewVoucherNo,
       referenceBillNo,
       adjustedNoteAmount: applyCreditAdjustment ? creditAdjustmentAmount : (applyDebitAdjustment ? debitAdjustmentAmount : 0),
       isCreditAdjustment: applyCreditAdjustment,
@@ -490,6 +510,22 @@ export const CashBankPage: React.FC = () => {
               {type.replace('_', ' ')}
             </button>
           ))}
+        </div>
+
+        {/* Bill Number Config Row */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+            <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} />
+            Enter bill number manually
+          </label>
+          <div style={{ flex: 1, maxWidth: '300px' }}>
+            <Input 
+              placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
+              disabled={!isManualBillNumber} 
+              value={manualVoucherNo}
+              onChange={(e) => setManualVoucherNo(e.target.value)}
+            />
+          </div>
         </div>
 
         <div style={{

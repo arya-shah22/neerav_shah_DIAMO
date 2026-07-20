@@ -53,12 +53,48 @@ export class StockController {
     }
   }
 
-  async handlePreviewId(companyId: number): Promise<IApiResponse> {
+  async handlePreviewId(payload: { companyId: number; financialYearId?: number }): Promise<IApiResponse> {
     try {
-      const data = await this.service.previewStockId(companyId);
+      const data = await this.service.previewStockId(payload.companyId, payload.financialYearId);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: formatApiError(error, 'Failed to preview stock ID') };
+    }
+  }
+
+  async handleGetConfig(companyId: number): Promise<IApiResponse> {
+    try {
+      const data = await this.service.getStockIdConfig(companyId);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to fetch stock ID configuration') };
+    }
+  }
+
+  async handleSaveConfig(payload: { companyId: number; financialYearId: number; data: any }): Promise<IApiResponse> {
+    try {
+      const data = await this.service.saveStockIdConfig(payload.companyId, payload.financialYearId, payload.data);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to save stock ID configuration') };
+    }
+  }
+
+  async handleGetAllVoucherConfigs(payload: { companyId: number; financialYearId: number }): Promise<IApiResponse> {
+    try {
+      const data = await this.service.getAllVoucherConfigs(payload.companyId, payload.financialYearId);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to fetch voucher configurations') };
+    }
+  }
+
+  async handleSaveVoucherConfig(payload: { companyId: number; financialYearId: number; voucherType: any; data: any }): Promise<IApiResponse> {
+    try {
+      const data = await this.service.saveVoucherConfig(payload.companyId, payload.financialYearId, payload.voucherType, payload.data);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to save voucher configuration') };
     }
   }
 

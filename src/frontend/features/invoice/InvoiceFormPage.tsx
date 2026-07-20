@@ -210,7 +210,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       const [accRes, qlyRes, previewIdRes] = await Promise.all([
         fetchAccounts({ companyId }),
         fetchQualities({ companyId }),
-        fetchPreviewId(companyId) as any,
+        fetchPreviewId({ companyId, financialYearId: activeFinancialYear?.id }) as any,
       ]);
 
       if (accRes.success && accRes.data) {

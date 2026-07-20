@@ -13,6 +13,8 @@ import { IJobVoucher, IJobVoucherItem, JOB_TYPE_LABELS } from './job.types';
 import { IAccount } from '../account/account.types';
 import { IQuality } from '../quality/quality.types';
 
+import { useCompanyStore } from '../../state/company-store';
+
 interface JobFormPageProps {
   jobType: JobType;
   viewMode?: boolean;
@@ -23,6 +25,7 @@ export const JobFormPage: React.FC<JobFormPageProps> = ({ jobType, viewMode = fa
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { companyId } = useActiveCompany();
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
 
   // IPC Hooks
   const { invoke: createJob } = useIpc('job:create');
@@ -30,9 +33,12 @@ export const JobFormPage: React.FC<JobFormPageProps> = ({ jobType, viewMode = fa
   const { invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const { invoke: fetchPackets } = useIpc<any>('stock:list');
+  const { invoke: fetchPreviewNo } = useIpc<string>('job:preview-number');
 
   // Form States
   const [billNumber, setBillNumber] = useState('');
+  const [isManualBillNumber, setIsManualBillNumber] = useState(false);
+  const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [voucherDate, setVoucherDate] = useState(new Date().toISOString().split('T')[0]);
   const [partyId, setPartyId] = useState<number | null>(null);
   const [narration, setNarration] = useState('');
@@ -80,6 +86,18 @@ export const JobFormPage: React.FC<JobFormPageProps> = ({ jobType, viewMode = fa
 
     loadMasters();
   }, [companyId, fetchAccounts, fetchQualities, fetchPackets]);
+
+  useEffect(() => {
+    if (!companyId || id) return;
+    if (activeFinancialYear) {
+      fetchPreviewNo({ companyId, financialYearId: activeFinancialYear.id, type: jobType }).then((res) => {
+        if (res.success && res.data) {
+          setPreviewVoucherNo(res.data);
+          setBillNumber(res.data);
+        }
+      });
+    }
+  }, [companyId, id, jobType, activeFinancialYear, fetchPreviewNo]);
 
   // Load details if view mode
   useEffect(() => {
@@ -202,14 +220,15 @@ export const JobFormPage: React.FC<JobFormPageProps> = ({ jobType, viewMode = fa
     }
 
     const payload = {
-      financialYearId: 1, // Default FY in backend
+      financialYearId: activeFinancialYear?.id,
       jobType,
       partyId,
-      billNumber: billNumber || undefined,
+      isManualBillNumber,
+      billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
       voucherDate,
       narration,
       totalCarats,
-      totalAmount: netTotal, // Save calculated final net total
+      totalAmount: netTotal,
       items: items.map(it => ({
         qualityId: it.qualityId,
         carats: it.carats,
@@ -261,13 +280,21 @@ export const JobFormPage: React.FC<JobFormPageProps> = ({ jobType, viewMode = fa
           borderRadius: '12px',
           border: '1px solid var(--color-border)',
         }}>
-          <Input
-            label="Bill Number (Optional)"
-            placeholder="Worker invoice bill no."
-            value={billNumber}
-            onChange={(e) => setBillNumber(e.target.value)}
-            disabled={viewMode}
-          />
+          {/* Bill Number Config Row */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', gridColumn: 'span 2', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
+              <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} disabled={viewMode} />
+              Enter bill number manually
+            </label>
+            <div style={{ flex: 1, maxWidth: '300px' }}>
+              <Input 
+                placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
+                disabled={!isManualBillNumber || viewMode} 
+                value={billNumber}
+                onChange={(e) => setBillNumber(e.target.value)}
+              />
+            </div>
+          </div>
 
           <Input
             label="Voucher Date *"

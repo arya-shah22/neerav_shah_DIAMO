@@ -6,6 +6,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { InvoiceStatus, PaymentStatus, InvoiceType, DebitCreditType, MovementType, StockStatus } from '@prisma/client';
 import { generateStockIdNumber } from '../../utils/stock-id-generator';
+import { formatVoucherNumber, getOrInitializeVoucherConfig } from '../../utils/voucher-number-formatter';
 
 function cleanUpper(val: unknown): string | null {
   if (val == null) return null;
@@ -58,7 +59,7 @@ export class InvoiceService {
     }
 
     const config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: type as any },
+      where: { companyId, voucherType: type as any },
     });
 
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
@@ -73,16 +74,22 @@ export class InvoiceService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     
     let typeAbbr = 'INV';
-    if (type === 'SALE_INVOICE') typeAbbr = 'SAL';
-    else if (type === 'SALE_RETURN') typeAbbr = 'SRET';
+    if (type === 'SALE_INVOICE') typeAbbr = 'SI';
+    else if (type === 'SALE_RETURN') typeAbbr = 'SR';
     else if (type === 'SALE_DEBIT_NOTE') typeAbbr = 'SDN';
-    else if (type === 'PURCHASE_INVOICE') typeAbbr = 'PUR';
-    else if (type === 'PURCHASE_RETURN') typeAbbr = 'PRN';
-    else if (type === 'PURCHASE_DEBIT_NOTE') typeAbbr = 'PCN';
+    else if (type === 'PURCHASE_INVOICE') typeAbbr = 'PI';
+    else if (type === 'PURCHASE_RETURN') typeAbbr = 'PR';
+    else if (type === 'PURCHASE_DEBIT_NOTE') typeAbbr = 'PDN';
 
-    const seqStr = String(nextNum).padStart(digitLength, '0');
+    const activeConfig = config || {
+      prefix: typeAbbr,
+      separator: '-',
+      suffix: '',
+      digitLength: 6,
+      includeYear: true,
+    };
 
-    return `${company.companyCode}-${yearSuffix}-${typeAbbr}-${seqStr}`;
+    return formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company.companyCode);
   }
 
   /**
@@ -96,9 +103,8 @@ export class InvoiceService {
       throw new BadRequestException('Company or Financial Year not found');
     }
 
-    // 1. Get voucher numbering configuration or create default
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: type as any },
+      where: { companyId, voucherType: type as any },
     });
 
     if (!config) {
@@ -143,16 +149,14 @@ export class InvoiceService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     
     let typeAbbr = 'INV';
-    if (type === 'SALE_INVOICE') typeAbbr = 'SAL';
-    else if (type === 'SALE_RETURN') typeAbbr = 'SRET';
+    if (type === 'SALE_INVOICE') typeAbbr = 'SI';
+    else if (type === 'SALE_RETURN') typeAbbr = 'SR';
     else if (type === 'SALE_DEBIT_NOTE') typeAbbr = 'SDN';
-    else if (type === 'PURCHASE_INVOICE') typeAbbr = 'PUR';
-    else if (type === 'PURCHASE_RETURN') typeAbbr = 'PRN';
-    else if (type === 'PURCHASE_DEBIT_NOTE') typeAbbr = 'PCN';
+    else if (type === 'PURCHASE_INVOICE') typeAbbr = 'PI';
+    else if (type === 'PURCHASE_RETURN') typeAbbr = 'PR';
+    else if (type === 'PURCHASE_DEBIT_NOTE') typeAbbr = 'PDN';
 
-    const seqStr = String(sequence.currentNumber).padStart(config.digitLength, '0');
-
-    return `${company.companyCode}-${yearSuffix}-${typeAbbr}-${seqStr}`;
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeAbbr, company.companyCode);
   }
 
   /**
