@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Barcode, FileText, Settings, ShieldAlert } from 'lucide-react';
+import { Save, RefreshCw, Barcode, FileText, Settings, ShieldAlert, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, useToast } from '../../components/ui';
@@ -41,6 +41,9 @@ export const SettingsPage: React.FC = () => {
   const { companyId, isReady } = useActiveCompany();
   const { showToast } = useToast();
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+
+  // settings sub-pages active tab
+  const [activeTab, setActiveTab] = useState<'menu' | 'numbering' | 'print'>('menu');
 
   // ─── Voucher Configs State ───
   const { invoke: getAllVoucherConfigs } = useIpc<any>('stock:get-all-configs');
@@ -155,15 +158,143 @@ export const SettingsPage: React.FC = () => {
     );
   }
 
+  if (activeTab === 'menu') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%', maxWidth: '1200px' }}>
+        <div>
+          <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+            System Settings
+          </h1>
+          <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
+            Configure and customize rules, templates, layouts, and business defaults.
+          </p>
+        </div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '20px', marginTop: '12px' }}>
+          {/* Card 1: Document Numbering & Stock ID Rules */}
+          <div 
+            onClick={() => setActiveTab('numbering')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#eff6ff', padding: '12px', borderRadius: '8px', color: 'var(--color-primary)' }}>
+                <Barcode size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Numbering & ID Rules</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Customize prefixes, separators, suffixes, digit length, and yearly resetting parameters for packet IDs and vouchers.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: 'var(--color-primary)', alignSelf: 'flex-end' }}>
+              Configure Rules <ChevronRight size={14} />
+            </div>
+          </div>
+
+          {/* Card 2: Print Template Configuration (Phase 13.5 Placeholder/Integration point) */}
+          <div 
+            onClick={() => setActiveTab('print')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#ecfdf5', padding: '12px', borderRadius: '8px', color: '#059669' }}>
+                <FileText size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Print Template Config</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Manage design layouts, visual toggles, company logs, and bank details for printed invoices and challans.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#059669', alignSelf: 'flex-end' }}>
+              Configure Templates <ChevronRight size={14} />
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (activeTab === 'print') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%', maxWidth: '1200px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              Print Template Configuration
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Configure invoice display styles and toggle layout configurations.
+            </p>
+          </div>
+        </div>
+
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '24px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
+          <p style={{ fontSize: '15px', margin: 0 }}>Print template toggles and customization controls are ready to integrate.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%', maxWidth: '1200px' }}>
-      <div>
-        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-          Document Numbering & Stock ID Rules
-        </h1>
-        <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
-          Customize ID generation rules, prefixes, separators, suffixes, and counter digits for diamond packets and transactions.
-        </p>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+          <ArrowLeft size={18} />
+        </Button>
+        <div>
+          <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+            Document Numbering & Stock ID Rules
+          </h1>
+          <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: 'var(--spacing-sm)' }}>
+            Customize ID generation rules, prefixes, separators, suffixes, and counter digits for diamond packets and transactions.
+          </p>
+        </div>
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '380px 1fr', gap: '24px', alignItems: 'start' }}>
@@ -254,70 +385,49 @@ export const SettingsPage: React.FC = () => {
               <Input
                 value={vSuffix}
                 onChange={(e) => setVSuffix(e.target.value.toUpperCase())}
-                placeholder="Suffix (optional)"
+                placeholder="Suffix (Optional)"
               />
             </div>
+          </div>
 
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
             {/* Separator */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                Separator
+                Separator *
               </label>
-              <select
+              <Input
                 value={vSeparator}
                 onChange={(e) => setVSeparator(e.target.value)}
-                style={{
-                  height: '38px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--color-border)',
-                  background: 'transparent',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                <option value="-">- (Hyphen)</option>
-                <option value="/">/ (Forward Slash)</option>
-                <option value=".">. (Dot)</option>
-                <option value="_">_ (Underscore)</option>
-              </select>
+                placeholder="e.g. - or /"
+              />
             </div>
 
             {/* Digit Length */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <label style={{ fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                Digit Counter Length
+                Sequence Digits Length *
               </label>
-              <select
-                value={vDigitLength}
+              <Input
+                type="number"
+                value={vDigitLength || ''}
                 onChange={(e) => setVDigitLength(Number(e.target.value))}
-                style={{
-                  height: '38px',
-                  borderRadius: 'var(--radius-sm)',
-                  border: '1px solid var(--color-border)',
-                  background: 'transparent',
-                  padding: '0 12px',
-                  fontSize: '14px',
-                  color: 'var(--color-text-primary)',
-                }}
-              >
-                {[3, 4, 5, 6, 7, 8].map((len) => (
-                  <option key={len} value={len}>{len} Digits</option>
-                ))}
-              </select>
+                placeholder="e.g. 5"
+              />
             </div>
+          </div>
 
-            {/* Include Year checkbox */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <input
-                type="checkbox"
                 id="includeYearCheck"
+                type="checkbox"
                 checked={vIncludeYear}
                 onChange={(e) => setVIncludeYear(e.target.checked)}
                 style={{ width: '16px', height: '16px' }}
               />
               <label htmlFor="includeYearCheck" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                Include Year
+                Include Year in ID (Automatic)
               </label>
             </div>
           </div>
