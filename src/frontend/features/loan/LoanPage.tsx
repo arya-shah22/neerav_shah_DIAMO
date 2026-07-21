@@ -8,13 +8,28 @@ import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { useCompanyStore } from '../../state/company-store';
 import { Button, Input, Select, useToast } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
-import { Trash2, Briefcase, FileText, IndianRupee } from 'lucide-react';
+import { Trash2, Briefcase, FileText, IndianRupee, Printer } from 'lucide-react';
 import { IAccount } from '../account/account.types';
+import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
 export const LoanPage: React.FC = () => {
   const { showToast } = useToast();
   const { companyId } = useActiveCompany();
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+
+  // Print Template State
+  const [printData, setPrintData] = useState<any | null>(null);
+  const [printConfig, setPrintConfig] = useState<any>(null);
+  const { invoke: getTemplateConfig } = useIpc<any>('print:get-template-config');
+
+  const handlePrintClick = async (row: any) => {
+    if (!companyId) return;
+    const res = await getTemplateConfig({ companyId, voucherType: 'LOAN_VOUCHER' });
+    if (res.success && res.data) {
+      setPrintConfig(res.data);
+    }
+    setPrintData(row);
+  };
 
   // IPC Hooks
   const { invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
@@ -298,8 +313,25 @@ export const LoanPage: React.FC = () => {
         {row.status}
       </span>
     )},
-    { key: 'actions', header: 'Actions', width: '120px', render: (row) => (
+    { key: 'actions', header: 'Actions', width: '150px', render: (row) => (
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <button
+          onClick={() => handlePrintClick(row)}
+          title="Print Loan Voucher"
+          style={{
+            background: 'transparent',
+            border: 'none',
+            color: 'var(--color-primary)',
+            cursor: 'pointer',
+            padding: '4px',
+            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          <Printer size={16} />
+        </button>
         {row.status !== 'CLOSED' && (
           <Button size="sm" variant="secondary" onClick={() => {
             setSelectedLoan(row);
@@ -310,6 +342,7 @@ export const LoanPage: React.FC = () => {
         )}
         <button
           onClick={() => handleDeleteLoan(row.id)}
+          title="Delete Loan Entry"
           style={{
             background: 'transparent',
             border: 'none',
@@ -768,6 +801,18 @@ export const LoanPage: React.FC = () => {
             })()}
           </div>
         </div>
+      )}
+
+      {printData && (
+        <PrintTemplate
+          type="LOAN"
+          data={printData}
+          layoutConfig={printConfig}
+          onClose={() => {
+            setPrintData(null);
+            setPrintConfig(null);
+          }}
+        />
       )}
     </div>
   );

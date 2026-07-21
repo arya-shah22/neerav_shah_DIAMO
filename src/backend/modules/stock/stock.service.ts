@@ -8,6 +8,8 @@ import {
   StockCategory,
   StockOwnership,
   StockStatus,
+  VoucherType,
+  ChallanPurpose,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { generateStockIdNumber, previewNextStockIdNumber } from '../../utils/stock-id-generator';
@@ -168,7 +170,7 @@ export class StockService {
     }
   }
 
-  async getAllVoucherConfigs(companyId: number, financialYearId: number) {
+  async getAllVoucherConfigs(companyId: number, _financialYearId: number) {
     const configs = await this.prisma.voucherNumberConfig.findMany({
       where: { companyId },
     });
@@ -196,22 +198,22 @@ export class StockService {
       });
       list = rows.map((r) => r.voucherNumber);
     } else if (
-      voucherType === 'CHALLAN_TRADING' ||
-      voucherType === 'CHALLAN_JOB_WORK' ||
-      voucherType === 'CHALLAN_SALE_ORDER' ||
-      voucherType === 'CHALLAN_PURCHASE_ORDER' ||
-      voucherType === 'CHALLAN_CERTIFICATION' ||
-      voucherType === 'CHALLAN_INTERNAL'
+      voucherType === 'MEMO_TRADING' ||
+      voucherType === 'MEMO_JOB_WORK' ||
+      voucherType === 'MEMO_SALE_ORDER' ||
+      voucherType === 'MEMO_PURCHASE_ORDER' ||
+      voucherType === 'MEMO_CERTIFICATION' ||
+      voucherType === 'MEMO_INTERNAL'
     ) {
       let purpose = 'TRADING_JHANGHAD';
-      if (voucherType === 'CHALLAN_JOB_WORK') purpose = 'JOB_WORK';
-      else if (voucherType === 'CHALLAN_SALE_ORDER') purpose = 'SALE_ORDER';
-      else if (voucherType === 'CHALLAN_PURCHASE_ORDER') purpose = 'PURCHASE_ORDER';
-      else if (voucherType === 'CHALLAN_CERTIFICATION') purpose = 'CERTIFICATION';
-      else if (voucherType === 'CHALLAN_INTERNAL') purpose = 'INTERNAL';
+      if (voucherType === 'MEMO_JOB_WORK') purpose = 'JOB_WORK';
+      else if (voucherType === 'MEMO_SALE_ORDER') purpose = 'SALE_ORDER';
+      else if (voucherType === 'MEMO_PURCHASE_ORDER') purpose = 'PURCHASE_ORDER';
+      else if (voucherType === 'MEMO_CERTIFICATION') purpose = 'CERTIFICATION';
+      else if (voucherType === 'MEMO_INTERNAL') purpose = 'INTERNAL';
 
       const rows = await this.prisma.challanVoucher.findMany({
-        where: { companyId, financialYearId, purpose, voucherNumber: { startsWith: pattern } },
+        where: { companyId, financialYearId, purpose: purpose as ChallanPurpose, voucherNumber: { startsWith: pattern } },
         select: { voucherNumber: true },
       });
       list = rows.map((r) => r.voucherNumber);

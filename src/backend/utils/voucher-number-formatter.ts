@@ -13,7 +13,7 @@ export function formatVoucherNumber(
   config: VoucherNumberConfigData,
   yearSuffix: string,
   typeAbbr: string,
-  companyCode: string,
+  _companyCode: string,
 ): string {
   const prefix = config.prefix !== undefined && config.prefix !== null && config.prefix !== '' ? config.prefix : typeAbbr;
   const separator = config.separator || '-';

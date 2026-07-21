@@ -298,7 +298,6 @@ export class CashBankService {
     }
 
     const isCash = type === CashBankType.CASH_PAYMENT || type === CashBankType.CASH_RECEIPT;
-    const typeLabel = isCash ? 'CASH' : 'BANK';
     const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
@@ -346,8 +345,7 @@ export class CashBankService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    const typeAbbr = transactionType === 'CASH_PAYMENT' || transactionType === 'CASH_RECEIPT' ? 'CASH' : 'BANK';
-    const typeCode = transactionType === 'CASH_PAYMENT' ? 'CP' : transactionType === 'CASH_RECEIPT' ? 'CR' : transactionType === 'BANK_PAYMENT' ? 'BP' : 'BR';
+    const typeCode = type === CashBankType.CASH_PAYMENT ? 'CP' : type === CashBankType.CASH_RECEIPT ? 'CR' : type === CashBankType.BANK_PAYMENT ? 'BP' : 'BR';
 
     return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
   }

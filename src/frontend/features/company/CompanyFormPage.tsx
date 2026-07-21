@@ -6,7 +6,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Save, ArrowLeft, Building2, MapPin, Landmark } from 'lucide-react';
+import { Save, ArrowLeft, Building2, MapPin, Landmark, Upload } from 'lucide-react';
 import { companySchema, CompanyFormData } from './company.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { loadCompanyContext } from '../../services/company-context';
@@ -38,6 +38,8 @@ export const CompanyFormPage: React.FC = () => {
     handleSubmit,
     reset,
     control,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CompanyFormData>({
     resolver: zodResolver(companySchema),
@@ -54,6 +56,7 @@ export const CompanyFormPage: React.FC = () => {
       businessType: '',
       status: 'ACTIVE',
       isDefault: false,
+      logoPath: '',
       addressLine1: '',
       addressLine2: '',
       city: '',
@@ -102,6 +105,7 @@ export const CompanyFormPage: React.FC = () => {
             businessType: c.businessType || '',
             status: c.status || 'ACTIVE',
             isDefault: c.isDefault ?? false,
+            logoPath: c.logoPath || '',
             addressLine1: c.addressLine1 || '',
             addressLine2: c.addressLine2 || '',
             city: c.city || '',
@@ -214,6 +218,63 @@ export const CompanyFormPage: React.FC = () => {
                 error={errors.gstinNumber?.message}
                 {...register('gstinNumber')}
               />
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontSize: 'var(--text-body-sm)', fontWeight: 500, color: 'var(--color-text-secondary)' }}>Company Logo</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', border: '1px dashed var(--color-border)', padding: '8px 12px', borderRadius: '6px', background: '#f8fafc', minHeight: '52px' }}>
+                  {watch('logoPath') ? (
+                    <>
+                      <img
+                        src={watch('logoPath')!}
+                        alt="Company Logo Preview"
+                        style={{
+                          height: '36px',
+                          width: '100px',
+                          objectFit: 'contain',
+                          border: '1px solid var(--color-border)',
+                          borderRadius: '4px',
+                          background: '#fff',
+                          padding: '2px'
+                        }}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => setValue('logoPath', '')}
+                        style={{ color: '#ef4444', fontSize: '11px', padding: '4px 8px' }}
+                      >
+                        Remove Logo
+                      </Button>
+                    </>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      onClick={() => {
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.accept = 'image/png,image/jpeg,image/svg+xml';
+                        input.onchange = (e: any) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          if (file.size > 500 * 1024) {
+                            showToast('Image must be under 500KB', 'error');
+                            return;
+                          }
+                          const reader = new FileReader();
+                          reader.onload = (ev) => {
+                            setValue('logoPath', ev.target?.result as string);
+                          };
+                          reader.readAsDataURL(file);
+                        };
+                        input.click();
+                      }}
+                      style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', padding: '4px 8px' }}
+                    >
+                      <Upload size={12} /> Upload Logo Image
+                    </Button>
+                  )}
+                </div>
+              </div>
               <Input
                 label="TAN (Optional)"
                 placeholder="e.g. AHMD01234F"

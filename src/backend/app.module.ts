@@ -21,6 +21,7 @@ import { CashBankModule } from './modules/cashbank/cashbank.module';
 import { LoanModule } from './modules/loan/loan.module';
 import { ReportModule } from './modules/report/report.module';
 import { ReportValidationModule } from './modules/report-validation/report-validation.module';
+import { PrintTemplateModule } from './modules/print-template/print-template.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { ReportValidationModule } from './modules/report-validation/report-valid
     LoanModule,
     ReportModule,
     ReportValidationModule,
+    PrintTemplateModule,
   ],
   controllers: [],
   providers: [

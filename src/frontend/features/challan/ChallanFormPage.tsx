@@ -9,6 +9,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { useCompanyStore } from '../../state/company-store';
 import { Button, Input, Select, Badge, useToast } from '../../components/ui';
+import { PrintTemplate } from '../../components/ui/PrintTemplate';
 import { ChallanPurpose, ChallanStatus, CHALLAN_PURPOSE_LABELS, IChallanItem, CHALLAN_STATUS_LABELS, CHALLAN_STATUS_BADGE_VARIANT } from './challan.types';
 
 interface FormPageProps {
@@ -76,6 +77,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
     { rowNumber: 1, qualityId: 0, carats: 0, pieces: 1, rate: 0, amount: 0, stockPacketId: null, remarks: '' }
   ]);
 
+  const [printConfig, setPrintConfig] = useState<any>(null);
   const { invoke: fetchAccounts } = useIpc<AccountObj[]>('account:list');
   const { invoke: fetchQualities } = useIpc<QualityObj[]>('quality:list');
   const { invoke: fetchStockPackets } = useIpc<StockPacketObj[]>('stock:list');
@@ -84,6 +86,22 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
   const { invoke: createChallan } = useIpc('challan:create');
   const { invoke: updateChallan } = useIpc('challan:update');
   const { invoke: updateChallanStatus } = useIpc('challan:update-status');
+  const { invoke: getTemplateConfig } = useIpc<any>('print:get-template-config');
+
+  const handleOpenPrintPreview = async () => {
+    setShowPrintModal(false);
+    if (companyId) {
+      let vType = 'MEMO_TRADING';
+      if (purpose === 'JOB_WORK') vType = 'MEMO_JOB_WORK';
+      else if (purpose === 'SALE_ORDER') vType = 'MEMO_SALE_ORDER';
+      else if (purpose === 'PURCHASE_ORDER') vType = 'MEMO_PURCHASE_ORDER';
+      const res = await getTemplateConfig({ companyId, voucherType: vType });
+      if (res?.success && res?.data) {
+        setPrintConfig(res.data);
+      }
+    }
+    setShowPrintPreview(true);
+  };
 
   const listRoute = purpose === 'TRADING_JHANGHAD'
     ? '/transactions/challans/trading'
@@ -379,178 +397,44 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
     return <p style={{ color: 'var(--color-text-secondary)' }}>Loading details...</p>;
   }
 
-  // ─── Render Print Layout side-by-side landscape ───
+  // ─── Render Print Layout ───
   if (showPrintPreview && activeCompany) {
     const selectedParty = parties.find(p => p.id === Number(partyId));
-    const challanTitle = CHALLAN_PURPOSE_LABELS[purpose].toUpperCase();
 
-    const renderSingleChallanCopy = (copyType: 'OFFICE COPY' | 'CLIENT COPY') => (
-      <div style={{
-        width: '48%',
-        padding: '16px',
-        border: '1px solid #1e293b',
-        borderRadius: '8px',
-        display: 'flex',
-        flexDirection: 'column',
-        justifyContent: 'space-between',
-        fontSize: '11px',
-        color: '#1e293b',
-        background: '#ffffff',
-        boxSizing: 'border-box',
-        minHeight: '420px',
-      }}>
-        {/* Header */}
-        <div style={{ borderBottom: '1px solid #94a3b8', paddingBottom: '6px', marginBottom: '8px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-            <div>
-              <h3 style={{ fontSize: '14px', fontWeight: 800, margin: 0, textTransform: 'uppercase', color: '#0f172a' }}>
-                {activeCompany.companyName}
-              </h3>
-              <p style={{ margin: '2px 0 0', color: '#475569', fontSize: '9px' }}>
-                {activeCompany.addressLine1} {activeCompany.addressLine2 && `, ${activeCompany.addressLine2}`}
-                <br />
-                {activeCompany.city} - {activeCompany.pincode}
-                {activeCompany.mobile && ` · Mob: ${activeCompany.mobile}`}
-              </p>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <span style={{ fontSize: '8px', padding: '2px 4px', border: '1px solid #94a3b8', borderRadius: '4px', fontWeight: 600, color: '#475569' }}>
-                {copyType}
-              </span>
-              <h4 style={{ fontSize: '11px', fontWeight: 800, margin: '4px 0 0', color: '#3b82f6' }}>
-                {challanTitle}
-              </h4>
-            </div>
-          </div>
-        </div>
-
-        {/* Party and Date Info */}
-        <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr', gap: '8px', marginBottom: '8px', borderBottom: '1px solid #e2e8f0', paddingBottom: '6px' }}>
-          <div>
-            <span style={{ color: '#64748b', fontWeight: 600, textTransform: 'uppercase', fontSize: '8px' }}>TO (CLIENT):</span>
-            <div style={{ fontWeight: 700, fontSize: '11px', marginTop: '2px', color: '#0f172a' }}>{selectedParty?.accountName || '—'}</div>
-            {city && <div style={{ color: '#475569', marginTop: '1px' }}>City: {city}</div>}
-            {mobile && <div style={{ color: '#475569' }}>Mobile: {mobile}</div>}
-            {gstin && <div style={{ color: '#475569' }}>GSTIN: {gstin}</div>}
-          </div>
-          <div style={{ textAlign: 'right' }}>
-            <div><strong style={{ color: '#64748b', fontSize: '9px' }}>VOUCHER NO:</strong> <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>{challanNumber || previewVoucherNo}</span></div>
-            <div style={{ marginTop: '2px' }}><strong style={{ color: '#64748b', fontSize: '9px' }}>DATE:</strong> {new Date(challanDate).toLocaleDateString('en-IN')}</div>
-            {expectedReturnDate && (
-              <div style={{ marginTop: '2px', color: '#ef4444' }}><strong style={{ fontSize: '9px' }}>VALID UPTO:</strong> {new Date(expectedReturnDate).toLocaleDateString('en-IN')}</div>
-            )}
-          </div>
-        </div>
-
-        {/* Item Table Grid */}
-        <div style={{ flex: 1, marginBottom: '8px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '10px' }}>
-            <thead>
-              <tr style={{ background: '#f8fafc', borderBottom: '1.5px solid #475569' }}>
-                <th style={{ textAlign: 'left', padding: '4px', fontWeight: 700 }}>Description of Goods</th>
-                <th style={{ textAlign: 'right', padding: '4px', fontWeight: 700, width: '70px' }}>Carats</th>
-                <th style={{ textAlign: 'right', padding: '4px', fontWeight: 700, width: '80px' }}>Price / Carat</th>
-                <th style={{ textAlign: 'right', padding: '4px', fontWeight: 700, width: '90px' }}>Total</th>
-              </tr>
-            </thead>
-            <tbody>
-              {items.map((row, idx) => {
-                const qName = qualities.find(q => q.id === Number(row.qualityId))?.qualityName || '—';
-                return (
-                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '4px 2px' }}>
-                      {qName} {row.stockPacketId ? `(Pkt: ${availablePackets.find(p => p.id === row.stockPacketId)?.stockIdNumber})` : ''}
-                    </td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>{Number(row.carats).toFixed(3)}</td>
-                    <td style={{ textAlign: 'right', padding: '4px' }}>₹ {Number(row.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', padding: '4px', fontWeight: 600 }}>₹ {Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                );
-              })}
-              {/* Summary Row */}
-              <tr style={{ borderTop: '1.5px solid #475569', fontWeight: 700, background: '#f8fafc' }}>
-                <td style={{ padding: '6px 4px', textTransform: 'uppercase' }}>TOTAL</td>
-                <td style={{ textAlign: 'right', padding: '6px 4px' }}>{totalCarats.toFixed(3)}</td>
-                <td style={{ padding: '6px 4px' }}></td>
-                <td style={{ textAlign: 'right', padding: '6px 4px', color: '#0f172a' }}>
-                  ₹ {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        {/* Footer section (T&C and Signatures) */}
-        <div>
-          {narration && (
-            <div style={{ fontSize: '8px', color: '#64748b', marginBottom: '8px', padding: '4px', border: '1px dashed #cbd5e1', borderRadius: '4px' }}>
-              <strong>Remarks:</strong> {narration}
-            </div>
-          )}
-          <div style={{ fontSize: '8px', color: '#64748b', lineHeight: '1.3', marginBottom: '16px', borderTop: '1px solid #e2e8f0', paddingTop: '4px' }}>
-            <strong>Terms & Conditions:</strong> Goods received on approval memo (Jhanghad) are held at your risk against loss/damage. Please return within validity.
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0 8px', marginTop: '12px' }}>
-            <div style={{ textAlign: 'center', borderTop: '1px solid #475569', width: '90px', paddingTop: '4px', fontSize: '9px', fontWeight: 600 }}>
-              Receiver Sign
-            </div>
-            <div style={{ textAlign: 'center', borderTop: '1px solid #475569', width: '110px', paddingTop: '4px', fontSize: '9px', fontWeight: 600 }}>
-              Authorised Sign
-            </div>
-          </div>
-        </div>
-      </div>
-    );
+    const challanPrintData = {
+      voucherNumber: challanNumber || previewVoucherNo,
+      voucherDate: challanDate,
+      expectedReturnDate,
+      invoiceType: CHALLAN_PURPOSE_LABELS[purpose].toUpperCase(),
+      party: selectedParty ? {
+        accountName: selectedParty.accountName,
+        city: selectedParty.city || city,
+        mobile: selectedParty.mobile || mobile,
+        gstinNumber: selectedParty.gstinNumber || gstin,
+      } : { accountName: 'Cash Account', city, mobile, gstinNumber: gstin },
+      items: items.map((item, idx) => {
+        const qName = qualities.find(q => q.id === Number(item.qualityId))?.qualityName || 'Item';
+        return {
+          srNo: idx + 1,
+          hsnCode: '7102',
+          qualityName: qName,
+          carats: item.carats || 0,
+          pieces: item.pieces || 0,
+          rate: item.rate || 0,
+          amount: item.amount || 0,
+          remarks: item.remarks || '',
+        };
+      }),
+      netAmount: items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
+    };
 
     return (
-      <div id="print-preview-root" style={{ background: '#ffffff', minHeight: '100vh', padding: '20px', boxSizing: 'border-box' }}>
-        <style dangerouslySetInnerHTML={{ __html: `
-          @media print {
-            @page { size: A4 landscape; margin: 10mm; }
-            body { background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
-            .no-print { display: none !important; }
-            #print-preview-root {
-              background: transparent !important;
-              padding: 0 !important;
-              margin: 0 !important;
-              min-height: auto !important;
-            }
-            .print-page {
-              padding: 0 !important;
-              border: none !important;
-              margin: 0 !important;
-              width: 100% !important;
-              min-height: auto !important;
-              height: auto !important;
-              background: transparent !important;
-              border-radius: 0 !important;
-              box-shadow: none !important;
-            }
-          }
-        `}} />
-        <div className="no-print" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '20px', padding: '10px', background: 'var(--color-bg-card)', border: '1px solid var(--color-border)', borderRadius: '8px' }}>
-          <Button variant="ghost" onClick={() => setShowPrintPreview(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <ArrowLeft size={16} /> Back to Entry
-          </Button>
-          <Button variant="primary" onClick={triggerDirectPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Printer size={16} /> Print / Save PDF
-          </Button>
-        </div>
-
-        {/* Printable Side-by-Side Landscape Container */}
-        <div id="print-area" className="print-page" style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          width: '100%',
-          maxWidth: '297mm', // A4 Landscape width
-          margin: '0 auto',
-          boxSizing: 'border-box',
-          background: '#ffffff',
-        }}>
-          {renderSingleChallanCopy('OFFICE COPY')}
-          {renderSingleChallanCopy('CLIENT COPY')}
-        </div>
-      </div>
+      <PrintTemplate
+        type="INVOICE"
+        data={challanPrintData}
+        layoutConfig={printConfig}
+        onClose={() => setShowPrintPreview(false)}
+      />
     );
   }
 
@@ -855,7 +739,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
               Select "Preview on Screen" to see the side-by-side copies, or "System Print" to send it straight to the printer.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <Button variant="primary" onClick={() => { setShowPrintModal(false); setShowPrintPreview(true); }}>
+              <Button variant="primary" onClick={handleOpenPrintPreview}>
                 Preview on Screen
               </Button>
               <Button variant="secondary" onClick={triggerDirectPrint}>

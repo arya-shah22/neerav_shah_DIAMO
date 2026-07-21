@@ -148,7 +148,7 @@ export class JobService {
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
 
-    const typeAbbr = type === JobType.JOB_INCOME ? 'JINC' : 'JEXP';
+
     const typeCode = type === JobType.JOB_INCOME ? 'JI' : 'JE';
 
     return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);

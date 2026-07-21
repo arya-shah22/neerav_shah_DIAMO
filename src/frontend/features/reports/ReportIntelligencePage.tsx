@@ -4,27 +4,19 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { Search, Star, Play, FileText, Archive, Calendar, Plus, Trash2, ArrowRight, Folder, ShieldCheck, ShieldAlert, CheckCircle, AlertTriangle, Lock, Unlock, Printer, RefreshCw } from 'lucide-react';
+import { Search, Star, Play, FileText, Archive, Calendar, Plus, Trash2, ArrowRight, Folder, ShieldCheck, CheckCircle, AlertTriangle, Lock, Unlock, Printer, RefreshCw } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { Button, Input } from '../../components/ui';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import * as XLSX from 'xlsx';
 import {
-  getBalanceSheetCSV,
   getBalanceSheetPDFHtml,
-  getProfitLossCSV,
   getProfitLossPDFHtml,
-  getTrialBalanceCSV,
   getTrialBalancePDFHtml,
-  getCashFlowCSV,
   getCashFlowPDFHtml,
-  getFundFlowCSV,
   getFundFlowPDFHtml,
-  getStockReportCSV,
   getStockReportPDFHtml,
-  getDayBookCSV,
   getDayBookPDFHtml,
-  getOutstandingCSV,
   getOutstandingPDFHtml
 } from '../../utils/reportExports';
 
@@ -239,7 +231,7 @@ export const ReportIntelligencePage: React.FC = () => {
       alert('Error: No file path saved for this version archive.');
       return;
     }
-    const res = await window.api.invoke('system:open-file', { filePath: path });
+    const res: any = await window.api.invoke('system:open-file', { filePath: path });
     if (!res.success) {
       alert(`Failed to open file: ${res.error}`);
     }
@@ -257,7 +249,7 @@ export const ReportIntelligencePage: React.FC = () => {
     if (!companyId) return;
     setValidating(true);
     try {
-      const res = await window.api.invoke('report:run-health-checks', { companyId });
+      const res: any = await window.api.invoke('report:run-health-checks', { companyId });
       if (res && res.success) {
         setValidationResult(res);
       } else {
@@ -282,11 +274,11 @@ export const ReportIntelligencePage: React.FC = () => {
         certifiedBy,
         details: validationResult.checks
       };
-      const res = await window.api.invoke('report:generate-certificate', payload);
+      const res: any = await window.api.invoke('report:generate-certificate', payload);
       if (res && res.success) {
         alert(`Validation Certificate successfully generated & registered!\nCertificate No: ${res.certificateNo}`);
         // Reload history list
-        const histRes = await window.api.invoke('report:get-validation-history', { companyId });
+        const histRes: any = await window.api.invoke('report:get-validation-history', { companyId });
         if (histRes && histRes.success) {
           setValidationHistory(histRes.history);
         }
@@ -381,7 +373,7 @@ export const ReportIntelligencePage: React.FC = () => {
     printWindow.document.close();
   };
 
-  const generateReportHTML = (reportPath: string, companyName: string, d: any): string => {
+  const generateReportHTML = (reportPath: string, _companyName: string, d: any): string => {
     if (!activeCompany) return '';
     const dateNow = new Date().toLocaleDateString('en-IN');
     const filterDate = dateNow.split('/').reverse().join('-');
@@ -1254,7 +1246,7 @@ export const ReportIntelligencePage: React.FC = () => {
 
                 <div style={{ marginTop: '18px' }}>
                   {periodLocked ? (
-                    <Button variant="outline" onClick={() => togglePeriodLock(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '12px' }}>
+                    <Button variant="secondary" onClick={() => togglePeriodLock(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', fontSize: '12px' }}>
                       <Unlock size={14} /> Unlock Financial Postings
                     </Button>
                   ) : (

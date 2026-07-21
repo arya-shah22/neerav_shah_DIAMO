@@ -3,11 +3,12 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Barcode, FileText, Settings, ShieldAlert, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Save, RefreshCw, Barcode, FileText, ShieldAlert, ArrowLeft, ChevronRight } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, useToast } from '../../components/ui';
 import { useCompanyStore } from '../../state/company-store';
+import { PrintTemplateConfig } from './PrintTemplateConfig';
 
 interface VoucherTypeDefinition {
   type: string;
@@ -23,10 +24,10 @@ const VOUCHER_TYPES: VoucherTypeDefinition[] = [
   { type: 'PURCHASE_INVOICE', label: 'Purchase Invoice', defaultPrefix: 'PI' },
   { type: 'PURCHASE_RETURN', label: 'Purchase Return Debit Note', defaultPrefix: 'PR' },
   { type: 'PURCHASE_DEBIT_NOTE', label: 'Purchase Credit Note', defaultPrefix: 'PDN' },
-  { type: 'CHALLAN_TRADING', label: 'Jhanghad Trading', defaultPrefix: 'CH-T' },
-  { type: 'CHALLAN_JOB_WORK', label: 'Job Work Issue', defaultPrefix: 'CH-JW' },
-  { type: 'CHALLAN_SALE_ORDER', label: 'Sale Order', defaultPrefix: 'CH-SO' },
-  { type: 'CHALLAN_PURCHASE_ORDER', label: 'Purchase Order', defaultPrefix: 'CH-PO' },
+  { type: 'MEMO_TRADING', label: 'Memo — Jhanghad Trading', defaultPrefix: 'MM-T' },
+  { type: 'MEMO_JOB_WORK', label: 'Memo — Job Work Issue', defaultPrefix: 'MM-JW' },
+  { type: 'MEMO_SALE_ORDER', label: 'Memo — Sale Order', defaultPrefix: 'MM-SO' },
+  { type: 'MEMO_PURCHASE_ORDER', label: 'Memo — Purchase Order', defaultPrefix: 'MM-PO' },
   { type: 'JOB_INCOME', label: 'Job Book Income', defaultPrefix: 'JI' },
   { type: 'JOB_EXPENSE', label: 'Job Book Expense', defaultPrefix: 'JE' },
   { type: 'JOURNAL_VOUCHER', label: 'Journal Voucher', defaultPrefix: 'JV' },
@@ -111,7 +112,7 @@ export const SettingsPage: React.FC = () => {
       return `${prefixStr}${vSeparator}${padded}${suffixStr}`;
     }
 
-    const yearLabel = activeFinancialYear?.label ? activeFinancialYear.label.replace(/-/g, '') : '2627';
+    const yearLabel = (activeFinancialYear as any)?.label || (activeFinancialYear ? `${new Date(activeFinancialYear.fromDate).getFullYear().toString().slice(-2)}${new Date(activeFinancialYear.toDate).getFullYear().toString().slice(-2)}` : '2627');
     const yearSuffix = yearLabel.slice(-4); // e.g. 2627
     if (vIncludeYear) {
       return `${prefixStr}${vSeparator}${yearSuffix}${vSeparator}${padded}${suffixStr}`;
@@ -259,7 +260,7 @@ export const SettingsPage: React.FC = () => {
 
   if (activeTab === 'print') {
     return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%', maxWidth: '1200px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
             <ArrowLeft size={18} />
@@ -269,14 +270,12 @@ export const SettingsPage: React.FC = () => {
               Print Template Configuration
             </h1>
             <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-              Configure invoice display styles and toggle layout configurations.
+              Configure invoice display styles, watermarks, and layout toggles per document type.
             </p>
           </div>
         </div>
 
-        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '24px', textAlign: 'center', color: 'var(--color-text-secondary)' }}>
-          <p style={{ fontSize: '15px', margin: 0 }}>Print template toggles and customization controls are ready to integrate.</p>
-        </div>
+        <PrintTemplateConfig companyId={companyId!} />
       </div>
     );
   }

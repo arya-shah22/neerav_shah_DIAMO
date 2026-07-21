@@ -18,6 +18,17 @@ export const JVBookPage: React.FC = () => {
   const { companyId } = useActiveCompany();
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const [printData, setPrintData] = useState<any | null>(null);
+  const [printConfig, setPrintConfig] = useState<any>(null);
+  const { invoke: getTemplateConfig } = useIpc<any>('print:get-template-config');
+
+  const handlePrintClick = async (row: any) => {
+    if (!companyId) return;
+    const res = await getTemplateConfig({ companyId, voucherType: 'JOURNAL_VOUCHER' });
+    if (res.success && res.data) {
+      setPrintConfig(res.data);
+    }
+    setPrintData(row);
+  };
 
   // IPC hooks
   const { invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
@@ -312,7 +323,7 @@ export const JVBookPage: React.FC = () => {
       width: '120px',
       render: (row) => (
         <div style={{ display: 'flex', gap: '4px' }}>
-          <Button variant="ghost" size="sm" onClick={() => setPrintData(row)} title="Print A4 Layout">
+          <Button variant="ghost" size="sm" onClick={() => handlePrintClick(row)} title="Print A4 Layout">
             <Printer size={14} color="var(--color-primary)" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id, row.voucherNumber)} title="Delete">
@@ -536,7 +547,11 @@ export const JVBookPage: React.FC = () => {
         <PrintTemplate
           type="JOURNAL"
           data={printData}
-          onClose={() => setPrintData(null)}
+          layoutConfig={printConfig}
+          onClose={() => {
+            setPrintData(null);
+            setPrintConfig(null);
+          }}
         />
       )}
     </div>

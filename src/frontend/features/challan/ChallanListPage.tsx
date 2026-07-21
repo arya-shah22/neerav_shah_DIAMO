@@ -9,6 +9,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Badge, Input, Select, useToast } from '../../components/ui';
+import { PrintTemplate } from '../../components/ui/PrintTemplate';
 import { IChallan, ChallanPurpose, ChallanStatus, CHALLAN_PURPOSE_LABELS, CHALLAN_STATUS_LABELS, CHALLAN_STATUS_BADGE_VARIANT } from './challan.types';
 
 interface ListPageProps {
@@ -27,9 +28,52 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
   const [targetStatus, setTargetStatus] = useState<string>('');
   const [returnItems, setReturnItems] = useState<{ id: number; rowNumber: number; qualityName: string; carats: number; pieces: number; returnedCarats: number; returnedPieces: number }[]>([]);
 
+  const [printData, setPrintData] = useState<any>(null);
+  const [printConfig, setPrintConfig] = useState<any>(null);
+
   const { data: challans, loading, invoke: fetchChallans } = useIpc<IChallan[]>('challan:list');
   const { invoke: deleteChallan } = useIpc('challan:delete');
   const { invoke: updateChallanStatus } = useIpc('challan:update-status');
+  const { invoke: getTemplateConfig } = useIpc<any>('print:get-template-config');
+
+  const handlePrintClick = async (row: IChallan) => {
+    if (!companyId) return;
+    let vType = 'MEMO_TRADING';
+    if (purpose === 'JOB_WORK') vType = 'MEMO_JOB_WORK';
+    else if (purpose === 'SALE_ORDER') vType = 'MEMO_SALE_ORDER';
+    else if (purpose === 'PURCHASE_ORDER') vType = 'MEMO_PURCHASE_ORDER';
+
+    const res = await getTemplateConfig({ companyId, voucherType: vType });
+    if (res?.success && res?.data) {
+      setPrintConfig(res.data);
+    }
+
+    const challanPrintData = {
+      voucherNumber: row.voucherNumber,
+      voucherDate: row.challanDate,
+      expectedReturnDate: row.expectedReturnDate,
+      invoiceType: CHALLAN_PURPOSE_LABELS[purpose].toUpperCase(),
+      party: row.party ? {
+        accountName: row.party.accountName,
+        city: row.party.city,
+        mobile: row.party.mobile,
+        gstinNumber: row.party.gstinNumber,
+      } : { accountName: 'Cash Account' },
+      items: (row.items || []).map((item, idx) => ({
+        srNo: idx + 1,
+        hsnCode: '7102',
+        qualityName: item.quality?.qualityName || 'Item',
+        carats: item.carats || 0,
+        pieces: item.pieces || 0,
+        rate: item.rate || 0,
+        amount: item.amount || 0,
+        remarks: item.remarks || '',
+      })),
+      netAmount: row.totalAmount || 0,
+    };
+
+    setPrintData(challanPrintData);
+  };
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
@@ -156,20 +200,7 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
     }
   };
 
-  const getViewRoute = (id: number) => {
-    switch (purpose) {
-      case 'TRADING_JHANGHAD':
-        return `/transactions/challans/trading/${id}`;
-      case 'JOB_WORK':
-        return `/transactions/challans/job-work/${id}`;
-      case 'SALE_ORDER':
-        return `/transactions/orders/sales/${id}`;
-      case 'PURCHASE_ORDER':
-        return `/transactions/orders/purchases/${id}`;
-      default:
-        return `/transactions/challans/trading/${id}`;
-    }
-  };
+
 
   const columns: Column<IChallan>[] = [
     {
@@ -236,7 +267,7 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
       width: '150px',
       render: (row) => (
         <div style={{ display: 'flex', gap: '4px' }}>
-          <Button variant="ghost" size="sm" onClick={() => navigate(getViewRoute(row.id))} title="View & Print">
+          <Button variant="ghost" size="sm" onClick={() => handlePrintClick(row)} title="View & Print">
             <Printer size={14} />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate(getEditRoute(row.id))} title="Edit">
@@ -385,6 +416,17 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
             </div>
           </div>
         </div>
+      )}
+      {printData && (
+        <PrintTemplate
+          type="INVOICE"
+          data={printData}
+          layoutConfig={printConfig}
+          onClose={() => {
+            setPrintData(null);
+            setPrintConfig(null);
+          }}
+        />
       )}
     </div>
   );

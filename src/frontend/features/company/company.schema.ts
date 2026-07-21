@@ -69,6 +69,7 @@ export const companySchema = z.object({
     .transform((val) => val || null),
   status: z.enum(['ACTIVE', 'INACTIVE', 'SUSPENDED']).default('ACTIVE'),
   isDefault: z.boolean().default(false),
+  logoPath: z.string().nullable().optional().or(z.literal('')).transform((val) => val || null),
   addressLine1: z
     .string()
     .max(255)

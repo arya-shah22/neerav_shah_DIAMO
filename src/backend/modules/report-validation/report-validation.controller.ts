@@ -9,7 +9,7 @@ export class ReportValidationController {
   async handleRunHealthChecks(payload: { companyId: number }) {
     try {
       const data = await this.service.runHealthChecks(payload.companyId);
-      return { success: true, ...data };
+      return data;
     } catch (error: any) {
       return { success: false, error: error.message || 'Failed to execute system validation run' };
     }
@@ -27,7 +27,7 @@ export class ReportValidationController {
   async handleGenerateCertificate(payload: { companyId: number; checkType: string; status: string; summary: string; certifiedBy: string; details: any }) {
     try {
       const data = await this.service.generateCertificate(payload.companyId, payload);
-      return { success: true, ...data };
+      return data;
     } catch (error: any) {
       return { success: false, error: error.message || 'Failed to generate digital validation certificate' };
     }

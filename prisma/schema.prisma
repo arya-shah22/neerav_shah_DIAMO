@@ -165,7 +165,7 @@ enum MovementType {
   SALES_RETURN
   JOB_WORK_ISSUE
   JOB_WORK_RECEIVE
-  TRADING_CHALLAN
+  TRADING_MEMO
   MANUAL_ADJUSTMENT
   CORRECTION
   ARCHIVE
@@ -185,12 +185,12 @@ enum VoucherType {
   JOURNAL_VOUCHER
   JOB_INCOME
   JOB_EXPENSE
-  CHALLAN_TRADING
-  CHALLAN_JOB_WORK
-  CHALLAN_SALE_ORDER
-  CHALLAN_PURCHASE_ORDER
-  CHALLAN_CERTIFICATION
-  CHALLAN_INTERNAL
+  MEMO_TRADING
+  MEMO_JOB_WORK
+  MEMO_SALE_ORDER
+  MEMO_PURCHASE_ORDER
+  MEMO_CERTIFICATION
+  MEMO_INTERNAL
   STOCK_ENTRY
   STOCK_ADJUSTMENT
   OPENING
@@ -325,6 +325,7 @@ model Company {
   businessType        String?       @map("business_type") @db.VarChar(50)
   status              CompanyStatus @default(ACTIVE)
   isDefault           Boolean       @default(false) @map("is_default")
+  logoPath            String?       @map("logo_path") @db.LongText
 
   // Address
   addressLine1 String?  @map("address_line_1") @db.VarChar(255)

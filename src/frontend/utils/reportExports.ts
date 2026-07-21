@@ -795,11 +795,6 @@ export const getStockReportCSV = (reportData: any, activeTab: 'REGISTER' | 'QUAL
 };
 
 export const getStockReportPDFHtml = (reportData: any, activeCompany: any, activeTab: 'REGISTER' | 'QUALITY') => {
-  const fmt = (v: number) => {
-    const absVal = Math.abs(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return v < 0 ? `₹(${absVal})` : `₹${absVal}`;
-  };
-
   return `
     <!DOCTYPE html>
     <html>
@@ -1056,7 +1051,7 @@ export const getDayBookPDFHtml = (detailData: any, activeCompany: any, activeDat
   `;
 };
 
-export const getOutstandingCSV = (outstandingList: any[], reportType: 'RECEIVABLE' | 'PAYABLE') => {
+export const getOutstandingCSV = (outstandingList: any[], _reportType: 'RECEIVABLE' | 'PAYABLE') => {
   const headers = ['ACCOUNT NAME', 'CREDIT DAYS', 'CREDIT LIMIT', 'PENDING OUTSTANDING', '0-30 DAYS', '31-90 DAYS', '>90 DAYS'];
   const rows = outstandingList.map((row: any) => {
     const bucket30 = row.aging.bucket_0_30;

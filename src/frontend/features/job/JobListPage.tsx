@@ -23,6 +23,17 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
   const { companyId } = useActiveCompany();
   const [search, setSearch] = useState('');
   const [printData, setPrintData] = useState<IJobVoucher | null>(null);
+  const [printConfig, setPrintConfig] = useState<any>(null);
+  const { invoke: getTemplateConfig } = useIpc<any>('print:get-template-config');
+
+  const handlePrintClick = async (row: IJobVoucher) => {
+    if (!companyId) return;
+    const res = await getTemplateConfig({ companyId, voucherType: jobType });
+    if (res.success && res.data) {
+      setPrintConfig(res.data);
+    }
+    setPrintData(row);
+  };
 
   const { data: vouchers, loading, invoke: fetchJobs } = useIpc<IJobVoucher[]>('job:list');
   const { invoke: deleteJob } = useIpc('job:delete');
@@ -87,6 +98,13 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
       ),
     },
     {
+      key: 'voucherNumber',
+      header: 'VOUCHER NUMBER',
+      render: (row) => (
+        <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{row.voucherNumber}</span>
+      ),
+    },
+    {
       key: 'billNumber',
       header: 'BILL NO',
       render: (row) => row.billNumber || '—',
@@ -117,7 +135,7 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
       width: '160px',
       render: (row) => (
         <div style={{ display: 'flex', gap: '4px' }}>
-          <Button variant="ghost" size="sm" onClick={() => setPrintData(row)} title="Print A4 Layout">
+          <Button variant="ghost" size="sm" onClick={() => handlePrintClick(row)} title="Print A4 Layout">
             <Printer size={14} color="var(--color-primary)" />
           </Button>
           <Button variant="ghost" size="sm" onClick={() => navigate(getViewRoute(row.id))} title="View Details">
@@ -170,7 +188,11 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
         <PrintTemplate
           type="JOB"
           data={printData}
-          onClose={() => setPrintData(null)}
+          layoutConfig={printConfig}
+          onClose={() => {
+            setPrintData(null);
+            setPrintConfig(null);
+          }}
         />
       )}
     </div>

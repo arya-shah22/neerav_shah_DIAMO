@@ -4,7 +4,6 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Printer, Download, ArrowLeft, FileText, Filter } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -20,7 +19,6 @@ interface IQuality {
 
 export const StockReportPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'REGISTER' | 'QUALITY'>('DASHBOARD');
 
   // Filters State
@@ -58,7 +56,7 @@ export const StockReportPage: React.FC = () => {
           getStockTimeline({ id: activeDetailId, companyId }),
         ]);
         if (pRes.success) setModalPacket(pRes.data);
-        if (tRes.success) setModalTimeline(tRes.data);
+        if (tRes.success && tRes.data) setModalTimeline(tRes.data);
       } catch (err) {
         console.error(err);
       } finally {
@@ -124,7 +122,8 @@ export const StockReportPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!reportData) return;
-    const csvContent = getStockReportCSV(reportData, activeTab);
+    const targetTab = activeTab === 'DASHBOARD' ? 'REGISTER' : activeTab;
+    const csvContent = getStockReportCSV(reportData, targetTab);
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
@@ -925,7 +924,7 @@ export const StockReportPage: React.FC = () => {
 
                   return agingPackets.map((pkt: any, idx: number) => {
                     const cycle = Math.floor(pkt.ageInDays / agingThreshold);
-                    const isMultiple = pkt.ageInDays % agingThreshold === 0;
+
                     
                     const badgeBg = cycle >= 2 ? 'var(--color-danger-light)' : 'var(--color-warning-light)';
                     const badgeColor = cycle >= 2 ? 'var(--color-danger)' : 'var(--color-warning)';
@@ -997,6 +996,9 @@ export const StockReportPage: React.FC = () => {
                               {pkt.ageInDays} Days Old
                             </span>
                           </div>
+                        </div>
+                        <div style={{ color: 'var(--color-text-secondary)', fontSize: '12px', marginTop: '4px', lineHeight: 1.4 }}>
+                          {recommendation}
                         </div>
                       </div>
                     );

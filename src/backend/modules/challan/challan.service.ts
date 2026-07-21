@@ -16,15 +16,15 @@ export interface ChallanListFilters {
 function purposeToVoucherType(purpose: ChallanPurpose): VoucherType {
   switch (purpose) {
     case 'TRADING_JHANGHAD':
-      return 'CHALLAN_TRADING';
+      return 'MEMO_TRADING';
     case 'JOB_WORK':
-      return 'CHALLAN_JOB_WORK';
+      return 'MEMO_JOB_WORK';
     case 'SALE_ORDER':
-      return 'CHALLAN_SALE_ORDER';
+      return 'MEMO_SALE_ORDER';
     case 'PURCHASE_ORDER':
-      return 'CHALLAN_PURCHASE_ORDER';
+      return 'MEMO_PURCHASE_ORDER';
     default:
-      return 'CHALLAN_TRADING';
+      return 'MEMO_TRADING';
   }
 }
 
@@ -123,7 +123,7 @@ export class ChallanService {
     });
 
     const nextNum = (sequence?.currentNumber || 0) + 1;
-    const digitLength = config?.digitLength || 6;
+
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
@@ -240,7 +240,7 @@ export class ChallanService {
             data: {
               stockPacketId,
               movementDate: new Date(),
-              movementType: purpose === 'JOB_WORK' ? 'JOB_WORK_ISSUE' : 'TRADING_CHALLAN',
+              movementType: purpose === 'JOB_WORK' ? 'JOB_WORK_ISSUE' : 'TRADING_MEMO',
               previousStatus: packet.currentStatus,
               newStatus,
               carats,

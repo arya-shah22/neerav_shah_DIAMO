@@ -25,7 +25,7 @@ export type MovementType =
   | 'SALES_RETURN'
   | 'JOB_WORK_ISSUE'
   | 'JOB_WORK_RECEIVE'
-  | 'TRADING_CHALLAN'
+  | 'TRADING_MEMO'
   | 'MANUAL_ADJUSTMENT'
   | 'CORRECTION'
   | 'ARCHIVE';

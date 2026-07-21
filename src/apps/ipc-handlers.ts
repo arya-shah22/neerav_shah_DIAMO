@@ -20,6 +20,7 @@ import { CashBankController } from '../backend/modules/cashbank/cashbank.control
 import { LoanController } from '../backend/modules/loan/loan.controller';
 import { ReportController } from '../backend/modules/report/report.controller';
 import { ReportValidationController } from '../backend/modules/report-validation/report-validation.controller';
+import { PrintTemplateController } from '../backend/modules/print-template/print-template.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -56,6 +57,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const loanController = nestApp.get(LoanController);
   const reportController = nestApp.get(ReportController);
   const reportValidationController = nestApp.get(ReportValidationController);
+  const printTemplateController = nestApp.get(PrintTemplateController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -439,4 +441,11 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'report:run-health-checks', (payload) => reportValidationController.handleRunHealthChecks(payload));
   ipcHandle(ipcMain, 'report:get-validation-history', (payload) => reportValidationController.handleGetValidationHistory(payload));
   ipcHandle(ipcMain, 'report:generate-certificate', (payload) => reportValidationController.handleGenerateCertificate(payload));
+
+  // ─── Phase 13.5: Print Template Configuration ──────────────
+  ipcHandle(ipcMain, 'print:get-template-config', (payload) => printTemplateController.handleGetTemplateConfig(payload));
+  ipcHandle(ipcMain, 'print:save-template-config', (payload) => printTemplateController.handleSaveTemplateConfig(payload));
+  ipcHandle(ipcMain, 'print:get-all-templates', (payload) => printTemplateController.handleGetAllTemplates(payload));
+  ipcHandle(ipcMain, 'print:reset-template-config', (payload) => printTemplateController.handleResetTemplateConfig(payload));
+  ipcHandle(ipcMain, 'print:copy-template-config', (payload) => printTemplateController.handleCopyTemplateConfig(payload));
 }

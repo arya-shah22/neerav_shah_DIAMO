@@ -6,7 +6,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { InvoiceStatus, PaymentStatus, InvoiceType, DebitCreditType, MovementType, StockStatus } from '@prisma/client';
 import { generateStockIdNumber } from '../../utils/stock-id-generator';
-import { formatVoucherNumber, getOrInitializeVoucherConfig } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 
 function cleanUpper(val: unknown): string | null {
   if (val == null) return null;
@@ -67,7 +67,7 @@ export class InvoiceService {
     });
 
     const nextNum = (sequence?.currentNumber || 0) + 1;
-    const digitLength = config?.digitLength || 6;
+
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();

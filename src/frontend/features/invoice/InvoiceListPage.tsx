@@ -102,6 +102,18 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     }
   };
 
+  const [printConfig, setPrintConfig] = useState<any>(null);
+  const { invoke: getTemplateConfig } = useIpc<any>('print:get-template-config');
+
+  const handlePrintClick = async (row: IInvoice) => {
+    if (!companyId) return;
+    const res = await getTemplateConfig({ companyId, voucherType: type });
+    if (res.success && res.data) {
+      setPrintConfig(res.data);
+    }
+    setPrintData(row);
+  };
+
   const formRoute = `${baseRoute}/new`;
 
   const columns: Column<IInvoice>[] = [
@@ -160,7 +172,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
             variant="ghost"
             size="sm"
             title="Print A4 Layout"
-            onClick={() => setPrintData(row)}
+            onClick={() => handlePrintClick(row)}
             style={{ padding: '4px 6px' }}
           >
             <Printer size={15} color="var(--color-primary)" />
@@ -177,20 +189,21 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
           <Button
             variant="ghost"
             size="sm"
-            title="Edit Details"
+            title="Edit Transaction"
             onClick={() => navigate(`${baseRoute}/${row.id}/edit`)}
+            disabled={row.status === 'APPROVED'}
             style={{ padding: '4px 6px' }}
           >
-            <Edit2 size={15} color="var(--color-text-secondary)" />
+            <Edit2 size={15} />
           </Button>
           <Button
             variant="ghost"
             size="sm"
-            title="Delete Details"
+            title="Delete Transaction"
             onClick={() => handleDelete(row.id, row.voucherNumber)}
             style={{ padding: '4px 6px' }}
           >
-            <Trash2 size={15} color="var(--color-danger)" />
+            <Trash2 size={15} color="var(--color-error)" />
           </Button>
         </div>
       ),
@@ -230,7 +243,11 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         <PrintTemplate
           type="INVOICE"
           data={printData}
-          onClose={() => setPrintData(null)}
+          layoutConfig={printConfig}
+          onClose={() => {
+            setPrintData(null);
+            setPrintConfig(null);
+          }}
         />
       )}
     </div>

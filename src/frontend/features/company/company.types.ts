@@ -16,6 +16,7 @@ export interface ICompany {
   businessType?: string | null;
   status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED';
   isDefault: boolean;
+  logoPath?: string | null;
   addressLine1?: string | null;
   addressLine2?: string | null;
   city?: string | null;

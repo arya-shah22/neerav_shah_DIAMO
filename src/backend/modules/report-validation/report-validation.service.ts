@@ -35,7 +35,7 @@ export class ReportValidationService {
       let cashMismatches = 0;
       let cashTotalStr = '';
       for (const cash of cashAccts) {
-        const ledger = await this.reportService.getLedger(companyId, cash.id);
+        const ledger: any = await this.reportService.getLedger(companyId, cash.id);
         const statements = ledger.statements || [];
         const runningSum = statements.reduce((acc: number, cur: any) => {
           return acc + (cur.debitCreditType === 'DEBIT' ? Number(cur.amount) : -Number(cur.amount));
@@ -80,7 +80,7 @@ export class ReportValidationService {
       
       for (const party of partyAccts) {
         partyCheckCount++;
-        const ledger = await this.reportService.getLedger(companyId, party.id);
+        const ledger: any = await this.reportService.getLedger(companyId, party.id);
         const ledgerBal = Number(ledger.closingBalance || 0);
         
         let outstandingTotal = 0;
@@ -127,7 +127,7 @@ export class ReportValidationService {
       const allAccounts = await this.prisma.account.findMany({ where: { companyId, isDeleted: false } });
       let negativeBalCount = 0;
       for (const a of allAccounts) {
-        const ledger = await this.reportService.getLedger(companyId, a.id);
+        const ledger: any = await this.reportService.getLedger(companyId, a.id);
         const bal = Number(ledger.closingBalance || 0);
         // Cash or Bank accounts should not be negative
         if (bal < 0 && (a.accountName.toLowerCase().includes('cash') || a.accountName.toLowerCase().includes('bank'))) {
