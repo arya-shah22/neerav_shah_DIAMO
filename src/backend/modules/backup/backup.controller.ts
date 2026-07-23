@@ -64,4 +64,13 @@ export class BackupController {
       return { success: false, error: (err as Error).message };
     }
   }
+
+  async handleDeleteAllBackups(payload: { companyId: number; password?: string; userId?: number }) {
+    try {
+      const data = await this.backupService.deleteAllBackupRecords(payload.companyId, payload.password, payload.userId);
+      return { success: true, ...data };
+    } catch (err) {
+      return { success: false, error: (err as Error).message };
+    }
+  }
 }

@@ -107,6 +107,52 @@ export class SuperAdminService {
     });
   }
 
+  // Set/update custom backup deletion security password (Super Admin Only)
+  async setBackupDeletionPassword(companyId: number, adminUserId: number, newPassword: string) {
+    const admin = await this.prisma.user.findUnique({ where: { id: adminUserId } });
+    if (!admin || !admin.isSuperAdmin) {
+      throw new UnauthorizedException('Access restricted to Super Admin only.');
+    }
+
+    if (!newPassword || newPassword.trim().length < 4) {
+      throw new Error('Backup security password must be at least 4 characters long.');
+    }
+
+    const deletionPasswordHash = await bcrypt.hash(newPassword, 10);
+
+    const existing = await this.prisma.systemSetting.findFirst({
+      where: { companyId, settingKey: 'BACKUP_SETTINGS' },
+    });
+    const settings = (existing?.settingValue as any) || {};
+    const updatedSettings = {
+      ...settings,
+      deletionPasswordHash,
+    };
+
+    await this.prisma.systemSetting.upsert({
+      where: {
+        companyId_settingKey: {
+          companyId,
+          settingKey: 'BACKUP_SETTINGS',
+        },
+      },
+      update: {
+        settingValue: updatedSettings,
+        updatedBy: adminUserId,
+      },
+      create: {
+        companyId,
+        settingKey: 'BACKUP_SETTINGS',
+        settingValue: updatedSettings,
+        category: 'SYSTEM',
+        description: 'Database Backup & Recovery configuration settings',
+        updatedBy: adminUserId,
+      },
+    });
+
+    return { success: true, message: 'Backup security deletion password set successfully!' };
+  }
+
   // Retrieve metrics for Super Admin dashboard console
   async getAdminDashboardMetrics(_companyId: number, userId: number) {
     const user = await this.prisma.user.findUnique({

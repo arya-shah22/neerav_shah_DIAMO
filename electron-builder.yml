@@ -2,6 +2,12 @@ appId: com.diamo.erp
 productName: DIAMO ERP
 copyright: Copyright © 2025 Neerav Shah
 
+publish:
+  provider: github
+  owner: aryashah325
+  repo: diamo_erp_releases
+  releaseType: release
+
 directories:
   output: release
   buildResources: resources

@@ -46,4 +46,28 @@ export class LicenseController {
       };
     }
   }
+
+  async handleCheckForUpdates(payload: { companyId: number }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.licenseService.checkForUpdates(payload.companyId);
+      return { success: true, data };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to check for software updates',
+      };
+    }
+  }
+
+  async handleApplyUpdate(payload: { companyId: number; version: string }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.licenseService.applyUpdate(payload.companyId, payload.version);
+      return { success: true, data };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to apply software update',
+      };
+    }
+  }
 }

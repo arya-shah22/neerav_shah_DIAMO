@@ -57,6 +57,26 @@ export class SuperAdminController {
     }
   }
 
+  async handleSetBackupDeletionPassword(payload: {
+    companyId: number;
+    adminUserId: number;
+    newPassword: string;
+  }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.adminService.setBackupDeletionPassword(
+        payload.companyId,
+        payload.adminUserId,
+        payload.newPassword
+      );
+      return data;
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to set backup security password',
+      };
+    }
+  }
+
   async handleGetMetrics(payload: { companyId: number; userId: number }): Promise<IApiResponse<any>> {
     try {
       const data = await this.adminService.getAdminDashboardMetrics(payload.companyId, payload.userId);

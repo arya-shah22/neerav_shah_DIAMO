@@ -2,27 +2,58 @@
 // DIAMO ERP — Application Shell Layout
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Outlet, Navigate } from 'react-router-dom';
 import { Sidebar } from './Sidebar';
 import { TopHeader } from './TopHeader';
 import { StatusFooter } from './StatusFooter';
 import { LoadingOverlay } from '../feedback/LoadingOverlay';
+import { SoftwareUpdateModal } from '../feedback/SoftwareUpdateModal';
 import { useSessionBootstrap } from '../../hooks/useSessionBootstrap';
 import { useAuthStore } from '../../state/auth-store';
+import { useCompanyStore } from '../../state/company-store';
 import { useReportScheduler } from '../../hooks/useReportScheduler';
 import { useSessionTimeout } from '../../hooks/useSessionTimeout';
+import { invokeIpc } from '../../../shared/utils/ipc';
 
 export const AppShell: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const activeCompany = useCompanyStore((s) => s.activeCompany);
   const { isReady, isRestoring } = useSessionBootstrap();
+
+  // Background update check state
+  const [showAutoUpdateModal, setShowAutoUpdateModal] = useState(false);
+  const [autoUpdateInfo, setAutoUpdateInfo] = useState<any | null>(null);
+  const hasCheckedAutoUpdate = useRef(false);
 
   // Run the background automated export scheduler catch-up
   useReportScheduler();
 
   // Run the inactivity logout monitor
   useSessionTimeout();
+
+  // Silent background check for updates on startup/login
+  useEffect(() => {
+    if (!isAuthenticated || !isReady || hasCheckedAutoUpdate.current) return;
+
+    const companyId = activeCompany?.id || 1;
+    hasCheckedAutoUpdate.current = true;
+
+    const runBackgroundCheck = async () => {
+      try {
+        const res = await invokeIpc<any>('license:check-update', { companyId });
+        if (res.success && res.data && res.data.hasInternet && res.data.updateAvailable) {
+          setAutoUpdateInfo(res.data);
+          setShowAutoUpdateModal(true);
+        }
+      } catch (err) {
+        console.warn('Background update check skipped:', err);
+      }
+    };
+
+    runBackgroundCheck();
+  }, [isAuthenticated, isReady, activeCompany?.id]);
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
@@ -95,6 +126,18 @@ export const AppShell: React.FC = () => {
       </div>
 
       <StatusFooter />
+
+      {/* Background Auto-Update Modal */}
+      {showAutoUpdateModal && autoUpdateInfo && (
+        <SoftwareUpdateModal
+          companyId={activeCompany?.id || 1}
+          updateData={autoUpdateInfo}
+          onClose={() => setShowAutoUpdateModal(false)}
+          onUpdateCompleted={() => {
+            setShowAutoUpdateModal(false);
+          }}
+        />
+      )}
     </div>
   );
 };

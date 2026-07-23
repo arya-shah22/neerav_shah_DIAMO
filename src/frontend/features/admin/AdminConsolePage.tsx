@@ -27,6 +27,7 @@ export const AdminConsolePage: React.FC = () => {
   const { invoke: getProfile } = useIpc<any>('admin:get-profile');
   const { invoke: updateProfile, loading: updatingProfile } = useIpc<any>('admin:update-profile');
   const { invoke: changePassword, loading: changingPassword } = useIpc<any>('admin:change-password');
+  const { invoke: setBackupPassword, loading: settingBackupPass } = useIpc<any>('admin:set-backup-password');
   const { invoke: getMetrics } = useIpc<any>('admin:get-metrics');
   const { invoke: terminateSession } = useIpc<any>('admin:terminate-session');
   
@@ -66,6 +67,8 @@ export const AdminConsolePage: React.FC = () => {
   const [currentPass, setCurrentPass] = useState('');
   const [newPass, setNewPass] = useState('');
   const [confirmPass, setConfirmPass] = useState('');
+  const [backupDeletionPass, setBackupDeletionPass] = useState('');
+  const [backupConfirmPass, setBackupConfirmPass] = useState('');
 
   // Search & Filter States (Staff list)
   const [searchTerm, setSearchTerm] = useState('');
@@ -275,6 +278,30 @@ export const AdminConsolePage: React.FC = () => {
       setConfirmPass('');
     } else {
       showToast(res.error || 'Incorrect current password.', 'error');
+    }
+  };
+
+  const handleSetBackupDeletionPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!backupDeletionPass) {
+      showToast('Please enter a backup deletion password.', 'warning');
+      return;
+    }
+    if (backupDeletionPass !== backupConfirmPass) {
+      showToast('Backup passwords do not match.', 'error');
+      return;
+    }
+    const res = await setBackupPassword({
+      companyId: activeCompany?.id || 1,
+      adminUserId: authUser!.id,
+      newPassword: backupDeletionPass,
+    });
+    if (res.success) {
+      showToast('Backup deletion security password updated successfully!', 'success');
+      setBackupDeletionPass('');
+      setBackupConfirmPass('');
+    } else {
+      showToast(res.error || 'Failed to update backup deletion password.', 'error');
     }
   };
 
@@ -741,6 +768,43 @@ export const AdminConsolePage: React.FC = () => {
 
                   <Button type="submit" variant="primary" loading={changingPassword} style={{ marginTop: '6px' }}>
                     Update Admin Password
+                  </Button>
+                </form>
+              </div>
+
+              {/* Form 3: Backup Deletion Security Password Setter (Super Admin Only) */}
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <h3 style={{ fontSize: '15px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--color-text-primary)' }}>
+                  <ShieldAlert size={18} color="#dc2626" /> Backup Deletion Security Password
+                </h3>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', margin: 0 }}>
+                  Set a dedicated authorization password for deleting database backup files in Settings &rarr; Backup Config.
+                </p>
+                <hr style={{ border: 0, borderTop: '1px solid var(--color-border)', margin: 0 }} />
+
+                <form onSubmit={handleSetBackupDeletionPassword} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>New Backup Deletion Password</label>
+                    <Input
+                      type="password"
+                      placeholder="Enter new backup password..."
+                      value={backupDeletionPass}
+                      onChange={(e) => setBackupDeletionPass(e.target.value)}
+                    />
+                  </div>
+
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Confirm Backup Password</label>
+                    <Input
+                      type="password"
+                      placeholder="Confirm backup password..."
+                      value={backupConfirmPass}
+                      onChange={(e) => setBackupConfirmPass(e.target.value)}
+                    />
+                  </div>
+
+                  <Button type="submit" variant="primary" loading={settingBackupPass} style={{ marginTop: '6px' }}>
+                    Save Backup Security Password
                   </Button>
                 </form>
               </div>

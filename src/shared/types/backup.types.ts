@@ -10,6 +10,7 @@ export interface IBackupSettings {
   destinationPath: string;
   retentionDays: number; // e.g., 15
   backupOnExit: boolean;
+  deletionPasswordHash?: string;
 }
 
 export interface IBackupHistoryEntry {

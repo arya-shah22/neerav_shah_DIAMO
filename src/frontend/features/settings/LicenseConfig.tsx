@@ -5,8 +5,9 @@
 import React, { useState, useEffect } from 'react';
 import { useIpc } from '../../hooks/useIpc';
 import { Button, useToast } from '../../components/ui';
+import { SoftwareUpdateModal } from '../../components/feedback/SoftwareUpdateModal';
 import { 
-  KeyRound, Mail, Phone, Clock, Layers, Users, Info 
+  KeyRound, Mail, Phone, Clock, Layers, Users, Info, DownloadCloud 
 } from 'lucide-react';
 
 interface LicenseConfigProps {
@@ -19,9 +20,37 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
   // IPC hooks
   const { invoke: getInfo } = useIpc<any>('license:get-info');
   const { invoke: resetUptime } = useIpc<any>('license:reset-uptime');
+  const { invoke: checkForUpdates, loading: checkingUpdate } = useIpc<any>('license:check-update');
 
   // Component States
   const [data, setData] = useState<any | null>(null);
+  const [showUpdateModal, setShowUpdateModal] = useState(false);
+  const [updateInfo, setUpdateInfo] = useState<any | null>(null);
+
+  const handleManualCheckForUpdates = async () => {
+    try {
+      const res = await checkForUpdates({ companyId });
+      if (!res.success) {
+        showToast(res.error || 'Failed to check for updates', 'error');
+        return;
+      }
+
+      if (!res.data.hasInternet) {
+        showToast(res.data.message || 'No internet connection available. Please check your network.', 'error');
+        return;
+      }
+
+      if (!res.data.updateAvailable) {
+        showToast(res.data.message || 'Your software is up to date.', 'info');
+        return;
+      }
+
+      setUpdateInfo(res.data);
+      setShowUpdateModal(true);
+    } catch (err) {
+      showToast('Error checking for updates', 'error');
+    }
+  };
 
   const loadData = React.useCallback(async () => {
     try {
@@ -288,9 +317,28 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
             <span style={{ display: 'block', fontWeight: 700, fontSize: '13px' }}>{data.app.name}</span>
             <span style={{ color: 'var(--color-text-secondary)', display: 'block' }}>{data.app.edition}</span>
             <hr style={{ border: 0, borderTop: '1px solid var(--color-border)', margin: '4px 0' }} />
-            <div>
-              <span style={{ color: 'var(--color-text-secondary)' }}>Active Version: </span>
-              <span style={{ fontWeight: 700 }}>{data.app.version}</span>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <span style={{ color: 'var(--color-text-secondary)' }}>Active Version: </span>
+                <span style={{ fontWeight: 700 }}>{data.app.version}</span>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleManualCheckForUpdates}
+                disabled={checkingUpdate}
+                style={{
+                  fontSize: '11px',
+                  padding: '4px 10px',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                }}
+              >
+                <DownloadCloud size={14} /> {checkingUpdate ? 'Checking...' : 'Check for Updates'}
+              </Button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -321,6 +369,18 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
         )}
 
       </div>
+
+      {/* Software Update Modal */}
+      {showUpdateModal && updateInfo && (
+        <SoftwareUpdateModal
+          companyId={companyId}
+          updateData={updateInfo}
+          onClose={() => setShowUpdateModal(false)}
+          onUpdateCompleted={() => {
+            loadData();
+          }}
+        />
+      )}
 
     </div>
   );

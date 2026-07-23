@@ -5,6 +5,8 @@
 import React, { useState, useEffect } from 'react';
 import { useIpc } from '../../hooks/useIpc';
 import { Button, Input, useToast } from '../../components/ui';
+import { Modal } from '../../components/ui/Modal';
+import { useAuthStore } from '../../state/auth-store';
 import { DataGrid } from '../../components/ui/DataGrid';
 import { IBackupSettings, IBackupHistoryEntry } from '../../../shared/types/backup.types';
 import { 
@@ -26,6 +28,7 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
   const { invoke: getHistory, loading: loadingHistory } = useIpc<IBackupHistoryEntry[]>('backup:get-history');
   const { invoke: restoreBackup, loading: restoringBackup } = useIpc<any>('backup:restore');
   const { invoke: deleteBackup } = useIpc<any>('backup:delete');
+  const { invoke: deleteAllBackups, loading: deletingAll } = useIpc<any>('backup:delete-all');
   const { invoke: selectFolder } = useIpc<{ path: string }>('backup:select-folder');
 
   // Component States
@@ -104,12 +107,21 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
     }
   };
 
+  // Modal Dialog States
+  const [deleteSingleId, setDeleteSingleId] = useState<string | null>(null);
+  const [showDeleteAllConfirm, setShowDeleteAllConfirm] = useState(false);
+  const [superAdminPassword, setSuperAdminPassword] = useState('');
+  const [restoreBackupTarget, setRestoreBackupTarget] = useState<IBackupHistoryEntry | null>(null);
+
   // Trigger Restore
-  const handleRestore = async (backup: IBackupHistoryEntry) => {
-    const confirmRestore = window.confirm(
-      `CRITICAL WARNING:\n\nAre you sure you want to restore the backup "${backup.fileName}"?\n\nThis will overwrite all current system data. A safety auto-rollback checkpoint will be created before restoring.`
-    );
-    if (!confirmRestore) return;
+  const handleRestoreClick = (backup: IBackupHistoryEntry) => {
+    setRestoreBackupTarget(backup);
+  };
+
+  const confirmRestore = async () => {
+    if (!restoreBackupTarget) return;
+    const backup = restoreBackupTarget;
+    setRestoreBackupTarget(null);
 
     const res = await restoreBackup({
       companyId,
@@ -124,10 +136,15 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
     }
   };
 
-  // Trigger Delete Backup
-  const handleDelete = async (backupId: string) => {
-    const confirmDelete = window.confirm('Are you sure you want to permanently delete this backup record and its archive file from your computer?');
-    if (!confirmDelete) return;
+  // Trigger Single Delete
+  const handleDeleteClick = (backupId: string) => {
+    setDeleteSingleId(backupId);
+  };
+
+  const confirmDeleteSingle = async () => {
+    if (!deleteSingleId) return;
+    const backupId = deleteSingleId;
+    setDeleteSingleId(null);
 
     const res = await deleteBackup({ backupId: Number(backupId) });
     if (res.success) {
@@ -135,6 +152,45 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
       loadData();
     } else {
       showToast(res.error || 'Failed to delete backup record', 'error');
+    }
+  };
+
+  // Trigger Delete All Backups
+  const handleDeleteAllClick = () => {
+    if (history.length === 0) return;
+
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser || !currentUser.isSuperAdmin) {
+      showToast('Access Denied: Only Super Admin can delete all backup files.', 'error');
+      return;
+    }
+
+    setSuperAdminPassword('');
+    setShowDeleteAllConfirm(true);
+  };
+
+  const confirmDeleteAll = async () => {
+    const currentUser = useAuthStore.getState().user;
+    if (!currentUser || !currentUser.isSuperAdmin) return;
+
+    if (!superAdminPassword || superAdminPassword.trim() === '') {
+      showToast('Please enter your Super Admin password to confirm.', 'error');
+      return;
+    }
+
+    const res = await deleteAllBackups({
+      companyId,
+      password: superAdminPassword,
+      userId: currentUser.id,
+    });
+
+    if (res.success) {
+      setShowDeleteAllConfirm(false);
+      setSuperAdminPassword('');
+      showToast('All backup files deleted and backup folder emptied successfully!', 'success');
+      loadData();
+    } else {
+      showToast(res.error || 'Failed to delete backup files', 'error');
     }
   };
 
@@ -224,7 +280,7 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
           <Button 
             variant="secondary" 
             size="sm" 
-            onClick={() => handleRestore(row)} 
+            onClick={() => handleRestoreClick(row)} 
             disabled={restoringBackup}
             title="Restore this backup"
             style={{ padding: '4px 8px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '4px' }}
@@ -234,7 +290,7 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
           <Button 
             variant="ghost" 
             size="sm" 
-            onClick={() => handleDelete(row.id)} 
+            onClick={() => handleDeleteClick(row.id)} 
             title="Delete backup file"
             style={{ padding: '4px' }}
           >
@@ -483,9 +539,29 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <HardDrive size={18} /> Backup Archive History
           </h3>
-          <Button variant="secondary" size="sm" onClick={loadData} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <RefreshCw size={12} /> Refresh History
-          </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            {history.length > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleDeleteAllClick}
+                disabled={deletingAll}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  color: '#dc2626',
+                  border: '1px solid #fecaca',
+                  background: '#fef2f2',
+                }}
+              >
+                <Trash2 size={12} color="#dc2626" /> {deletingAll ? 'Deleting All...' : 'Delete All Backups'}
+              </Button>
+            )}
+            <Button variant="secondary" size="sm" onClick={loadData} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <RefreshCw size={12} /> Refresh History
+            </Button>
+          </div>
         </div>
 
         <DataGrid
@@ -497,6 +573,92 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
           emptyDescription="You have not created any manual or automatic backups yet."
         />
       </div>
+
+      {/* Delete All Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteAllConfirm}
+        onClose={() => setShowDeleteAllConfirm(false)}
+        title="Critical Warning: Delete All Backups"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setShowDeleteAllConfirm(false)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={confirmDeleteAll} disabled={deletingAll}>
+              {deletingAll ? 'Deleting All...' : 'Permanently Delete All'}
+            </Button>
+          </>
+        }
+      >
+        <form onSubmit={(e) => { e.preventDefault(); confirmDeleteAll(); }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <p style={{ margin: 0, color: 'var(--color-text-primary)', fontWeight: 600, fontSize: '13px' }}>
+            Are you sure you want to PERMANENTLY DELETE ALL {history.length} backup file archives?
+          </p>
+          <p style={{ margin: 0, color: '#dc2626', background: '#fef2f2', border: '1px solid #fecaca', padding: '10px', borderRadius: '6px', fontSize: '12px' }}>
+            ⚠️ This will permanently erase all backup files from your storage directory and clear the backup history.
+          </p>
+
+          <Input
+            type="password"
+            label="Enter Backup Security Password to Confirm"
+            placeholder="Enter backup security password..."
+            value={superAdminPassword}
+            onChange={(e) => setSuperAdminPassword(e.target.value)}
+            required
+            autoFocus
+          />
+        </form>
+      </Modal>
+
+      {/* Single Delete Confirmation Modal */}
+      <Modal
+        isOpen={!!deleteSingleId}
+        onClose={() => setDeleteSingleId(null)}
+        title="Delete Backup Archive"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setDeleteSingleId(null)}>
+              Cancel
+            </Button>
+            <Button variant="danger" onClick={confirmDeleteSingle}>
+              Delete File
+            </Button>
+          </>
+        }
+      >
+        <p style={{ margin: 0, fontSize: '13px', color: 'var(--color-text-primary)', lineHeight: 1.5 }}>
+          Are you sure you want to permanently delete this backup record and its archive file from your computer?
+        </p>
+      </Modal>
+
+      {/* Restore Confirmation Modal */}
+      <Modal
+        isOpen={!!restoreBackupTarget}
+        onClose={() => setRestoreBackupTarget(null)}
+        title="Restore System Database"
+        size="sm"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRestoreBackupTarget(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={confirmRestore} disabled={restoringBackup}>
+              {restoringBackup ? 'Restoring...' : 'Restore Backup'}
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', fontSize: '13px', lineHeight: 1.5 }}>
+          <p style={{ margin: 0, color: 'var(--color-text-primary)' }}>
+            Are you sure you want to restore the backup <strong>"{restoreBackupTarget?.fileName}"</strong>?
+          </p>
+          <p style={{ margin: 0, color: '#b45309', background: '#fffbe6', border: '1px solid #ffe58f', padding: '10px', borderRadius: '6px' }}>
+            ⚠️ This will overwrite your current active database data. A safety auto-rollback checkpoint will be created before restoring.
+          </p>
+        </div>
+      </Modal>
     </div>
   );
 };

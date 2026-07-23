@@ -468,6 +468,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'backup:get-history', (payload) => backupController.handleGetHistory(payload));
   ipcHandle(ipcMain, 'backup:restore', (payload) => backupController.handleRestoreBackup(payload));
   ipcHandle(ipcMain, 'backup:delete', (payload) => backupController.handleDeleteBackup(payload));
+  ipcHandle(ipcMain, 'backup:delete-all', (payload) => backupController.handleDeleteAllBackups(payload));
   
   // Custom dialog folder picker channel
   ipcMain.handle('backup:select-folder', async () => {
@@ -501,11 +502,14 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'license:get-info', (payload) => licenseController.handleGetInfo(payload));
   ipcHandle(ipcMain, 'license:update-key', (payload) => licenseController.handleUpdateKey(payload));
   ipcHandle(ipcMain, 'license:reset-uptime', (payload) => licenseController.handleResetUptime(payload));
+  ipcHandle(ipcMain, 'license:check-update', (payload) => licenseController.handleCheckForUpdates(payload));
+  ipcHandle(ipcMain, 'license:apply-update', (payload) => licenseController.handleApplyUpdate(payload));
 
   // ─── Phase 14.1: Super Admin Management ─────────────────────
   ipcHandle(ipcMain, 'admin:get-profile', (payload) => superAdminController.handleGetProfile(payload));
   ipcHandle(ipcMain, 'admin:update-profile', (payload) => superAdminController.handleUpdateProfile(payload));
   ipcHandle(ipcMain, 'admin:change-password', (payload) => superAdminController.handleChangePassword(payload));
+  ipcHandle(ipcMain, 'admin:set-backup-password', (payload) => superAdminController.handleSetBackupDeletionPassword(payload));
   ipcHandle(ipcMain, 'admin:get-metrics', (payload) => superAdminController.handleGetMetrics(payload));
   ipcHandle(ipcMain, 'admin:terminate-session', (payload) => superAdminController.handleTerminateSession(payload));
 

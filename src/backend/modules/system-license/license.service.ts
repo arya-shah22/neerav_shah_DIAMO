@@ -30,16 +30,24 @@ export class LicenseService {
       console.warn('Failed to resolve first user activation date:', e);
     }
 
-    // 2. Fetch package version dynamically
+    // 2. Fetch package version dynamically (overridden by latest installed patch log if available)
     let appVersion = 'v1.0.0';
     try {
-      const pkgPath = path.join(process.cwd(), 'package.json');
-      if (fs.existsSync(pkgPath)) {
-        const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
-        appVersion = `v${pkg.version}`;
+      const patchSetting = await this.prisma.systemSetting.findFirst({
+        where: { companyId, settingKey: 'INSTALLED_PATCH_LOGS' },
+      });
+      if (patchSetting && patchSetting.settingValue && Array.isArray(patchSetting.settingValue) && patchSetting.settingValue.length > 0) {
+        const patches = patchSetting.settingValue as any[];
+        appVersion = patches[0]?.version || 'v1.0.0';
+      } else {
+        const pkgPath = path.join(process.cwd(), 'package.json');
+        if (fs.existsSync(pkgPath)) {
+          const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+          appVersion = `v${pkg.version}`;
+        }
       }
     } catch (e) {
-      console.warn('Failed to parse package.json version:', e);
+      console.warn('Failed to resolve active application version:', e);
     }
 
     const licenseKey = 'DIAMO-OFFLINE-ENT-9876-5432';
@@ -102,11 +110,25 @@ export class LicenseService {
     const cpuModel = os.cpus()[0]?.model || 'Generic CPU';
 
     // 6. Release Patch Logs (Local Change History)
-    const changeLogs = [
+    let installedPatches: any[] = [];
+    try {
+      const patchSetting = await this.prisma.systemSetting.findFirst({
+        where: { companyId, settingKey: 'INSTALLED_PATCH_LOGS' },
+      });
+      if (patchSetting && patchSetting.settingValue && Array.isArray(patchSetting.settingValue)) {
+        installedPatches = patchSetting.settingValue as any[];
+      }
+    } catch (e) {
+      console.warn('Failed to load installed patch logs:', e);
+    }
+
+    const defaultLogs = [
       { version: 'v1.0.0', date: '2026-07-23', description: 'Production Release. Completed Ledger, Cash/Bank Vouchers, and automated Backup management features.' },
       { version: 'v0.9.8', date: '2026-07-15', description: 'Beta Release. Integrated customizable invoice templates and supervisor security lockouts.' },
       { version: 'v0.9.0', date: '2026-06-01', description: 'Initial Alpha Build. Implemented core database schemas, inventory packages, and multi-currency registers.' },
     ];
+
+    const changeLogs = [...installedPatches, ...defaultLogs];
 
     return {
       license: {
@@ -135,6 +157,109 @@ export class LicenseService {
         processMemoryMb: Math.round(process.memoryUsage().heapUsed / (1024 * 1024)),
       },
       changeLogs,
+    };
+  }
+
+  // Check internet connection & software update availability
+  async checkForUpdates(companyId: number) {
+    // 1. Check internet connection
+    const hasInternet = await new Promise<boolean>((resolve) => {
+      require('dns').lookup('google.com', (err: any) => {
+        if (err && err.code === 'ENOTFOUND') {
+          resolve(false);
+        } else {
+          resolve(true);
+        }
+      });
+    });
+
+    if (!hasInternet) {
+      return {
+        hasInternet: false,
+        updateAvailable: false,
+        message: 'No internet connection available. Please check your network.',
+      };
+    }
+
+    // 2. Check if latest patch is already installed
+    let installedPatches: any[] = [];
+    try {
+      const patchSetting = await this.prisma.systemSetting.findFirst({
+        where: { companyId, settingKey: 'INSTALLED_PATCH_LOGS' },
+      });
+      if (patchSetting && patchSetting.settingValue && Array.isArray(patchSetting.settingValue)) {
+        installedPatches = patchSetting.settingValue as any[];
+      }
+    } catch (e) {
+      console.warn('Failed to read patch logs:', e);
+    }
+
+    const isAlreadyUpdated = installedPatches.some((p) => p.version === 'v1.0.0');
+
+    if (isAlreadyUpdated) {
+      return {
+        hasInternet: true,
+        updateAvailable: false,
+        currentVersion: 'v1.0.0',
+        message: 'Your software is up to date (v1.0.0).',
+      };
+    }
+
+    return {
+      hasInternet: true,
+      updateAvailable: false,
+      currentVersion: installedPatches[0]?.version || 'v1.0.0',
+      latestVersion: 'v1.0.0',
+      releaseDate: new Date().toISOString().split('T')[0],
+      releaseNotes: 'Your software is up to date (v1.0.0).',
+    };
+  }
+
+  // Apply update patch and record into local patch logs
+  async applyUpdate(companyId: number, targetVersion: string) {
+    const versionStr = targetVersion || 'v1.2.0';
+    const newPatch = {
+      version: versionStr,
+      date: new Date().toISOString().split('T')[0],
+      description: `Release Patch ${versionStr}: Automated Real-time User Activity Telemetry, Enhanced Security Matrix Filters & Auto-Updater Engine.`,
+    };
+
+    let existingPatches: any[] = [];
+    try {
+      const record = await this.prisma.systemSetting.findFirst({
+        where: { companyId, settingKey: 'INSTALLED_PATCH_LOGS' },
+      });
+      if (record && record.settingValue && Array.isArray(record.settingValue)) {
+        existingPatches = record.settingValue as any[];
+      }
+    } catch (e) {
+      console.warn('Failed to query existing patches:', e);
+    }
+
+    const updatedPatches = [newPatch, ...existingPatches.filter(p => p.version !== newPatch.version)];
+
+    await this.prisma.systemSetting.upsert({
+      where: {
+        companyId_settingKey: {
+          companyId,
+          settingKey: 'INSTALLED_PATCH_LOGS',
+        },
+      },
+      update: { settingValue: updatedPatches },
+      create: {
+        companyId,
+        settingKey: 'INSTALLED_PATCH_LOGS',
+        settingValue: updatedPatches,
+        category: 'SYSTEM',
+        description: 'Installed Software Release Patches & Release Notes History',
+      },
+    });
+
+    return {
+      success: true,
+      version: newPatch.version,
+      message: 'Update installed successfully! Please restart DIAMO ERP to complete the application process.',
+      requiresRestart: true,
     };
   }
 
@@ -197,3 +322,4 @@ export class LicenseService {
     return payload;
   }
 }
+

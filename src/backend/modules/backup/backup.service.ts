@@ -8,6 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import * as fs from 'fs';
 import * as path from 'path';
 import * as crypto from 'crypto';
+import * as bcrypt from 'bcryptjs';
 import { exec } from 'child_process';
 import { promisify } from 'util';
 import { IBackupSettings, IBackupHistoryEntry, DEFAULT_BACKUP_SETTINGS } from '../../../shared/types/backup.types';
@@ -44,6 +45,17 @@ export class BackupService {
       }
     }
 
+    // Preserve existing deletionPasswordHash if not explicitly provided
+    const existing = await this.prisma.systemSetting.findFirst({
+      where: { companyId, settingKey: 'BACKUP_SETTINGS' },
+    });
+    const existingSettings = (existing?.settingValue as any) || {};
+
+    const updatedSettings = {
+      ...settings,
+      deletionPasswordHash: settings.deletionPasswordHash || existingSettings.deletionPasswordHash,
+    };
+
     await this.prisma.systemSetting.upsert({
       where: {
         companyId_settingKey: {
@@ -52,13 +64,13 @@ export class BackupService {
         },
       },
       update: {
-        settingValue: settings as any,
+        settingValue: updatedSettings as any,
         updatedBy: userId,
       },
       create: {
         companyId,
         settingKey: 'BACKUP_SETTINGS',
-        settingValue: settings as any,
+        settingValue: updatedSettings as any,
         category: 'SYSTEM',
         description: 'Database Backup & Recovery configuration settings',
         updatedBy: userId,
@@ -287,6 +299,80 @@ export class BackupService {
         createdBy: r.initiatedBy ? String(r.initiatedBy) : 'System',
       };
     });
+  }
+
+  // Delete all backup files from storage folder and clear database table (Super Admin Only with Custom Password Verification)
+  async deleteAllBackupRecords(companyId: number, password?: string, userId?: number): Promise<{ message: string; deletedCount: number }> {
+    if (!password || password.trim() === '') {
+      throw new Error('Password verification required to delete all backup files.');
+    }
+
+    if (userId) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId } });
+      if (!user || !user.isSuperAdmin) {
+        throw new Error('Access Denied: Only Super Admin can delete all backup files.');
+      }
+
+      // Check custom backup deletion password if set by Super Admin
+      let isValidPassword = false;
+      try {
+        const backupSettingsRecord = await this.prisma.systemSetting.findFirst({
+          where: { companyId, settingKey: 'BACKUP_SETTINGS' },
+        });
+        const settings = backupSettingsRecord?.settingValue as any;
+        if (settings && settings.deletionPasswordHash) {
+          isValidPassword = await bcrypt.compare(password, settings.deletionPasswordHash);
+        } else {
+          // Default: compare against Super Admin account password
+          isValidPassword = await bcrypt.compare(password, user.passwordHash);
+        }
+      } catch (e) {
+        isValidPassword = await bcrypt.compare(password, user.passwordHash);
+      }
+
+      if (!isValidPassword) {
+        throw new Error('Invalid Backup Security Password. Verification failed.');
+      }
+    }
+
+    const records = await this.prisma.backupRecord.findMany();
+    let deletedCount = 0;
+
+    for (const record of records) {
+      try {
+        if (fs.existsSync(record.filePath)) {
+          fs.unlinkSync(record.filePath);
+        }
+      } catch (err) {
+        console.error(`Failed to delete file ${record.filePath}:`, err);
+      }
+      deletedCount++;
+    }
+
+    // Clear all records from database table
+    await this.prisma.backupRecord.deleteMany();
+
+    // Also empty physical backup folder of any stray .json/.sql files
+    try {
+      const settings = await this.getSettings(companyId);
+      const backupDir = settings.destinationPath || path.join(process.cwd(), 'backups');
+      if (fs.existsSync(backupDir)) {
+        const files = fs.readdirSync(backupDir);
+        for (const file of files) {
+          if (file.endsWith('.sql') || file.endsWith('.json')) {
+            try {
+              fs.unlinkSync(path.join(backupDir, file));
+            } catch (e) {
+              console.error(`Failed to clean stray file ${file}:`, e);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Failed to clean backup directory:', err);
+    }
+
+    return { message: 'All backup files removed and folder emptied successfully.', deletedCount };
   }
 
   // Delete a specific backup file

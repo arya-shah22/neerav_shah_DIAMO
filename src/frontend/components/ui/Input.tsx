@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { forwardRef, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 
 type InputType = 'text' | 'number' | 'date' | 'password' | 'email' | 'tel';
 
@@ -45,7 +46,12 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   const hasError = Boolean(error);
   const s = SIZE_MAP[inputSize];
   const isNumber = type === 'number';
+  const isPasswordType = type === 'password';
   const [isFocused, setIsFocused] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  // Dynamic input type for password visibility toggle
+  const actualType = isPasswordType ? (showPassword ? 'text' : 'password') : type;
 
   return (
     <div style={{
@@ -69,44 +75,73 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
         </label>
       )}
 
-      {/* Input */}
-      <input
-        ref={ref}
-        type={type}
-        step={isNumber && decimals ? `0.${'0'.repeat(decimals - 1)}1` : undefined}
-        style={{
-          height: s.height,
-          padding: '0 var(--spacing-sm)',
-          fontSize: s.fontSize,
-          fontFamily: isNumber ? 'var(--font-mono)' : 'var(--font-family)',
-          textAlign: isNumber ? 'right' : 'left',
-          color: 'var(--color-text-primary)',
-          background: props.disabled ? 'var(--color-disabled-bg)' : 'var(--color-surface)',
-          border: `1px solid ${hasError ? 'var(--color-danger)' : isFocused ? 'var(--color-accent)' : 'var(--color-border)'}`,
-          borderRadius: 'var(--radius-sm)',
-          outline: 'none',
-          transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-          boxShadow: !hasError && isFocused ? '0 0 0 2px var(--color-accent-light)' : 'none',
-          width: '100%',
-          ...style,
-        }}
-        onFocus={(e) => {
-          setIsFocused(true);
-          onFocus?.(e);
-        }}
-        onWheel={(e) => {
-          // Prevent accidental value changes on mouse wheel for number inputs.
-          if (isNumber && document.activeElement === e.currentTarget) {
-            e.currentTarget.blur();
-          }
-          onWheel?.(e);
-        }}
-        onBlur={(e) => {
-          setIsFocused(false);
-          onBlur?.(e);
-        }}
-        {...props}
-      />
+      {/* Input Wrapper for Eye Icon positioning */}
+      <div style={{ position: 'relative', width: '100%' }}>
+        <input
+          ref={ref}
+          type={actualType}
+          step={isNumber && decimals ? `0.${'0'.repeat(decimals - 1)}1` : undefined}
+          style={{
+            height: s.height,
+            padding: isPasswordType ? '0 32px 0 var(--spacing-sm)' : '0 var(--spacing-sm)',
+            fontSize: s.fontSize,
+            fontFamily: isNumber ? 'var(--font-mono)' : 'var(--font-family)',
+            textAlign: isNumber ? 'right' : 'left',
+            color: 'var(--color-text-primary)',
+            background: props.disabled ? 'var(--color-disabled-bg)' : 'var(--color-surface)',
+            border: `1px solid ${hasError ? 'var(--color-danger)' : isFocused ? 'var(--color-accent)' : 'var(--color-border)'}`,
+            borderRadius: 'var(--radius-sm)',
+            outline: 'none',
+            transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
+            boxShadow: !hasError && isFocused ? '0 0 0 2px var(--color-accent-light)' : 'none',
+            width: '100%',
+            ...style,
+          }}
+          onFocus={(e) => {
+            setIsFocused(true);
+            onFocus?.(e);
+          }}
+          onWheel={(e) => {
+            // Prevent accidental value changes on mouse wheel for number inputs.
+            if (isNumber && document.activeElement === e.currentTarget) {
+              e.currentTarget.blur();
+            }
+            onWheel?.(e);
+          }}
+          onBlur={(e) => {
+            setIsFocused(false);
+            onBlur?.(e);
+          }}
+          {...props}
+        />
+
+        {/* Eye toggle button for password fields */}
+        {isPasswordType && (
+          <button
+            type="button"
+            onClick={() => setShowPassword(!showPassword)}
+            tabIndex={-1}
+            title={showPassword ? 'Hide password' : 'Show password'}
+            style={{
+              position: 'absolute',
+              right: '8px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              padding: '2px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              color: 'var(--color-text-muted)',
+              outline: 'none',
+            }}
+          >
+            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+          </button>
+        )}
+      </div>
 
       {/* Error Message */}
       {hasError && (
