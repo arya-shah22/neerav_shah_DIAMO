@@ -28,6 +28,7 @@ import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/system-health/health.module';
 import { LicenseModule } from './modules/system-license/license.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
+import { DashboardModule } from './modules/dashboard/dashboard.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
     HealthModule,
     LicenseModule,
     SuperAdminModule,
+    DashboardModule,
   ],
   controllers: [],
   providers: [

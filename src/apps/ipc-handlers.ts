@@ -27,6 +27,7 @@ import { AuditController } from '../backend/modules/audit/audit.controller';
 import { HealthController } from '../backend/modules/system-health/health.controller';
 import { LicenseController } from '../backend/modules/system-license/license.controller';
 import { SuperAdminController } from '../backend/modules/super-admin/super-admin.controller';
+import { DashboardController } from '../backend/modules/dashboard/dashboard.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -70,6 +71,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const healthController = nestApp.get(HealthController);
   const licenseController = nestApp.get(LicenseController);
   const superAdminController = nestApp.get(SuperAdminController);
+  const dashboardController = nestApp.get(DashboardController);
+
+  // ─── Dashboard ───────────────────────────────────────────
+  ipcHandle(ipcMain, 'dashboard:get-telemetry', (payload) => dashboardController.handleGetTelemetry(payload));
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
