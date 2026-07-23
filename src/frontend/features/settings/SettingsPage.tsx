@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Barcode, FileText, ShieldAlert, ArrowLeft, ChevronRight, Database, Sliders } from 'lucide-react';
+import { Save, RefreshCw, Barcode, FileText, ShieldAlert, ArrowLeft, ChevronRight, Database, Sliders, ShieldCheck, History, Heart, KeyRound } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, useToast } from '../../components/ui';
@@ -11,6 +11,10 @@ import { useCompanyStore } from '../../state/company-store';
 import { PrintTemplateConfig } from './PrintTemplateConfig';
 import { BackupConfig } from './BackupConfig';
 import { PreferencesConfig } from './PreferencesConfig';
+import { SecurityConfig } from './SecurityConfig';
+import { AuditLogViewer } from './AuditLogViewer';
+import { HealthDashboard } from './HealthDashboard';
+import { LicenseConfig } from './LicenseConfig';
 
 interface VoucherTypeDefinition {
   type: string;
@@ -46,7 +50,7 @@ export const SettingsPage: React.FC = () => {
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
 
   // settings sub-pages active tab
-  const [activeTab, setActiveTab] = useState<'menu' | 'numbering' | 'print' | 'backup' | 'preferences'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'numbering' | 'print' | 'backup' | 'preferences' | 'security' | 'audit' | 'health' | 'license'>('menu');
 
   // ─── Voucher Configs State ───
   const { invoke: getAllVoucherConfigs } = useIpc<any>('stock:get-all-configs');
@@ -338,6 +342,170 @@ export const SettingsPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Card 5: Security & Activity Locks */}
+          <div 
+            onClick={() => setActiveTab('security')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#fef2f2', padding: '12px', borderRadius: '8px', color: '#dc2626' }}>
+                <ShieldCheck size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Security & Audit Locks</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Configure DB audit levels, draft editing constraints, soft delete policies, and session auto-timeouts.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#dc2626', alignSelf: 'flex-end' }}>
+              Configure Security <ChevronRight size={14} />
+            </div>
+          </div>
+
+          {/* Card 6: Audit Log Registry Trails */}
+          <div 
+            onClick={() => setActiveTab('audit')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#faf5ff', padding: '12px', borderRadius: '8px', color: '#7e22ce' }}>
+                <History size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Audit Log Trails</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Inspect immutable database adjustments, logins history, override logs, and module action logs.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#7e22ce', alignSelf: 'flex-end' }}>
+              Inspect Audit Trails <ChevronRight size={14} />
+            </div>
+          </div>
+
+          {/* Card 7: Database & System Diagnostics */}
+          <div 
+            onClick={() => setActiveTab('health')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#ecfdf5', padding: '12px', borderRadius: '8px', color: '#059669' }}>
+                <Heart size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Database & Diagnostics</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Monitor MySQL performance indicators, run file system diagnostic wizard, rebuild indexes, and defragment tables.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#059669', alignSelf: 'flex-end' }}>
+              Defragment & Diagnostics <ChevronRight size={14} />
+            </div>
+          </div>
+
+          {/* Card 8: License & Activation Controls */}
+          <div 
+            onClick={() => setActiveTab('license')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#fef2f2', padding: '12px', borderRadius: '8px', color: '#dc2626' }}>
+                <KeyRound size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>License & Activation</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Configure offline software license activation parameters, allocate profile limits, and view version release history.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#dc2626', alignSelf: 'flex-end' }}>
+              Licensing & Version <ChevronRight size={14} />
+            </div>
+          </div>
+
         </div>
       </div>
     );
@@ -405,6 +573,94 @@ export const SettingsPage: React.FC = () => {
         </div>
 
         <PrintTemplateConfig companyId={companyId!} />
+      </div>
+    );
+  }
+
+  if (activeTab === 'security') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              Security & Audit Locks Configuration
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Configure DB audit levels, draft editing constraints, soft delete policies, and session timeouts.
+            </p>
+          </div>
+        </div>
+
+        <SecurityConfig companyId={companyId!} />
+      </div>
+    );
+  }
+
+  if (activeTab === 'audit') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              Audit Log History Trails
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Inspect immutable database modifications, actions, override details, and state change snapshots.
+            </p>
+          </div>
+        </div>
+
+        <AuditLogViewer />
+      </div>
+    );
+  }
+
+  if (activeTab === 'health') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              Database Health & Systems Diagnostics
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Observe live workstation resources, evaluate index fragments, analyze query latency, and defragment records.
+            </p>
+          </div>
+        </div>
+
+        <HealthDashboard companyId={companyId!} />
+      </div>
+    );
+  }
+
+  if (activeTab === 'license') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              License Registration & Version Info
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              View application activation keys, resource constraints, systems load, and release notes history.
+            </p>
+          </div>
+        </div>
+
+        <LicenseConfig companyId={companyId!} />
       </div>
     );
   }

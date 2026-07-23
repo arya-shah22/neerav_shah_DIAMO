@@ -24,6 +24,9 @@ import { ReportValidationModule } from './modules/report-validation/report-valid
 import { PrintTemplateModule } from './modules/print-template/print-template.module';
 import { BackupModule } from './modules/backup/backup.module';
 import { PreferencesModule } from './modules/preferences/preferences.module';
+import { AuditModule } from './modules/audit/audit.module';
+import { HealthModule } from './modules/system-health/health.module';
+import { LicenseModule } from './modules/system-license/license.module';
 
 @Module({
   imports: [
@@ -47,6 +50,9 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
     PrintTemplateModule,
     BackupModule,
     PreferencesModule,
+    AuditModule,
+    HealthModule,
+    LicenseModule,
   ],
   controllers: [],
   providers: [

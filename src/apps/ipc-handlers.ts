@@ -23,6 +23,9 @@ import { ReportValidationController } from '../backend/modules/report-validation
 import { PrintTemplateController } from '../backend/modules/print-template/print-template.controller';
 import { BackupController } from '../backend/modules/backup/backup.controller';
 import { PreferencesController } from '../backend/modules/preferences/preferences.controller';
+import { AuditController } from '../backend/modules/audit/audit.controller';
+import { HealthController } from '../backend/modules/system-health/health.controller';
+import { LicenseController } from '../backend/modules/system-license/license.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -62,6 +65,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const printTemplateController = nestApp.get(PrintTemplateController);
   const backupController = nestApp.get(BackupController);
   const preferencesController = nestApp.get(PreferencesController);
+  const auditController = nestApp.get(AuditController);
+  const healthController = nestApp.get(HealthController);
+  const licenseController = nestApp.get(LicenseController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -477,4 +483,20 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   // ─── Phase 13.7: System Preferences ─────────────────────────
   ipcHandle(ipcMain, 'preferences:get-settings', (payload) => preferencesController.handleGetSettings(payload));
   ipcHandle(ipcMain, 'preferences:save-settings', (payload) => preferencesController.handleSaveSettings(payload));
+
+  // ─── Phase 13.8: Audit & Security Controls ─────────────────
+  ipcHandle(ipcMain, 'audit:get-settings', (payload) => auditController.handleGetSettings(payload));
+  ipcHandle(ipcMain, 'audit:save-settings', (payload) => auditController.handleSaveSettings(payload));
+  ipcHandle(ipcMain, 'audit:list', (payload) => auditController.handleListLogs(payload));
+
+  // ─── Phase 13.9: Database Health & System Diagnostics ───────
+  ipcHandle(ipcMain, 'health:get-status', (payload) => healthController.handleGetStatus(payload));
+  ipcHandle(ipcMain, 'health:run-diagnostics', (payload) => healthController.handleRunDiagnostics(payload));
+  ipcHandle(ipcMain, 'health:optimize-db', (payload) => healthController.handleOptimizeDb(payload));
+  ipcHandle(ipcMain, 'health:clear-cache', () => healthController.handleClearCache());
+
+  // ─── Phase 13.10: License & Version Management ──────────────
+  ipcHandle(ipcMain, 'license:get-info', (payload) => licenseController.handleGetInfo(payload));
+  ipcHandle(ipcMain, 'license:update-key', (payload) => licenseController.handleUpdateKey(payload));
+  ipcHandle(ipcMain, 'license:reset-uptime', (payload) => licenseController.handleResetUptime(payload));
 }

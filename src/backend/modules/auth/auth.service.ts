@@ -43,6 +43,48 @@ export class AuthService {
       throw new UnauthorizedException('User account is inactive or blocked');
     }
 
+    // Resolve company security lockout settings
+    const companyAccess = await this.prisma.userCompanyAccess.findFirst({
+      where: { userId: user.id },
+    });
+    
+    let maxFailedAttempts = 5;
+    let lockoutDurationMinutes = 30;
+
+    if (companyAccess) {
+      const setting = await this.prisma.systemSetting.findFirst({
+        where: {
+          companyId: companyAccess.companyId,
+          settingKey: 'AUDIT_SECURITY_SETTINGS',
+        },
+      });
+      if (setting && setting.settingValue) {
+        const val = setting.settingValue as any;
+        if (val.maxFailedLoginAttempts !== undefined) {
+          maxFailedAttempts = Number(val.maxFailedLoginAttempts);
+        }
+        if (val.lockoutDurationMinutes !== undefined) {
+          lockoutDurationMinutes = Number(val.lockoutDurationMinutes);
+        }
+      }
+    }
+
+    // Enforce lockout check
+    if (maxFailedAttempts > 0 && user.failedLoginAttempts >= maxFailedAttempts) {
+      const lastFailed = await this.prisma.loginHistory.findFirst({
+        where: { userId: user.id, action: 'FAILED' },
+        orderBy: { createdAt: 'desc' },
+      });
+
+      if (lastFailed) {
+        const lockoutEnd = new Date(lastFailed.createdAt.getTime() + lockoutDurationMinutes * 60 * 1000);
+        if (new Date() < lockoutEnd) {
+          const waitTime = Math.ceil((lockoutEnd.getTime() - new Date().getTime()) / 60000);
+          throw new UnauthorizedException(`Account locked due to multiple failed login attempts. Please wait ${waitTime} minutes.`);
+        }
+      }
+    }
+
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
       await this.prisma.user.update({

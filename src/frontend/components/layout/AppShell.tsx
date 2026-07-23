@@ -11,6 +11,7 @@ import { LoadingOverlay } from '../feedback/LoadingOverlay';
 import { useSessionBootstrap } from '../../hooks/useSessionBootstrap';
 import { useAuthStore } from '../../state/auth-store';
 import { useReportScheduler } from '../../hooks/useReportScheduler';
+import { useSessionTimeout } from '../../hooks/useSessionTimeout';
 
 export const AppShell: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
@@ -19,6 +20,9 @@ export const AppShell: React.FC = () => {
 
   // Run the background automated export scheduler catch-up
   useReportScheduler();
+
+  // Run the inactivity logout monitor
+  useSessionTimeout();
 
   if (!isAuthenticated) {
     return <Navigate to="/login" replace />;
