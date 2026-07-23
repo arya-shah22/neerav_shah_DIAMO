@@ -136,7 +136,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     {
       key: 'customerId',
       header: isCustomer ? 'CUSTOMER' : 'SUPPLIER',
-      render: (row) => row.customer?.accountName || '—',
+      render: (row) => row.customer?.accountName || row.supplier?.accountName || '—',
     },
     {
       key: 'brokerId',

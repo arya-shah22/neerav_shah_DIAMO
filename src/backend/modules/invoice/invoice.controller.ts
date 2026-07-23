@@ -32,9 +32,9 @@ export class InvoiceController {
     }
   }
 
-  async handleGet(payload: { id: number; companyId: number }): Promise<IApiResponse> {
+  async handleGet(payload: { id: number; companyId: number; type?: InvoiceType }): Promise<IApiResponse> {
     try {
-      const data = await this.service.get(payload.id, payload.companyId);
+      const data = await this.service.get(payload.id, payload.companyId, payload.type);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: formatApiError(error, 'Failed to fetch invoice details') };

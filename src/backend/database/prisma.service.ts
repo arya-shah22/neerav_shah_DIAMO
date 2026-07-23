@@ -4,6 +4,7 @@
 
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { PrismaClient } from '@prisma/client';
+import { migrateLegacyPurchaseInvoices } from './legacy-invoice-migration';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
@@ -166,6 +167,7 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
 
   async onModuleInit() {
     await this.$connect();
+    await migrateLegacyPurchaseInvoices(this);
   }
 
   async onModuleDestroy() {

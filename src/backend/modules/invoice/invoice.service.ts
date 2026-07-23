@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════
 // DIAMO ERP — Invoice Service Backend
+// Properly separates SaleInvoice and PurchaseInvoice tables
 // ═══════════════════════════════════════════════════════════════
 
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
@@ -12,6 +13,13 @@ function cleanUpper(val: unknown): string | null {
   if (val == null) return null;
   const str = String(val).trim();
   return str.length > 0 ? str.toUpperCase() : null;
+}
+
+/**
+ * Determines if a given InvoiceType should go into the purchase_invoices table.
+ */
+function isPurchaseType(type: InvoiceType): boolean {
+  return type === 'PURCHASE_INVOICE' || type === 'PURCHASE_RETURN' || type === 'PURCHASE_DEBIT_NOTE';
 }
 
 @Injectable()
@@ -159,116 +167,131 @@ export class InvoiceService {
     return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeAbbr, company.companyCode);
   }
 
+  // ─── Helper: Enrich items with stock packet data ──────────────────────────
+  private async enrichItemsWithPackets(items: any[]): Promise<any[]> {
+    const packetIds: number[] = [];
+    for (const item of items) {
+      if (item.stockPacketId) packetIds.push(item.stockPacketId);
+    }
+    if (packetIds.length === 0) return items;
+
+    const packets = await this.prisma.stockPacket.findMany({
+      where: { id: { in: packetIds } },
+      select: {
+        id: true, stockIdNumber: true, shape: true, color: true,
+        clarity: true, cut: true, polish: true, symmetry: true,
+        certificateNumber: true, certificateType: true,
+      },
+    });
+    const packetMap = new Map(packets.map(p => [p.id, p]));
+
+    return items.map(item => {
+      if (item.stockPacketId && packetMap.has(item.stockPacketId)) {
+        return { ...item, stockPacket: packetMap.get(item.stockPacketId) };
+      }
+      return item;
+    });
+  }
+
   /**
    * List all Sale or Purchase Invoices
    */
   async list(companyId: number, type: InvoiceType) {
-    const invoices = await this.prisma.saleInvoice.findMany({
-      where: { companyId, invoiceType: type, isDeleted: false },
-      orderBy: [
-        { invoiceDate: 'desc' },
-        { id: 'desc' }
-      ],
-      include: {
-        customer: { select: { id: true, accountName: true } },
-        broker: { select: { id: true, accountName: true } },
-        items: {
-          include: { quality: true }
-        }
-      },
-    });
-
-    const packetIds: number[] = [];
-    for (const inv of invoices) {
-      for (const item of inv.items) {
-        if (item.stockPacketId) {
-          packetIds.push(item.stockPacketId);
-        }
-      }
-    }
-
-    if (packetIds.length > 0) {
-      const packets = await this.prisma.stockPacket.findMany({
-        where: { id: { in: packetIds } },
-        select: {
-          id: true,
-          stockIdNumber: true,
-          shape: true,
-          color: true,
-          clarity: true,
-          cut: true,
-          polish: true,
-          symmetry: true,
-          certificateNumber: true,
-          certificateType: true,
-        }
+    if (isPurchaseType(type)) {
+      // ─── Purchase table ────────────────────────────────
+      const invoices = await this.prisma.purchaseInvoice.findMany({
+        where: { companyId, invoiceType: type, isDeleted: false },
+        orderBy: [{ invoiceDate: 'desc' }, { id: 'desc' }],
+        include: {
+          supplier: { select: { id: true, accountName: true } },
+          broker: { select: { id: true, accountName: true } },
+          items: { include: { quality: true } },
+        },
       });
-      const packetMap = new Map(packets.map(p => [p.id, p]));
-      for (const inv of invoices) {
-        (inv as any).items = inv.items.map(item => {
-          if (item.stockPacketId && packetMap.has(item.stockPacketId)) {
-            return {
-              ...item,
-              stockPacket: packetMap.get(item.stockPacketId)
-            };
-          }
-          return item;
-        });
-      }
-    }
 
-    return invoices;
+      // Normalize: map supplier → customer for frontend compatibility
+      const result = invoices.map((inv: any) => ({
+        ...inv,
+        customerId: inv.supplierId,
+        customer: inv.supplier,
+        items: inv.items,
+      }));
+
+      for (const inv of result) {
+        inv.items = await this.enrichItemsWithPackets(inv.items);
+      }
+
+      return result;
+    } else {
+      // ─── Sale table ─────────────────────────────────────
+      const invoices = await this.prisma.saleInvoice.findMany({
+        where: { companyId, invoiceType: type, isDeleted: false },
+        orderBy: [{ invoiceDate: 'desc' }, { id: 'desc' }],
+        include: {
+          customer: { select: { id: true, accountName: true } },
+          broker: { select: { id: true, accountName: true } },
+          items: { include: { quality: true } },
+        },
+      });
+
+      for (const inv of invoices) {
+        (inv as any).items = await this.enrichItemsWithPackets(inv.items);
+      }
+
+      return invoices;
+    }
   }
 
   /**
    * Get unique invoice details
    */
-  async get(id: number, companyId: number) {
-    const invoice = await this.prisma.saleInvoice.findFirst({
+  async get(id: number, companyId: number, type?: InvoiceType) {
+    // Try sale first, then purchase if not found (or if type hint provided)
+    if (type && isPurchaseType(type)) {
+      return this.getPurchaseInvoice(id, companyId);
+    }
+
+    // Try sale table
+    const saleInvoice = await this.prisma.saleInvoice.findFirst({
       where: { id, companyId, isDeleted: false },
       include: {
         customer: true,
         broker: true,
-        items: {
-          include: { quality: true },
-        },
+        items: { include: { quality: true } },
+      },
+    });
+
+    if (saleInvoice) {
+      (saleInvoice as any).items = await this.enrichItemsWithPackets(saleInvoice.items);
+      return saleInvoice;
+    }
+
+    // Fallback: try purchase table
+    return this.getPurchaseInvoice(id, companyId);
+  }
+
+  private async getPurchaseInvoice(id: number, companyId: number) {
+    const invoice = await this.prisma.purchaseInvoice.findFirst({
+      where: { id, companyId, isDeleted: false },
+      include: {
+        supplier: true,
+        broker: true,
+        items: { include: { quality: true } },
       },
     });
     if (!invoice) throw new BadRequestException('Invoice not found');
 
-    const packetIds = invoice.items
-      .map(item => item.stockPacketId)
-      .filter((id): id is number => id !== null && id !== undefined);
+    const enrichedItems = await this.enrichItemsWithPackets(invoice.items);
 
-    if (packetIds.length > 0) {
-      const packets = await this.prisma.stockPacket.findMany({
-        where: { id: { in: packetIds } },
-        select: {
-          id: true,
-          stockIdNumber: true,
-          shape: true,
-          color: true,
-          clarity: true,
-          cut: true,
-          polish: true,
-          symmetry: true,
-          certificateNumber: true,
-          certificateType: true,
-        }
-      });
-      const packetMap = new Map(packets.map(p => [p.id, p]));
-      (invoice as any).items = invoice.items.map(item => {
-        if (item.stockPacketId && packetMap.has(item.stockPacketId)) {
-          return {
-            ...item,
-            stockPacket: packetMap.get(item.stockPacketId)
-          };
-        }
-        return item;
-      });
-    }
-
-    return invoice;
+    // Normalize for frontend compatibility
+    return {
+      ...invoice,
+      customerId: invoice.supplierId,
+      customer: invoice.supplier,
+      customerGstin: invoice.supplierGstin,
+      customerStateCode: invoice.supplierStateCode,
+      items: enrichedItems,
+    };
   }
 
   /**
@@ -277,7 +300,7 @@ export class InvoiceService {
   async create(companyId: number, data: Record<string, any>) {
     const financialYearId = Number(data.financialYearId);
     const invoiceType = data.invoiceType as InvoiceType;
-    const customerId = Number(data.customerId);
+    const partyId = Number(data.customerId); // frontend always sends customerId
     const brokerId = (data.brokerId !== undefined && data.brokerId !== null && data.brokerId !== '' && data.brokerId !== 'null' && data.brokerId !== 'undefined')
       ? Number(data.brokerId)
       : null;
@@ -289,7 +312,7 @@ export class InvoiceService {
     const dueDate = new Date(invoiceDate.getTime() + creditDays * 24 * 60 * 60 * 1000);
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
-    const party = await this.prisma.account.findUnique({ where: { id: customerId } });
+    const party = await this.prisma.account.findUnique({ where: { id: partyId } });
     if (!company || !party) throw new BadRequestException('Company or Party account not found');
 
     const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId, invoiceType);
@@ -306,6 +329,8 @@ export class InvoiceService {
     const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes');
     const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes');
     const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes');
+
+    const isPurchase = isPurchaseType(invoiceType);
 
     return this.prisma.$transaction(async (tx) => {
       const companyQualities = await tx.quality.findMany({
@@ -492,41 +517,84 @@ export class InvoiceService {
       const roundOff = Math.round(rawNet) - rawNet;
       const netAmount = Math.round(rawNet);
 
-      // 1. Create Invoice Record
-      const createdInvoice = await tx.saleInvoice.create({
-        data: {
-          companyId,
-          financialYearId,
-          invoiceType,
-          voucherNumber,
-          billNumber,
-          invoiceDate,
-          dueDate,
-          status: InvoiceStatus.SAVED,
-          paymentStatus: PaymentStatus.UNPAID,
-          customerId,
-          customerGstin: party.gstinNumber,
-          customerStateCode: party.stateCode,
-          placeOfSupply: party.stateCode,
-          brokerId,
-          brokeragePct,
-          brokerageAmount: (taxableTotal * brokeragePct) / 100,
-          totalCarats,
-          totalPieces,
-          totalGrossAmount,
-          totalDiscount,
-          totalCgst,
-          totalSgst,
-          totalIgst,
-          roundOff,
-          netAmount,
-          outstandingAmount: netAmount,
-          narration: data.narration || '',
-          items: {
-            create: parsedItems,
+      // 1. Create Invoice Record — branch by type
+      let createdInvoice: any;
+
+      if (isPurchase) {
+        // ─── Purchase Invoice Table ──────────────────────
+        createdInvoice = await tx.purchaseInvoice.create({
+          data: {
+            companyId,
+            financialYearId,
+            invoiceType,
+            voucherNumber,
+            billNumber,
+            invoiceDate,
+            dueDate,
+            status: InvoiceStatus.SAVED,
+            paymentStatus: PaymentStatus.UNPAID,
+            supplierId: partyId,
+            supplierGstin: party.gstinNumber,
+            supplierStateCode: party.stateCode,
+            placeOfSupply: party.stateCode,
+            brokerId,
+            brokeragePct,
+            brokerageAmount: (taxableTotal * brokeragePct) / 100,
+            totalCarats,
+            totalPieces,
+            totalGrossAmount,
+            totalDiscount,
+            totalCgst,
+            totalSgst,
+            totalIgst,
+            roundOff,
+            netAmount,
+            outstandingAmount: netAmount,
+            narration: data.narration || '',
+            items: {
+              create: parsedItems,
+            },
           },
-        },
-      });
+        });
+        // Normalize for frontend compatibility
+        createdInvoice.customerId = createdInvoice.supplierId;
+      } else {
+        // ─── Sale Invoice Table ──────────────────────────
+        createdInvoice = await tx.saleInvoice.create({
+          data: {
+            companyId,
+            financialYearId,
+            invoiceType,
+            voucherNumber,
+            billNumber,
+            invoiceDate,
+            dueDate,
+            status: InvoiceStatus.SAVED,
+            paymentStatus: PaymentStatus.UNPAID,
+            customerId: partyId,
+            customerGstin: party.gstinNumber,
+            customerStateCode: party.stateCode,
+            placeOfSupply: party.stateCode,
+            brokerId,
+            brokeragePct,
+            brokerageAmount: (taxableTotal * brokeragePct) / 100,
+            totalCarats,
+            totalPieces,
+            totalGrossAmount,
+            totalDiscount,
+            totalCgst,
+            totalSgst,
+            totalIgst,
+            roundOff,
+            netAmount,
+            outstandingAmount: netAmount,
+            narration: data.narration || '',
+            items: {
+              create: parsedItems,
+            },
+          },
+        });
+      }
 
       // 2. Create Double-Entry General Ledger Postings
       const isSalesBook = invoiceType === 'SALE_INVOICE' || invoiceType === 'SALE_DEBIT_NOTE';
@@ -544,7 +612,7 @@ export class InvoiceService {
       await tx.generalLedgerEntry.create({
         data: {
           companyId,
-          accountId: customerId,
+          accountId: partyId,
           voucherDate: invoiceDate,
           debitCreditType: partyDebitCredit,
           amount: netAmount,
@@ -698,10 +766,22 @@ export class InvoiceService {
    * Delete an Invoice (Soft delete with ledger & stock reversal)
    */
   async delete(id: number, companyId: number) {
-    const invoice = await this.prisma.saleInvoice.findFirst({
+    // Try sale table first
+    let invoice: any = await this.prisma.saleInvoice.findFirst({
       where: { id, companyId, isDeleted: false },
       include: { items: true },
     });
+    let isPurchase = false;
+
+    if (!invoice) {
+      // Try purchase table
+      invoice = await this.prisma.purchaseInvoice.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { items: true },
+      });
+      isPurchase = true;
+    }
+
     if (!invoice) throw new BadRequestException('Invoice not found');
 
     const hasStockOutward = (invoice.invoiceType === 'SALE_INVOICE' || invoice.invoiceType === 'PURCHASE_RETURN');
@@ -709,10 +789,17 @@ export class InvoiceService {
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Soft-delete the invoice header
-      await tx.saleInvoice.update({
-        where: { id },
-        data: { isDeleted: true, deletedAt: new Date() },
-      });
+      if (isPurchase) {
+        await tx.purchaseInvoice.update({
+          where: { id },
+          data: { isDeleted: true, deletedAt: new Date() },
+        });
+      } else {
+        await tx.saleInvoice.update({
+          where: { id },
+          data: { isDeleted: true, deletedAt: new Date() },
+        });
+      }
 
       // 2. Remove all related general ledger entries
       await tx.generalLedgerEntry.deleteMany({
@@ -768,15 +855,25 @@ export class InvoiceService {
    * Update an Invoice — deletes old postings & stock movements, re-creates with new data
    */
   async update(id: number, companyId: number, data: Record<string, any>) {
-    const existing = await this.prisma.saleInvoice.findFirst({
+    // Determine which table the existing invoice is in
+    let existing: any = await this.prisma.saleInvoice.findFirst({
       where: { id, companyId, isDeleted: false },
       include: { items: true },
     });
+    let existingIsPurchase = false;
+
+    if (!existing) {
+      existing = await this.prisma.purchaseInvoice.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { items: true },
+      });
+      existingIsPurchase = true;
+    }
+
     if (!existing) throw new BadRequestException('Invoice not found');
 
-    const invoiceType = existing.invoiceType;
-
-    const customerId = Number(data.customerId);
+    const invoiceType = existing.invoiceType as InvoiceType;
+    const partyId = Number(data.customerId);
     const brokerId = data.brokerId ? Number(data.brokerId) : null;
     const invoiceDate = new Date(data.invoiceDate);
     const creditDays = Number(data.creditDays) || 0;
@@ -785,7 +882,7 @@ export class InvoiceService {
     const lessPct = Number(data.lessPct) || 0;
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
-    const party = await this.prisma.account.findUnique({ where: { id: customerId } });
+    const party = await this.prisma.account.findUnique({ where: { id: partyId } });
     if (!company || !party) throw new BadRequestException('Company or Party account not found');
 
     const billNumber = data.isManualBillNumber && data.billNumber ? data.billNumber : existing.voucherNumber;
@@ -991,6 +1088,7 @@ export class InvoiceService {
 
       const brokeragePct = Number(data.brokeragePct) || 0;
       const brokerageAmount = (taxableTotal * brokeragePct) / 100;
+
       // 1. Reverse old stock movements
       const oldHasStockOutward = (existing.invoiceType === 'SALE_INVOICE' || existing.invoiceType === 'PURCHASE_RETURN');
       const oldIsFinancialOnly = (existing.invoiceType === 'SALE_DEBIT_NOTE' || existing.invoiceType === 'PURCHASE_DEBIT_NOTE');
@@ -1031,36 +1129,85 @@ export class InvoiceService {
       await tx.stockMovement.deleteMany({
         where: { sourceVoucherType: existing.invoiceType as any, sourceVoucherId: id },
       });
-      await tx.saleInvoiceItem.deleteMany({ where: { saleInvoiceId: id } });
 
-      // 3. Update invoice header
-      const updatedInvoice = await tx.saleInvoice.update({
-        where: { id },
-        data: {
-          billNumber,
-          invoiceDate,
-          dueDate,
-          customerId,
-          customerGstin: party.gstinNumber,
-          customerStateCode: party.stateCode,
-          brokerId,
-          brokeragePct,
-          brokerageAmount,
-          totalCarats,
-          totalPieces,
-          totalGrossAmount,
-          totalDiscount,
-          totalCgst,
-          totalSgst,
-          totalIgst,
-          roundOff,
-          netAmount,
-          narration: data.narration || '',
-          updatedAt: new Date(),
-          items: { create: parsedItems },
-        },
-        include: { items: true, customer: { select: { id: true, accountName: true } }, broker: { select: { id: true, accountName: true } } },
-      });
+      // Delete old items from the correct table
+      if (existingIsPurchase) {
+        await tx.purchaseInvoiceItem.deleteMany({ where: { purchaseInvoiceId: id } });
+      } else {
+        await tx.saleInvoiceItem.deleteMany({ where: { saleInvoiceId: id } });
+      }
+
+      // 3. Update invoice header in the correct table
+      let updatedInvoice: any;
+
+      if (existingIsPurchase) {
+        updatedInvoice = await tx.purchaseInvoice.update({
+          where: { id },
+          data: {
+            billNumber,
+            invoiceDate,
+            dueDate,
+            supplierId: partyId,
+            supplierGstin: party.gstinNumber,
+            supplierStateCode: party.stateCode,
+            brokerId,
+            brokeragePct,
+            brokerageAmount,
+            totalCarats,
+            totalPieces,
+            totalGrossAmount,
+            totalDiscount,
+            totalCgst,
+            totalSgst,
+            totalIgst,
+            roundOff,
+            netAmount,
+            narration: data.narration || '',
+            updatedAt: new Date(),
+            items: { create: parsedItems },
+          },
+          include: {
+            items: true,
+            supplier: { select: { id: true, accountName: true } },
+            broker: { select: { id: true, accountName: true } },
+          },
+        });
+        // Normalize for frontend
+        updatedInvoice.customerId = updatedInvoice.supplierId;
+        updatedInvoice.customer = updatedInvoice.supplier;
+      } else {
+        updatedInvoice = await tx.saleInvoice.update({
+          where: { id },
+          data: {
+            billNumber,
+            invoiceDate,
+            dueDate,
+            customerId: partyId,
+            customerGstin: party.gstinNumber,
+            customerStateCode: party.stateCode,
+            brokerId,
+            brokeragePct,
+            brokerageAmount,
+            totalCarats,
+            totalPieces,
+            totalGrossAmount,
+            totalDiscount,
+            totalCgst,
+            totalSgst,
+            totalIgst,
+            roundOff,
+            netAmount,
+            narration: data.narration || '',
+            updatedAt: new Date(),
+            items: { create: parsedItems },
+          },
+          include: {
+            items: true,
+            customer: { select: { id: true, accountName: true } },
+            broker: { select: { id: true, accountName: true } },
+          },
+        });
+      }
 
       // 4. Re-create ledger entries
       const isSalesBook = invoiceType === 'SALE_INVOICE' || invoiceType === 'SALE_DEBIT_NOTE';
@@ -1078,7 +1225,7 @@ export class InvoiceService {
       await tx.generalLedgerEntry.create({
         data: {
           companyId,
-          accountId: customerId,
+          accountId: partyId,
           voucherDate: invoiceDate,
           debitCreditType: partyDebitCredit,
           amount: netAmount,

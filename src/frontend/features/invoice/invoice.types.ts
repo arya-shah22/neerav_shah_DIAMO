@@ -37,6 +37,9 @@ export interface IInvoice {
   customerId: number;
   customerGstin?: string | null;
   customerStateCode?: string | null;
+  supplierId?: number;
+  supplierGstin?: string | null;
+  supplierStateCode?: string | null;
   brokerId?: number | null;
   brokeragePct?: number;
   brokerageAmount?: number;
@@ -55,6 +58,10 @@ export interface IInvoice {
   createdAt: string;
   updatedAt: string;
   customer?: {
+    id: number;
+    accountName: string;
+  };
+  supplier?: {
     id: number;
     accountName: string;
   };

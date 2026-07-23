@@ -186,10 +186,10 @@ export class CashBankService {
    * Fetch outstanding purchase invoices for a supplier
    */
   async listUnpaidPurchases(companyId: number, supplierId: number) {
-    const purchases = await this.prisma.saleInvoice.findMany({
+    const purchases = await this.prisma.purchaseInvoice.findMany({
       where: {
         companyId,
-        customerId: supplierId,
+        supplierId: supplierId,
         invoiceType: InvoiceType.PURCHASE_INVOICE,
         isDeleted: false,
         status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] },
@@ -198,8 +198,11 @@ export class CashBankService {
       orderBy: { invoiceDate: 'asc' }
     });
 
+    // Normalize for frontend: map supplierId -> customerId
+    const normalizedPurchases = purchases.map((p: any) => ({ ...p, customerId: p.supplierId }));
+
     const jvs = await this.listUnpaidJVs(companyId, supplierId, false);
-    return [...purchases, ...jvs];
+    return [...normalizedPurchases, ...jvs];
   }
 
   /**
@@ -226,17 +229,36 @@ export class CashBankService {
    * Fetch outstanding credit notes & debit notes for a party
    */
   async listPartyNotes(companyId: number, partyId: number) {
-    return this.prisma.saleInvoice.findMany({
+    // Sale-type notes from sale_invoices table
+    const saleNotes = await this.prisma.saleInvoice.findMany({
       where: {
         companyId,
         customerId: partyId,
         isDeleted: false,
-        invoiceType: { in: [InvoiceType.SALE_RETURN, InvoiceType.SALE_DEBIT_NOTE, InvoiceType.PURCHASE_RETURN, InvoiceType.PURCHASE_DEBIT_NOTE] },
+        invoiceType: { in: [InvoiceType.SALE_RETURN, InvoiceType.SALE_DEBIT_NOTE] },
         status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] },
         outstandingAmount: { gt: 0 }
       },
       orderBy: { invoiceDate: 'asc' }
     });
+
+    // Purchase-type notes from purchase_invoices table
+    const purchaseNotes = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        supplierId: partyId,
+        isDeleted: false,
+        invoiceType: { in: [InvoiceType.PURCHASE_RETURN, InvoiceType.PURCHASE_DEBIT_NOTE] },
+        status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] },
+        outstandingAmount: { gt: 0 }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+
+    // Normalize purchase notes for frontend
+    const normalizedPurchaseNotes = purchaseNotes.map((n: any) => ({ ...n, customerId: n.supplierId }));
+
+    return [...saleNotes, ...normalizedPurchaseNotes];
   }
 
   /**
@@ -471,31 +493,43 @@ export class CashBankService {
       if (referenceBillNo) {
         const invType = isPurchase ? InvoiceType.PURCHASE_INVOICE : InvoiceType.SALE_INVOICE;
 
-        const inv = await tx.saleInvoice.findFirst({
-          where: { companyId, voucherNumber: referenceBillNo, invoiceType: invType, isDeleted: false }
-        });
-        if (inv) {
-          // In credit note adjustment, it reduces the remaining cash payable.
-          // In debit note adjustment, it increases the total payable settlement.
-          // In both cases, the total settlement applied to invoice matches: Cash Amount + Credit/Debit Note Offset
-          const totalSettlementApplied = isCreditAdjustment 
-            ? amount + adjustedNoteAmount 
-            : amount - adjustedNoteAmount;
+        // Branch: query the correct table based on invoice type
+        const totalSettlementApplied = isCreditAdjustment 
+          ? amount + adjustedNoteAmount 
+          : amount - adjustedNoteAmount;
 
-          const nextJama = Number(inv.jamaAmount) + totalSettlementApplied;
-          const nextOutstanding = Math.max(0, Number(inv.netAmount) - nextJama);
-          let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
-          if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
-          else if (nextJama === 0) nextStatus = PaymentStatus.UNPAID;
-
-          await tx.saleInvoice.update({
-            where: { id: inv.id },
-            data: {
-              jamaAmount: nextJama,
-              outstandingAmount: nextOutstanding,
-              paymentStatus: nextStatus
-            }
+        if (isPurchase) {
+          const inv = await tx.purchaseInvoice.findFirst({
+            where: { companyId, voucherNumber: referenceBillNo, invoiceType: invType, isDeleted: false }
           });
+          if (inv) {
+            const nextJama = Number(inv.jamaAmount) + totalSettlementApplied;
+            const nextOutstanding = Math.max(0, Number(inv.netAmount) - nextJama);
+            let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
+            if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
+            else if (nextJama === 0) nextStatus = PaymentStatus.UNPAID;
+
+            await tx.purchaseInvoice.update({
+              where: { id: inv.id },
+              data: { jamaAmount: nextJama, outstandingAmount: nextOutstanding, paymentStatus: nextStatus }
+            });
+          }
+        } else {
+          const inv = await tx.saleInvoice.findFirst({
+            where: { companyId, voucherNumber: referenceBillNo, invoiceType: invType, isDeleted: false }
+          });
+          if (inv) {
+            const nextJama = Number(inv.jamaAmount) + totalSettlementApplied;
+            const nextOutstanding = Math.max(0, Number(inv.netAmount) - nextJama);
+            let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
+            if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
+            else if (nextJama === 0) nextStatus = PaymentStatus.UNPAID;
+
+            await tx.saleInvoice.update({
+              where: { id: inv.id },
+              data: { jamaAmount: nextJama, outstandingAmount: nextOutstanding, paymentStatus: nextStatus }
+            });
+          }
         }
       }
 
@@ -505,17 +539,29 @@ export class CashBankService {
           ? (isCreditAdjustment ? [InvoiceType.PURCHASE_DEBIT_NOTE] : [InvoiceType.PURCHASE_RETURN])
           : (isCreditAdjustment ? [InvoiceType.SALE_RETURN] : [InvoiceType.SALE_DEBIT_NOTE]);
 
-        const activeNotes = await tx.saleInvoice.findMany({
-          where: {
-            companyId,
-            customerId: partyId,
-            isDeleted: false,
-            invoiceType: { in: allowedTypes },
-            status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] },
-            outstandingAmount: { gt: 0 }
-          },
-          orderBy: { invoiceDate: 'asc' }
-        });
+        // Query and update notes in the correct table
+        let activeNotes: any[];
+        if (isPurchase) {
+          activeNotes = await tx.purchaseInvoice.findMany({
+            where: {
+              companyId, supplierId: partyId, isDeleted: false,
+              invoiceType: { in: allowedTypes },
+              status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] },
+              outstandingAmount: { gt: 0 }
+            },
+            orderBy: { invoiceDate: 'asc' }
+          });
+        } else {
+          activeNotes = await tx.saleInvoice.findMany({
+            where: {
+              companyId, customerId: partyId, isDeleted: false,
+              invoiceType: { in: allowedTypes },
+              status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] },
+              outstandingAmount: { gt: 0 }
+            },
+            orderBy: { invoiceDate: 'asc' }
+          });
+        }
 
         let remainingAllocation = adjustedNoteAmount;
         for (const note of activeNotes) {
@@ -528,14 +574,17 @@ export class CashBankService {
           let nextNoteStatus: PaymentStatus = PaymentStatus.PARTIAL;
           if (nextNoteOutstanding <= 0) nextNoteStatus = PaymentStatus.PAID;
 
-          await tx.saleInvoice.update({
-            where: { id: note.id },
-            data: {
-              jamaAmount: nextNoteJama,
-              outstandingAmount: nextNoteOutstanding,
-              paymentStatus: nextNoteStatus
-            }
-          });
+          if (isPurchase) {
+            await tx.purchaseInvoice.update({
+              where: { id: note.id },
+              data: { jamaAmount: nextNoteJama, outstandingAmount: nextNoteOutstanding, paymentStatus: nextNoteStatus }
+            });
+          } else {
+            await tx.saleInvoice.update({
+              where: { id: note.id },
+              data: { jamaAmount: nextNoteJama, outstandingAmount: nextNoteOutstanding, paymentStatus: nextNoteStatus }
+            });
+          }
 
           remainingAllocation -= applyToThisNote;
         }
@@ -644,28 +693,42 @@ export class CashBankService {
       if (referenceBillNo) {
         const invType = isPurchase ? InvoiceType.PURCHASE_INVOICE : InvoiceType.SALE_INVOICE;
 
-        const inv = await tx.saleInvoice.findFirst({
-          where: { companyId, voucherNumber: referenceBillNo, invoiceType: invType, isDeleted: false }
-        });
-        if (inv) {
-          const totalSettlementApplied = isCreditAdjustment 
-            ? amount + adjustedNoteAmount 
-            : amount - adjustedNoteAmount;
+        const totalSettlementApplied = isCreditAdjustment 
+          ? amount + adjustedNoteAmount 
+          : amount - adjustedNoteAmount;
 
-          const nextJama = Math.max(0, Number(inv.jamaAmount) - totalSettlementApplied);
-          const nextOutstanding = Math.max(0, Number(inv.netAmount) - nextJama);
-          let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
-          if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
-          else if (nextJama === 0) nextStatus = PaymentStatus.UNPAID;
-
-          await tx.saleInvoice.update({
-            where: { id: inv.id },
-            data: {
-              jamaAmount: nextJama,
-              outstandingAmount: nextOutstanding,
-              paymentStatus: nextStatus
-            }
+        if (isPurchase) {
+          const inv = await tx.purchaseInvoice.findFirst({
+            where: { companyId, voucherNumber: referenceBillNo, invoiceType: invType, isDeleted: false }
           });
+          if (inv) {
+            const nextJama = Math.max(0, Number(inv.jamaAmount) - totalSettlementApplied);
+            const nextOutstanding = Math.max(0, Number(inv.netAmount) - nextJama);
+            let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
+            if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
+            else if (nextJama === 0) nextStatus = PaymentStatus.UNPAID;
+
+            await tx.purchaseInvoice.update({
+              where: { id: inv.id },
+              data: { jamaAmount: nextJama, outstandingAmount: nextOutstanding, paymentStatus: nextStatus }
+            });
+          }
+        } else {
+          const inv = await tx.saleInvoice.findFirst({
+            where: { companyId, voucherNumber: referenceBillNo, invoiceType: invType, isDeleted: false }
+          });
+          if (inv) {
+            const nextJama = Math.max(0, Number(inv.jamaAmount) - totalSettlementApplied);
+            const nextOutstanding = Math.max(0, Number(inv.netAmount) - nextJama);
+            let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
+            if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
+            else if (nextJama === 0) nextStatus = PaymentStatus.UNPAID;
+
+            await tx.saleInvoice.update({
+              where: { id: inv.id },
+              data: { jamaAmount: nextJama, outstandingAmount: nextOutstanding, paymentStatus: nextStatus }
+            });
+          }
         }
       }
 
@@ -676,16 +739,26 @@ export class CashBankService {
           : (isCreditAdjustment ? [InvoiceType.SALE_RETURN] : [InvoiceType.SALE_DEBIT_NOTE]);
 
         // Query notes in DESCENDING order to reverse FIFO updates
-        const activeNotes = await tx.saleInvoice.findMany({
-          where: {
-            companyId,
-            customerId: voucher.partyId,
-            isDeleted: false,
-            invoiceType: { in: allowedTypes },
-            status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] }
-          },
-          orderBy: { invoiceDate: 'desc' }
-        });
+        let activeNotes: any[];
+        if (isPurchase) {
+          activeNotes = await tx.purchaseInvoice.findMany({
+            where: {
+              companyId, supplierId: voucher.partyId, isDeleted: false,
+              invoiceType: { in: allowedTypes },
+              status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] }
+            },
+            orderBy: { invoiceDate: 'desc' }
+          });
+        } else {
+          activeNotes = await tx.saleInvoice.findMany({
+            where: {
+              companyId, customerId: voucher.partyId, isDeleted: false,
+              invoiceType: { in: allowedTypes },
+              status: { in: [InvoiceStatus.SAVED, InvoiceStatus.APPROVED] }
+            },
+            orderBy: { invoiceDate: 'desc' }
+          });
+        }
 
         let remainingRevert = adjustedNoteAmount;
         for (const note of activeNotes) {
@@ -701,14 +774,17 @@ export class CashBankService {
           if (nextNoteOutstanding <= 0) nextNoteStatus = PaymentStatus.PAID;
           else if (nextNoteJama === 0) nextNoteStatus = PaymentStatus.UNPAID;
 
-          await tx.saleInvoice.update({
-            where: { id: note.id },
-            data: {
-              jamaAmount: nextNoteJama,
-              outstandingAmount: nextNoteOutstanding,
-              paymentStatus: nextNoteStatus
-            }
-          });
+          if (isPurchase) {
+            await tx.purchaseInvoice.update({
+              where: { id: note.id },
+              data: { jamaAmount: nextNoteJama, outstandingAmount: nextNoteOutstanding, paymentStatus: nextNoteStatus }
+            });
+          } else {
+            await tx.saleInvoice.update({
+              where: { id: note.id },
+              data: { jamaAmount: nextNoteJama, outstandingAmount: nextNoteOutstanding, paymentStatus: nextNoteStatus }
+            });
+          }
 
           remainingRevert -= revertFromThisNote;
         }

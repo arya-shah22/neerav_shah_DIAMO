@@ -14,13 +14,17 @@ export interface IDashboardKpiSummary {
   };
   receivables: {
     total: number;
+    pending: number;
     pendingCount: number;
+    doneReceived: number;
     receivedToday: number;
     overdueAmount: number;
   };
   payables: {
     total: number;
+    pending: number;
     pendingCount: number;
+    donePaid: number;
     paidToday: number;
     overdueAmount: number;
   };

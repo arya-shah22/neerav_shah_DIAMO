@@ -49,9 +49,19 @@ export class ReportService {
   }
 
   async reconcileLegacyEntries(companyId: number) {
-    const invoices = await this.prisma.saleInvoice.findMany({
+    // Reconcile sale invoices
+    const saleInvoices = await this.prisma.saleInvoice.findMany({
       where: { companyId, isDeleted: false },
     });
+    // Reconcile purchase invoices
+    const purchaseInvoicesForReconcile = await this.prisma.purchaseInvoice.findMany({
+      where: { companyId, isDeleted: false },
+    });
+    // Normalize purchase invoices to have customerId for the reconciliation loop
+    const invoices = [
+      ...saleInvoices,
+      ...purchaseInvoicesForReconcile.map((p: any) => ({ ...p, customerId: p.supplierId })),
+    ];
 
     const salesLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Sales A/c', 'Sales Accounts');
     const purchaseLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Purchase A/c', 'Purchase Accounts');
@@ -669,17 +679,35 @@ export class ReportService {
     const accountIds = accounts.map(a => a.id);
     if (accountIds.length === 0) return [];
 
-    // Query open invoices
-    const invoices = await this.prisma.saleInvoice.findMany({
-      where: {
-        companyId,
-        isDeleted: false,
-        customerId: { in: accountIds },
-        status: { in: ['SAVED', 'APPROVED'] },
-        paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
-      },
-      orderBy: { invoiceDate: 'asc' },
-    });
+    // Query open invoices - from the correct table based on group type
+    const isSundryCreditor = targetGroupLower.includes('creditor') || targetGroupLower.includes('supplier') || targetGroupLower.includes('purchase');
+
+    let invoices: any[];
+    if (isSundryCreditor) {
+      invoices = await this.prisma.purchaseInvoice.findMany({
+        where: {
+          companyId,
+          isDeleted: false,
+          supplierId: { in: accountIds },
+          status: { in: ['SAVED', 'APPROVED'] },
+          paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
+        },
+        orderBy: { invoiceDate: 'asc' },
+      });
+      // Normalize supplierId -> customerId for consistent processing
+      invoices = invoices.map((inv: any) => ({ ...inv, customerId: inv.supplierId }));
+    } else {
+      invoices = await this.prisma.saleInvoice.findMany({
+        where: {
+          companyId,
+          isDeleted: false,
+          customerId: { in: accountIds },
+          status: { in: ['SAVED', 'APPROVED'] },
+          paymentStatus: { in: ['UNPAID', 'PARTIAL'] },
+        },
+        orderBy: { invoiceDate: 'asc' },
+      });
+    }
 
     const today = new Date();
 
@@ -2627,7 +2655,7 @@ export class ReportService {
       where: { companyId, isDeleted: false, invoiceType: 'SALE_INVOICE', invoiceDate: { gte: today, lt: tomorrow } },
       _sum: { netAmount: true },
     });
-    const todayPurchases = await this.prisma.saleInvoice.aggregate({
+    const todayPurchases = await this.prisma.purchaseInvoice.aggregate({
       where: { companyId, isDeleted: false, invoiceType: 'PURCHASE_INVOICE', invoiceDate: { gte: today, lt: tomorrow } },
       _sum: { netAmount: true },
     });
@@ -2639,7 +2667,7 @@ export class ReportService {
       _count: { id: true },
     });
 
-    const purchasesTotal = await this.prisma.saleInvoice.aggregate({
+    const purchasesTotal = await this.prisma.purchaseInvoice.aggregate({
       where: purchaseWhere,
       _sum: { netAmount: true, totalGrossAmount: true },
       _count: { id: true },
@@ -2650,7 +2678,7 @@ export class ReportService {
       where: saleWhere,
       select: { invoiceDate: true, netAmount: true },
     });
-    const monthlyPurchases = await this.prisma.saleInvoice.findMany({
+    const monthlyPurchases = await this.prisma.purchaseInvoice.findMany({
       where: purchaseWhere,
       select: { invoiceDate: true, netAmount: true },
     });
@@ -2691,8 +2719,8 @@ export class ReportService {
       };
     }));
 
-    const topSuppliersRaw = await this.prisma.saleInvoice.groupBy({
-      by: ['customerId'],
+    const topSuppliersRaw = await this.prisma.purchaseInvoice.groupBy({
+      by: ['supplierId'],
       where: purchaseWhere,
       _sum: { netAmount: true },
       _count: { id: true },
@@ -2700,7 +2728,7 @@ export class ReportService {
       take: 5,
     });
     const topSuppliers = await Promise.all(topSuppliersRaw.map(async (ts) => {
-      const acc = await this.prisma.account.findUnique({ where: { id: ts.customerId }, select: { accountName: true } });
+      const acc = await this.prisma.account.findUnique({ where: { id: ts.supplierId }, select: { accountName: true } });
       return {
         partyName: acc?.accountName || '—',
         billCount: ts._count.id,

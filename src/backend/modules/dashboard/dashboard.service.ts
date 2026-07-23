@@ -46,13 +46,17 @@ export class DashboardService {
       },
     });
 
-    let totalReceivables = 0;
+    let pendingReceivables = 0;
     let pendingReceivableCount = 0;
     let overdueReceivables = 0;
+    let totalBilledReceivables = 0;
+    let doneReceivedReceivables = 0;
 
-    let totalPayables = 0;
+    let pendingPayables = 0;
     let pendingPayableCount = 0;
     let overduePayables = 0;
+    let totalBilledPayables = 0;
+    let donePaidPayables = 0;
 
     const nowTime = new Date().getTime();
 
@@ -61,38 +65,64 @@ export class DashboardService {
       const isOverdue = bill.dueDate && new Date(bill.dueDate).getTime() < nowTime;
 
       if (bill.billType === 'DEBIT') {
-        totalReceivables += amount;
+        pendingReceivables += amount;
         pendingReceivableCount++;
         if (isOverdue) overdueReceivables += amount;
       } else if (bill.billType === 'CREDIT') {
-        totalPayables += amount;
+        pendingPayables += amount;
         pendingPayableCount++;
         if (isOverdue) overduePayables += amount;
       }
     });
 
-    // Query all non-deleted invoices from saleInvoice table (which stores both SALE_INVOICE & PURCHASE_INVOICE via invoiceType discriminator)
-    const allInvoices = await this.prisma.saleInvoice.findMany({
+    // Query outstanding sale invoices from sale_invoices table
+    const saleInvoices = await this.prisma.saleInvoice.findMany({
       where: { companyId, isDeleted: false, status: { not: 'CANCELLED' } },
       select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true },
     });
 
-    allInvoices.forEach((inv: any) => {
+    // Query outstanding purchase invoices from purchase_invoices table
+    const purchaseInvoices = await this.prisma.purchaseInvoice.findMany({
+      where: { companyId, isDeleted: false, status: { not: 'CANCELLED' } },
+      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true },
+    });
+
+    // Process sale invoices for receivables
+    saleInvoices.forEach((inv: any) => {
+      const net = Number(inv.netAmount || 0);
+      const jama = Number(inv.jamaAmount || 0);
       const outstanding = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
-        : Math.max(0, Number(inv.netAmount || 0) - Number(inv.jamaAmount || 0));
+        : Math.max(0, net - jama);
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
 
       if (inv.invoiceType === 'SALE_INVOICE' || inv.invoiceType === 'SALE_DEBIT_NOTE') {
+        totalBilledReceivables += net;
+        doneReceivedReceivables += jama;
         if (outstanding > 0 && outstandingBills.length === 0) {
-          totalReceivables += outstanding;
+          pendingReceivables += outstanding;
           pendingReceivableCount++;
           if (isOverdue) overdueReceivables += outstanding;
         }
-      } else if (inv.invoiceType === 'PURCHASE_INVOICE' || inv.invoiceType === 'PURCHASE_DEBIT_NOTE') {
+      }
+    });
+
+    // Process purchase invoices for payables
+    purchaseInvoices.forEach((inv: any) => {
+      const net = Number(inv.netAmount || 0);
+      const jama = Number(inv.jamaAmount || 0);
+      const outstanding = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
+        ? Number(inv.outstandingAmount)
+        : Math.max(0, net - jama);
+      
+      const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
+
+      if (inv.invoiceType === 'PURCHASE_INVOICE' || inv.invoiceType === 'PURCHASE_DEBIT_NOTE') {
+        totalBilledPayables += net;
+        donePaidPayables += jama;
         if (outstanding > 0) {
-          totalPayables += outstanding;
+          pendingPayables += outstanding;
           pendingPayableCount++;
           if (isOverdue) overduePayables += outstanding;
         }
@@ -235,14 +265,18 @@ export class DashboardService {
         lastLoginAt: user?.lastLoginAt || undefined,
       },
       receivables: {
-        total: totalReceivables,
+        total: totalBilledReceivables,
+        pending: pendingReceivables,
         pendingCount: pendingReceivableCount,
+        doneReceived: doneReceivedReceivables,
         receivedToday: cashReceiptsToday + bankReceiptsToday,
         overdueAmount: overdueReceivables,
       },
       payables: {
-        total: totalPayables,
+        total: totalBilledPayables,
+        pending: pendingPayables,
         pendingCount: pendingPayableCount,
+        donePaid: donePaidPayables,
         paidToday: cashPaymentsToday + bankPaymentsToday,
         overdueAmount: overduePayables,
       },

@@ -99,7 +99,7 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>Transaction Details</h2>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px' }}>
-          <DetailRow label={isCustomer ? 'Customer' : 'Supplier'} value={invoice.customer?.accountName} />
+          <DetailRow label={isCustomer ? 'Customer' : 'Supplier'} value={invoice.customer?.accountName || invoice.supplier?.accountName} />
           <DetailRow label="Broker" value={invoice.broker?.accountName || '—'} />
           <DetailRow label="Date" value={new Date(invoice.invoiceDate).toLocaleDateString('en-IN')} />
           <DetailRow label="Due Date" value={invoice.dueDate ? new Date(invoice.dueDate).toLocaleDateString('en-IN') : '—'} />

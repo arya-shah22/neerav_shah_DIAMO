@@ -200,16 +200,19 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              {formatCurrency(telemetry?.receivables.total || 0)}
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Total Receivable: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{formatCurrency(telemetry?.receivables.total || 0)}</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#0284c7', fontWeight: 600, marginTop: '2px' }}>
-              {telemetry?.receivables.pendingCount || 0} Open Sales Invoices Pending
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
+              {formatCurrency(telemetry?.receivables.pending || 0)} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              Done Received: {formatCurrency(telemetry?.receivables.doneReceived || 0)}
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
-            <span>Received Today: <strong>{formatCurrency(telemetry?.receivables.receivedToday || 0)}</strong></span>
+            <span>{telemetry?.receivables.pendingCount || 0} Open Invoices</span>
             <span style={{ color: telemetry?.receivables.overdueAmount ? '#dc2626' : 'inherit' }}>
               Overdue: <strong>{formatCurrency(telemetry?.receivables.overdueAmount || 0)}</strong>
             </span>
@@ -250,16 +253,19 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div>
-            <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-text-primary)' }}>
-              {formatCurrency(telemetry?.payables.total || 0)}
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Total Payable: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{formatCurrency(telemetry?.payables.total || 0)}</span>
             </div>
-            <div style={{ fontSize: '11px', color: '#d97706', fontWeight: 600, marginTop: '2px' }}>
-              {telemetry?.payables.pendingCount || 0} Purchase Bills Due
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>
+              {formatCurrency(telemetry?.payables.pending || 0)} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              Done Paid: {formatCurrency(telemetry?.payables.donePaid || 0)}
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
-            <span>Paid Today: <strong>{formatCurrency(telemetry?.payables.paidToday || 0)}</strong></span>
+            <span>{telemetry?.payables.pendingCount || 0} Purchase Bills Due</span>
             <span style={{ color: telemetry?.payables.overdueAmount ? '#dc2626' : 'inherit' }}>
               Overdue: <strong>{formatCurrency(telemetry?.payables.overdueAmount || 0)}</strong>
             </span>
