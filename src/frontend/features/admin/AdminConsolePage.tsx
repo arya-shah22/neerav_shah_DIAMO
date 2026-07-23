@@ -21,7 +21,7 @@ export const AdminConsolePage: React.FC = () => {
   const authUser = useAuthStore((s) => s.user);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<'console' | 'staff' | 'permissions'>('console');
+  const [activeTab, setActiveTab] = useState<'console' | 'staff' | 'permissions' | 'activity'>('console');
 
   // IPC Hooks
   const { invoke: getProfile } = useIpc<any>('admin:get-profile');
@@ -48,6 +48,9 @@ export const AdminConsolePage: React.FC = () => {
   // Phase 14.5 IPC Hooks
   const { invoke: getUserModulePermissions } = useIpc<any>('admin:get-user-module-permissions');
   const { invoke: saveUserModulePermissions, loading: savingModulePerms } = useIpc<any>('admin:save-user-module-permissions');
+
+  // Phase 14.6 IPC Hooks
+  const { invoke: getActivityLogs } = useIpc<any>('admin:get-activity-logs');
 
   // Component States
   const [profile, setProfile] = useState<any | null>(null);
@@ -96,6 +99,12 @@ export const AdminConsolePage: React.FC = () => {
   const [permAllowedPages, setPermAllowedPages] = useState<string[]>([]);
   const [permModuleActions, setPermModuleActions] = useState<Record<string, Record<string, boolean>>>({});
   const [copyFromUserId, setCopyFromUserId] = useState<number | null>(null);
+
+  // Phase 14.6 User Activity Monitoring State
+  const [activityLogsList, setActivityLogsList] = useState<any[]>([]);
+  const [activitySearch, setActivitySearch] = useState('');
+  const [activityModuleFilter, setActivityModuleFilter] = useState('');
+  const [activityUserFilter, setActivityUserFilter] = useState('');
 
   const loadProfile = React.useCallback(async () => {
     if (!authUser?.id) return;
@@ -183,11 +192,34 @@ export const AdminConsolePage: React.FC = () => {
     }
   }, [authUser?.id, getUserPermissions, getUserModulePermissions]);
 
+  const loadActivityLogs = React.useCallback(async () => {
+    if (!authUser?.id) return;
+    try {
+      const res = await getActivityLogs({
+        adminUserId: authUser.id,
+        filters: {
+          targetUserId: activityUserFilter ? Number(activityUserFilter) : undefined,
+          moduleCode: activityModuleFilter || undefined,
+          search: activitySearch || undefined,
+        },
+      });
+      if (res.success && res.data) {
+        setActivityLogsList(res.data);
+      }
+    } catch (err) {
+      console.error('Failed to load activity logs:', err);
+    }
+  }, [authUser?.id, activityUserFilter, activityModuleFilter, activitySearch, getActivityLogs]);
+
   useEffect(() => {
     if (activeTab === 'staff' || activeTab === 'permissions') {
       loadUsers();
     }
-  }, [activeTab, loadUsers]);
+    if (activeTab === 'activity') {
+      loadUsers();
+      loadActivityLogs();
+    }
+  }, [activeTab, loadUsers, loadActivityLogs]);
 
   // Polling for metrics
   useEffect(() => {
@@ -584,6 +616,21 @@ export const AdminConsolePage: React.FC = () => {
             }}
           >
             Page Access Controls
+          </button>
+          <button 
+            onClick={() => setActiveTab('activity')}
+            style={{
+              padding: '6px 16px',
+              border: 0,
+              borderRadius: '6px',
+              cursor: 'pointer',
+              fontWeight: 600,
+              fontSize: '13px',
+              background: activeTab === 'activity' ? 'var(--color-primary)' : 'transparent',
+              color: activeTab === 'activity' ? '#ffffff' : 'var(--color-text-secondary)',
+            }}
+          >
+            User Activity & Audit Logs
           </button>
         </div>
       </div>
@@ -1086,6 +1133,135 @@ export const AdminConsolePage: React.FC = () => {
               </div>
             </>
           )}
+
+        </div>
+      ) : activeTab === 'activity' ? (
+        /* Phase 14.6: User Activity & Audit Logs Tab view */
+        <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '12px', padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+          
+          {/* Top Toolbar */}
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '16px', borderBottom: '1px solid var(--color-border)', paddingBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexGrow: 1 }}>
+              <div style={{ position: 'relative', width: '280px' }}>
+                <Input
+                  placeholder="Search logs description or action..."
+                  value={activitySearch}
+                  onChange={(e) => setActivitySearch(e.target.value)}
+                />
+                <Search size={16} style={{ position: 'absolute', right: '12px', top: '12px', color: 'var(--color-text-secondary)' }} />
+              </div>
+
+              <select
+                value={activityUserFilter}
+                onChange={(e) => setActivityUserFilter(e.target.value)}
+                style={{ height: '38px', borderRadius: '8px', border: '1px solid var(--color-border)', padding: '0 12px', fontSize: '13px', background: 'transparent' }}
+              >
+                <option value="">All Staff Operators</option>
+                {usersList.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.fullName} ({u.username || u.userIdHandle})
+                  </option>
+                ))}
+              </select>
+
+              <select
+                value={activityModuleFilter}
+                onChange={(e) => setActivityModuleFilter(e.target.value)}
+                style={{ height: '38px', borderRadius: '8px', border: '1px solid var(--color-border)', padding: '0 12px', fontSize: '13px', background: 'transparent' }}
+              >
+                <option value="">All System Modules</option>
+                <option value="sales">Sale Book</option>
+                <option value="purchases">Purchase Book</option>
+                <option value="inventory">Inventory & Stock</option>
+                <option value="vouchers">Cash & Vouchers</option>
+                <option value="accounts">Accounts & Masters</option>
+                <option value="admin">Super Admin Console</option>
+              </select>
+            </div>
+
+            <Button variant="ghost" onClick={loadActivityLogs} style={{ border: '1px solid var(--color-border)' }}>
+              <Activity size={14} /> Refresh Logs
+            </Button>
+          </div>
+
+          {/* Activity DataGrid */}
+          <DataGrid
+            columns={[
+              {
+                key: 'createdAt',
+                header: 'EVENT DATE',
+                width: '130px',
+                render: (row: any) => (
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                    {new Date(row.createdAt).toLocaleDateString()}
+                  </span>
+                )
+              },
+              {
+                key: 'userName',
+                header: 'OPERATOR',
+                width: '160px',
+                render: (row: any) => (
+                  <span style={{ fontWeight: 600, fontSize: '12px' }}>
+                    {row.userName} <span style={{ color: 'var(--color-text-secondary)', fontWeight: 400 }}>({row.username})</span>
+                  </span>
+                )
+              },
+              {
+                key: 'loginAt',
+                header: 'LOGIN TIME',
+                width: '120px',
+                render: (row: any) => (
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: '#059669' }}>
+                    {row.loginAt ? new Date(row.loginAt).toLocaleTimeString() : '—'}
+                  </span>
+                )
+              },
+              {
+                key: 'logoutAt',
+                header: 'LOGOUT TIME',
+                width: '120px',
+                render: (row: any) => (
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: row.logoutAt ? '#dc2626' : '#2563eb' }}>
+                    {row.logoutAt ? new Date(row.logoutAt).toLocaleTimeString() : (row.loginAt ? 'Active Session' : '—')}
+                  </span>
+                )
+              },
+              {
+                key: 'durationStr',
+                header: 'DURATION',
+                width: '100px',
+                render: (row: any) => (
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                    {row.durationStr || '—'}
+                  </span>
+                )
+              },
+              {
+                key: 'action',
+                header: 'ACTION',
+                width: '130px',
+                render: (row: any) => (
+                  <span style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    padding: '2px 8px',
+                    borderRadius: '4px',
+                    background: row.action.includes('ACTIVE') ? '#eff6ff' : row.action === 'DELETE' ? '#fef2f2' : row.action === 'CREATE' ? '#ecfdf5' : '#f1f5f9',
+                    color: row.action.includes('ACTIVE') ? '#2563eb' : row.action === 'DELETE' ? '#dc2626' : row.action === 'CREATE' ? '#059669' : '#334155',
+                    border: '1px solid var(--color-border)',
+                  }}>
+                    {row.action}
+                  </span>
+                )
+              },
+              { key: 'description', header: 'ACTIVITY DESCRIPTION', width: '280px' },
+            ]}
+            data={activityLogsList}
+            keyField="id"
+            emptyTitle="No activity logs recorded"
+            emptyDescription="User interactions, login events, and database actions will automatically be logged here."
+          />
 
         </div>
       ) : null}

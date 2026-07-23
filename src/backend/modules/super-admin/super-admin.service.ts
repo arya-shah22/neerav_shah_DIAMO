@@ -700,5 +700,178 @@ export class SuperAdminService {
       })),
     };
   }
+
+  // ─── Phase 14.6: User Activity Monitoring & Productivity ──────
+
+  async getActivityLogs(
+    adminUserId: number,
+    filters?: {
+      targetUserId?: number;
+      moduleCode?: string;
+      action?: string;
+      search?: string;
+      limit?: number;
+    }
+  ) {
+    const adminUser = await this.prisma.user.findUnique({ where: { id: adminUserId } });
+    if (!adminUser || !adminUser.isSuperAdmin) {
+      throw new UnauthorizedException('Access restricted to Super Admin only.');
+    }
+
+    const where: any = {};
+
+    if (filters?.targetUserId) {
+      where.userId = filters.targetUserId;
+    }
+    if (filters?.moduleCode) {
+      where.moduleCode = filters.moduleCode;
+    }
+    if (filters?.action) {
+      where.action = filters.action;
+    }
+    if (filters?.search) {
+      where.OR = [
+        { description: { contains: filters.search } },
+        { action: { contains: filters.search } },
+        { moduleCode: { contains: filters.search } },
+      ];
+    }
+
+    const activityLogs = await this.prisma.activityLog.findMany({
+      where,
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            userIdHandle: true,
+          },
+        },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: filters?.limit || 100,
+    });
+
+    const sessions = await this.prisma.userSession.findMany({
+      where: filters?.targetUserId ? { userId: filters.targetUserId } : {},
+      include: {
+        user: {
+          select: {
+            id: true,
+            fullName: true,
+            userIdHandle: true,
+          },
+        },
+      },
+      orderBy: { loginAt: 'desc' },
+      take: filters?.limit || 100,
+    });
+
+    // Filter activity logs to exclude raw LOGIN / LOGOUT actions (which are paired in UserSession)
+    const filteredActivityLogs = activityLogs.filter(l => l.action !== 'LOGIN' && l.action !== 'LOGOUT');
+
+    const combined = [
+      ...sessions.map((s) => {
+        const loginStr = new Date(s.loginAt).toLocaleTimeString();
+        const logoutStr = s.logoutAt ? new Date(s.logoutAt).toLocaleTimeString() : 'Active Session';
+        
+        // Calculate session duration string
+        let durationStr = 'Active';
+        if (s.logoutAt) {
+          const diffMs = new Date(s.logoutAt).getTime() - new Date(s.loginAt).getTime();
+          const mins = Math.floor(diffMs / 60000);
+          const secs = Math.floor((diffMs % 60000) / 1000);
+          durationStr = `${mins}m ${secs}s`;
+        }
+
+        return {
+          id: `sess_${s.id}`,
+          userId: s.userId,
+          userName: s.user.fullName,
+          username: s.user.userIdHandle,
+          action: s.isActive ? 'SESSION ACTIVE' : 'SESSION COMPLETED',
+          moduleCode: 'SESSION',
+          entityType: 'UserSession',
+          entityId: s.id,
+          description: `Login: ${loginStr} | Logout: ${logoutStr} (Duration: ${durationStr})`,
+          ipAddress: s.ipAddress || '127.0.0.1',
+          createdAt: s.loginAt,
+          loginAt: s.loginAt,
+          logoutAt: s.logoutAt,
+          durationStr,
+        };
+      }),
+      ...filteredActivityLogs.map((l) => ({
+        id: `act_${l.id}`,
+        userId: l.userId,
+        userName: l.user.fullName,
+        username: l.user.userIdHandle,
+        action: l.action,
+        moduleCode: l.moduleCode || 'SYSTEM',
+        entityType: l.entityType,
+        entityId: l.entityId,
+        description: l.description,
+        ipAddress: l.ipAddress || '127.0.0.1',
+        createdAt: l.createdAt,
+        loginAt: null,
+        logoutAt: null,
+        durationStr: null,
+      })),
+    ];
+
+    // Sort combined records strictly latest first (descending timestamp)
+    combined.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+    return combined.slice(0, filters?.limit || 100);
+  }
+
+  async getUserTimeline(adminUserId: number, targetUserId: number) {
+    const adminUser = await this.prisma.user.findUnique({ where: { id: adminUserId } });
+    if (!adminUser || !adminUser.isSuperAdmin) {
+      throw new UnauthorizedException('Access restricted to Super Admin only.');
+    }
+
+    const logs = await this.prisma.activityLog.findMany({
+      where: { userId: targetUserId },
+      orderBy: { createdAt: 'desc' },
+      take: 50,
+    });
+
+    return logs.map((l) => ({
+      id: l.id,
+      action: l.action,
+      moduleCode: l.moduleCode,
+      description: l.description,
+      timestamp: l.createdAt,
+    }));
+  }
+
+  async getProductivityMetrics(adminUserId: number) {
+    const adminUser = await this.prisma.user.findUnique({ where: { id: adminUserId } });
+    if (!adminUser || !adminUser.isSuperAdmin) {
+      throw new UnauthorizedException('Access restricted to Super Admin only.');
+    }
+
+    const totalEvents = await this.prisma.activityLog.count();
+    const activeSessionsCount = await this.prisma.userSession.count({ where: { isActive: true } });
+
+    // Activity counts grouped by action
+    const actionGroups = await this.prisma.activityLog.groupBy({
+      by: ['action'],
+      _count: { action: true },
+    });
+
+    const topActions = actionGroups.map((g) => ({
+      action: g.action,
+      count: g._count.action,
+    }));
+
+    return {
+      totalEvents,
+      activeSessionsCount,
+      topActions,
+    };
+  }
 }
+
 

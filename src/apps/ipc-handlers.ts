@@ -528,4 +528,9 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'admin:get-user-module-permissions', (payload) => superAdminController.handleGetUserModulePermissions(payload));
   ipcHandle(ipcMain, 'admin:save-user-module-permissions', (payload) => superAdminController.handleSaveUserModulePermissions(payload));
   ipcHandle(ipcMain, 'admin:get-my-module-permissions', (payload) => superAdminController.handleGetMyModulePermissions(payload));
+
+  // ─── Phase 14.6: User Activity & Productivity Monitoring ──────
+  ipcHandle(ipcMain, 'admin:get-activity-logs', (payload) => superAdminController.handleGetActivityLogs(payload));
+  ipcHandle(ipcMain, 'admin:get-user-timeline', (payload) => superAdminController.handleGetUserTimeline(payload));
+  ipcHandle(ipcMain, 'admin:get-productivity-metrics', (payload) => superAdminController.handleGetProductivityMetrics(payload));
 }

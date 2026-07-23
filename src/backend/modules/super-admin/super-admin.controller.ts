@@ -323,4 +323,50 @@ export class SuperAdminController {
       };
     }
   }
+
+  // ─── Phase 14.6: Activity Monitoring & Productivity Handlers ──
+
+  async handleGetActivityLogs(payload: {
+    adminUserId: number;
+    filters?: any;
+  }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.adminService.getActivityLogs(payload.adminUserId, payload.filters);
+      return { success: true, data };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to fetch activity logs',
+      };
+    }
+  }
+
+  async handleGetUserTimeline(payload: {
+    adminUserId: number;
+    targetUserId: number;
+  }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.adminService.getUserTimeline(payload.adminUserId, payload.targetUserId);
+      return { success: true, data };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to fetch user timeline',
+      };
+    }
+  }
+
+  async handleGetProductivityMetrics(payload: {
+    adminUserId: number;
+  }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.adminService.getProductivityMetrics(payload.adminUserId);
+      return { success: true, data };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to fetch productivity metrics',
+      };
+    }
+  }
 }
