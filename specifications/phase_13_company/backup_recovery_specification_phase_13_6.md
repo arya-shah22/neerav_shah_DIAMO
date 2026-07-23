@@ -22,8 +22,9 @@ This document defines the Functional Specification Document (FSD) for the Backup
 
 ---
 
-## 4. Automatic Backup
-*   **Configuration Parameters:** Backup Frequency (Daily, Weekly, Monthly), execution time (e.g., 22:00 IST), destination folder, max retention files, and automatic rotation.
+## 4. Automatic Backup & Retention Threshold Policy
+*   **Configuration Parameters:** Backup Frequency (Daily, Weekly, Monthly), execution time (e.g., 22:00 IST), custom destination folder path, max retention files, and automatic rotation.
+*   **Retention Threshold (Days Auto-Purge):** User-configurable retention threshold in days (e.g., 15 days, 30 days). The system automatically purges/deletes backup archives older than the specified threshold value during background backup cycles to conserve storage. Default threshold: 15 days.
 
 ---
 
@@ -32,8 +33,10 @@ This document defines the Functional Specification Document (FSD) for the Backup
 
 ---
 
-## 6. Scheduled Backup
+## 6. Scheduled Backup & Offline Catch-Up Mechanics
 *   **Chron Planner:** Configures recurrence intervals (Daily, Weekly, Monthly), allows scheduling specific times, and includes options to pause or resume tasks.
+*   **Missed Schedule Catch-Up (App Startup Check):** Since desktop software is not open 24/7, upon every application startup, the system checks the last successful backup timestamp against the schedule schedule. If a scheduled backup was missed because the app/PC was off (e.g., scheduled for 22:00 IST but PC was off), a background catch-up backup executes silently within 10 seconds of startup.
+*   **Backup on Application Exit:** Configurable option to automatically trigger a quick 1-2 second background backup whenever the user exits/closes the application at the end of the workday.
 
 ---
 

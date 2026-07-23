@@ -6,6 +6,11 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+// Startup check: clear active session if requireLoginOnStartup is enabled
+if (localStorage.getItem('require-login-on-startup') === 'true') {
+  localStorage.removeItem('diamo-auth');
+}
+
 export interface AuthUser {
   id: number;
   username: string;

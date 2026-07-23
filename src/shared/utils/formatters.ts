@@ -32,7 +32,7 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 }
 
 /**
- * Format a Date object or ISO string to standard DD/MM/YYYY format
+ * Format a Date object or ISO string to standard DD-MM-YYYY format
  */
 export function formatDate(date: Date | string | null | undefined): string {
   if (!date) return '-';
@@ -42,5 +42,28 @@ export function formatDate(date: Date | string | null | undefined): string {
   const day = String(d.getDate()).padStart(2, '0');
   const month = String(d.getMonth() + 1).padStart(2, '0');
   const year = d.getFullYear();
-  return `${day}/${month}/${year}`;
+  return `${day}-${month}-${year}`;
+}
+
+/**
+ * Format a Date object or ISO string to time format (12-Hour or 24-Hour)
+ */
+export function formatTime(date: Date | string | null | undefined, use12Hour: boolean = true): string {
+  if (!date) return '-';
+  const d = typeof date === 'string' ? new Date(date) : date;
+  if (isNaN(d.getTime())) return '-';
+
+  let hours = d.getHours();
+  const minutes = String(d.getMinutes()).padStart(2, '0');
+
+  if (use12Hour) {
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12; // Hour '0' should be '12'
+    const hoursStr = String(hours).padStart(2, '0');
+    return `${hoursStr}:${minutes} ${ampm}`;
+  } else {
+    const hoursStr = String(hours).padStart(2, '0');
+    return `${hoursStr}:${minutes}`;
+  }
 }

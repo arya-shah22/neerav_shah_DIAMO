@@ -22,6 +22,8 @@ import { LoanModule } from './modules/loan/loan.module';
 import { ReportModule } from './modules/report/report.module';
 import { ReportValidationModule } from './modules/report-validation/report-validation.module';
 import { PrintTemplateModule } from './modules/print-template/print-template.module';
+import { BackupModule } from './modules/backup/backup.module';
+import { PreferencesModule } from './modules/preferences/preferences.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { PrintTemplateModule } from './modules/print-template/print-template.mod
     ReportModule,
     ReportValidationModule,
     PrintTemplateModule,
+    BackupModule,
+    PreferencesModule,
   ],
   controllers: [],
   providers: [

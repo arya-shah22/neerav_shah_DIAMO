@@ -3,12 +3,14 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect } from 'react';
-import { Save, RefreshCw, Barcode, FileText, ShieldAlert, ArrowLeft, ChevronRight } from 'lucide-react';
+import { Save, RefreshCw, Barcode, FileText, ShieldAlert, ArrowLeft, ChevronRight, Database, Sliders } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, useToast } from '../../components/ui';
 import { useCompanyStore } from '../../state/company-store';
 import { PrintTemplateConfig } from './PrintTemplateConfig';
+import { BackupConfig } from './BackupConfig';
+import { PreferencesConfig } from './PreferencesConfig';
 
 interface VoucherTypeDefinition {
   type: string;
@@ -44,7 +46,7 @@ export const SettingsPage: React.FC = () => {
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
 
   // settings sub-pages active tab
-  const [activeTab, setActiveTab] = useState<'menu' | 'numbering' | 'print'>('menu');
+  const [activeTab, setActiveTab] = useState<'menu' | 'numbering' | 'print' | 'backup' | 'preferences'>('menu');
 
   // ─── Voucher Configs State ───
   const { invoke: getAllVoucherConfigs } = useIpc<any>('stock:get-all-configs');
@@ -253,7 +255,134 @@ export const SettingsPage: React.FC = () => {
               Configure Templates <ChevronRight size={14} />
             </div>
           </div>
+
+          {/* Card 3: Backup & Recovery */}
+          <div 
+            onClick={() => setActiveTab('backup')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#fef3c7', padding: '12px', borderRadius: '8px', color: '#d97706' }}>
+                <Database size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>Backup & Recovery</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Configure scheduled database backups, set retention thresholds, and perform recovery operations.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#d97706', alignSelf: 'flex-end' }}>
+              Configure Backups <ChevronRight size={14} />
+            </div>
+          </div>
+
+          {/* Card 4: System Preferences */}
+          <div 
+            onClick={() => setActiveTab('preferences')}
+            style={{
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '12px',
+              padding: '24px',
+              cursor: 'pointer',
+              display: 'flex',
+              flexDirection: 'column',
+              justifyContent: 'space-between',
+              gap: '16px',
+              transition: 'all 0.2s',
+              boxShadow: 'var(--shadow-sm)'
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-primary-light)';
+              e.currentTarget.style.transform = 'translateY(-2px)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border)';
+              e.currentTarget.style.transform = 'translateY(0)';
+            }}
+          >
+            <div style={{ display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+              <div style={{ background: '#e0f2fe', padding: '12px', borderRadius: '8px', color: '#0369a1' }}>
+                <Sliders size={24} />
+              </div>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '6px' }}>System Preferences</h3>
+                <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Configure company-wide workspace defaults, date layouts, and time display notations.
+                </p>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: '#0369a1', alignSelf: 'flex-end' }}>
+              Configure Preferences <ChevronRight size={14} />
+            </div>
+          </div>
+
         </div>
+      </div>
+    );
+  }
+
+  if (activeTab === 'preferences') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              System Preferences
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Configure company-wide workspace defaults, date layouts, and time display notations.
+            </p>
+          </div>
+        </div>
+
+        <PreferencesConfig companyId={companyId!} />
+      </div>
+    );
+  }
+
+  if (activeTab === 'backup') {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)', width: '100%' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <Button variant="ghost" onClick={() => setActiveTab('menu')} style={{ padding: '8px' }}>
+            <ArrowLeft size={18} />
+          </Button>
+          <div>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+              Backup & Recovery Management
+            </h1>
+            <p style={{ fontSize: 'var(--text-body)', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Configure scheduled database backups, set retention thresholds, and perform recovery operations.
+            </p>
+          </div>
+        </div>
+
+        <BackupConfig companyId={companyId!} />
       </div>
     );
   }

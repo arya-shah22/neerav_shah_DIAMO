@@ -21,6 +21,8 @@ import { LoanController } from '../backend/modules/loan/loan.controller';
 import { ReportController } from '../backend/modules/report/report.controller';
 import { ReportValidationController } from '../backend/modules/report-validation/report-validation.controller';
 import { PrintTemplateController } from '../backend/modules/print-template/print-template.controller';
+import { BackupController } from '../backend/modules/backup/backup.controller';
+import { PreferencesController } from '../backend/modules/preferences/preferences.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -58,6 +60,8 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const reportController = nestApp.get(ReportController);
   const reportValidationController = nestApp.get(ReportValidationController);
   const printTemplateController = nestApp.get(PrintTemplateController);
+  const backupController = nestApp.get(BackupController);
+  const preferencesController = nestApp.get(PreferencesController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -448,4 +452,29 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'print:get-all-templates', (payload) => printTemplateController.handleGetAllTemplates(payload));
   ipcHandle(ipcMain, 'print:reset-template-config', (payload) => printTemplateController.handleResetTemplateConfig(payload));
   ipcHandle(ipcMain, 'print:copy-template-config', (payload) => printTemplateController.handleCopyTemplateConfig(payload));
+
+  // ─── Phase 13.6: Backup & Recovery Management ───────────────
+  ipcHandle(ipcMain, 'backup:get-settings', (payload) => backupController.handleGetSettings(payload));
+  ipcHandle(ipcMain, 'backup:save-settings', (payload) => backupController.handleSaveSettings(payload));
+  ipcHandle(ipcMain, 'backup:create', (payload) => backupController.handleCreateBackup(payload));
+  ipcHandle(ipcMain, 'backup:get-history', (payload) => backupController.handleGetHistory(payload));
+  ipcHandle(ipcMain, 'backup:restore', (payload) => backupController.handleRestoreBackup(payload));
+  ipcHandle(ipcMain, 'backup:delete', (payload) => backupController.handleDeleteBackup(payload));
+  
+  // Custom dialog folder picker channel
+  ipcMain.handle('backup:select-folder', async () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (!window) return { success: false, error: 'No active window found' };
+    const result = await dialog.showOpenDialog(window, {
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (result.canceled || result.filePaths.length === 0) {
+      return { success: false, error: 'Selection cancelled' };
+    }
+    return { success: true, data: { path: result.filePaths[0] } };
+  });
+
+  // ─── Phase 13.7: System Preferences ─────────────────────────
+  ipcHandle(ipcMain, 'preferences:get-settings', (payload) => preferencesController.handleGetSettings(payload));
+  ipcHandle(ipcMain, 'preferences:save-settings', (payload) => preferencesController.handleSaveSettings(payload));
 }
