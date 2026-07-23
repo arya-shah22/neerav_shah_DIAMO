@@ -26,6 +26,7 @@ import { PreferencesController } from '../backend/modules/preferences/preference
 import { AuditController } from '../backend/modules/audit/audit.controller';
 import { HealthController } from '../backend/modules/system-health/health.controller';
 import { LicenseController } from '../backend/modules/system-license/license.controller';
+import { SuperAdminController } from '../backend/modules/super-admin/super-admin.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -68,6 +69,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const auditController = nestApp.get(AuditController);
   const healthController = nestApp.get(HealthController);
   const licenseController = nestApp.get(LicenseController);
+  const superAdminController = nestApp.get(SuperAdminController);
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
@@ -499,4 +501,31 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'license:get-info', (payload) => licenseController.handleGetInfo(payload));
   ipcHandle(ipcMain, 'license:update-key', (payload) => licenseController.handleUpdateKey(payload));
   ipcHandle(ipcMain, 'license:reset-uptime', (payload) => licenseController.handleResetUptime(payload));
+
+  // ─── Phase 14.1: Super Admin Management ─────────────────────
+  ipcHandle(ipcMain, 'admin:get-profile', (payload) => superAdminController.handleGetProfile(payload));
+  ipcHandle(ipcMain, 'admin:update-profile', (payload) => superAdminController.handleUpdateProfile(payload));
+  ipcHandle(ipcMain, 'admin:change-password', (payload) => superAdminController.handleChangePassword(payload));
+  ipcHandle(ipcMain, 'admin:get-metrics', (payload) => superAdminController.handleGetMetrics(payload));
+  ipcHandle(ipcMain, 'admin:terminate-session', (payload) => superAdminController.handleTerminateSession(payload));
+
+  // ─── Phase 14.2: User & Employee Management ─────────────────
+  ipcHandle(ipcMain, 'admin:list-users', (payload) => superAdminController.handleListUsers(payload));
+  ipcHandle(ipcMain, 'admin:create-user', (payload) => superAdminController.handleCreateUser(payload));
+  ipcHandle(ipcMain, 'admin:update-user', (payload) => superAdminController.handleUpdateUser(payload));
+  ipcHandle(ipcMain, 'admin:change-user-password', (payload) => superAdminController.handleChangeUserPassword(payload));
+  ipcHandle(ipcMain, 'admin:toggle-user-lock', (payload) => superAdminController.handleToggleUserLock(payload));
+  ipcHandle(ipcMain, 'admin:toggle-user-status', (payload) => superAdminController.handleToggleUserStatus(payload));
+  ipcHandle(ipcMain, 'admin:delete-user', (payload) => superAdminController.handleDeleteUser(payload));
+
+  // ─── Phase 14.4: Page Access Control ────────────────────────
+  ipcHandle(ipcMain, 'admin:get-user-permissions', (payload) => superAdminController.handleGetUserPermissions(payload));
+  ipcHandle(ipcMain, 'admin:save-user-permissions', (payload) => superAdminController.handleSaveUserPermissions(payload));
+  ipcHandle(ipcMain, 'admin:copy-user-permissions', (payload) => superAdminController.handleCopyUserPermissions(payload));
+  ipcHandle(ipcMain, 'admin:get-my-permissions', (payload) => superAdminController.handleGetMyPermissions(payload));
+
+  // ─── Phase 14.5: Module Actions Security ──────────────────────
+  ipcHandle(ipcMain, 'admin:get-user-module-permissions', (payload) => superAdminController.handleGetUserModulePermissions(payload));
+  ipcHandle(ipcMain, 'admin:save-user-module-permissions', (payload) => superAdminController.handleSaveUserModulePermissions(payload));
+  ipcHandle(ipcMain, 'admin:get-my-module-permissions', (payload) => superAdminController.handleGetMyModulePermissions(payload));
 }

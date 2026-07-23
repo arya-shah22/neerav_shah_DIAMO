@@ -7,6 +7,8 @@ import { useEffect, useRef, useState } from 'react';
 import { invokeIpc } from '../../shared/utils/ipc';
 import { useAuthStore } from '../state/auth-store';
 import { useCompanyStore } from '../state/company-store';
+import { usePagePermissions } from './usePagePermissions';
+import { useModulePermissions } from './useModulePermissions';
 import { loadCompanyContext } from '../services/company-context';
 
 interface BootstrapState {
@@ -65,6 +67,38 @@ export function useSessionBootstrap(): BootstrapState {
 
         const preferredId = useCompanyStore.getState().activeCompany?.id;
         await loadCompanyContext(preferredId);
+
+        // Load page permissions for current user
+        try {
+          const permRes = await invokeIpc<{ isSuperAdmin: boolean; allowedPages: string[] }>(
+            'admin:get-my-permissions',
+            { userId: user.id }
+          );
+          if (permRes.success && permRes.data) {
+            usePagePermissions.getState().setPermissions(
+              permRes.data.isSuperAdmin,
+              permRes.data.allowedPages
+            );
+          }
+        } catch (permErr) {
+          console.error('Failed to load page permissions:', permErr);
+        }
+
+        // Load module action permissions for current user
+        try {
+          const modRes = await invokeIpc<{ isSuperAdmin: boolean; actions: { moduleCode: string; actionCode: string }[] }>(
+            'admin:get-my-module-permissions',
+            { userId: user.id }
+          );
+          if (modRes.success && modRes.data) {
+            useModulePermissions.getState().setModulePermissions(
+              modRes.data.isSuperAdmin,
+              modRes.data.actions
+            );
+          }
+        } catch (modErr) {
+          console.error('Failed to load module permissions:', modErr);
+        }
       } catch {
         clearSession();
         useCompanyStore.getState().reset();

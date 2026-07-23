@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, Link } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, Outlet, Link, useLocation } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ErrorBoundary } from './components/feedback/ErrorBoundary';
 import { LoadingOverlay } from './components/feedback/LoadingOverlay';
@@ -40,7 +40,10 @@ import { CashFlowPage } from './features/reports/CashFlowPage';
 import { FundFlowPage } from './features/reports/FundFlowPage';
 import { ReportIntelligencePage } from './features/reports/ReportIntelligencePage';
 import { SettingsPage } from './features/settings';
+import { AdminConsolePage } from './features/admin/AdminConsolePage';
+import { AccessDeniedPage } from './components/feedback/AccessDeniedPage';
 import { useAuthStore } from './state/auth-store';
+import { usePagePermissions } from './hooks/usePagePermissions';
 import { useCompanyStore, formatFinancialYearLabel } from './state/company-store';
 import { Building2, Calendar, CheckCircle2, FolderTree, Users, Handshake, Gem, Package } from 'lucide-react';
 
@@ -65,6 +68,25 @@ const GuestRoutes = () => {
   }
 
   return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
+};
+
+// ─── Permission Guard ─────────────────────────────────────────
+// Route-level guard that checks page access and shows Access Denied
+const PermissionGuardOutlet: React.FC = () => {
+  const canAccess = usePagePermissions((s) => s.canAccess);
+  const { pathname } = useLocation();
+
+  // Extract base page path from current URL (remove /new, /edit/:id, /:id suffixes)
+  const basePath = pathname
+    .replace(/\/(new|edit)(\/\d+)?$/, '')
+    .replace(/\/\d+(\/edit)?$/, '')
+    .replace(/\/view\/\d+$/, '');
+
+  if (!canAccess(basePath)) {
+    return <AccessDeniedPage />;
+  }
+
+  return <Outlet />;
 };
 
 // ─── Dashboard ────────────────────────────────────────────────
@@ -293,6 +315,7 @@ const App: React.FC = () => {
 
             <Route element={<ProtectedRoutes />}>
               <Route element={<AppShell />}>
+               <Route element={<PermissionGuardOutlet />}>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
 
@@ -422,9 +445,11 @@ const App: React.FC = () => {
                 <Route path="/reports/intelligence" element={<ReportIntelligencePage />} />
                 <Route path="/reports/day-book" element={<DayBookPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
+                <Route path="/admin" element={<AdminConsolePage />} />
 
                 {/* Legacy redirects */}
                 <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />
+               </Route>
               </Route>
             </Route>
 

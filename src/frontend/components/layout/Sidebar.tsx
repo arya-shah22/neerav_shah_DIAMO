@@ -2,8 +2,9 @@
 // DIAMO ERP — Sidebar Navigation with Collapsible Submenus
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
+import { usePagePermissions } from '../../hooks/usePagePermissions';
 import {
   LayoutDashboard,
   ShoppingCart,
@@ -223,6 +224,50 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
     },
   ];
 
+  // ─── Phase 14.4: Filter sidebar based on page permissions ───
+  const canAccess = usePagePermissions((s) => s.canAccess);
+
+  const filteredNavStructure = useMemo(() => {
+    return navStructure
+      .map((item) => {
+        // Direct link — check access
+        if (item.path) {
+          return canAccess(item.path) ? item : null;
+        }
+
+        // Filter subItems
+        const filteredSubItems = item.subItems?.filter((sub) => canAccess(sub.path)) || [];
+
+        // Filter nestedGroups
+        const filteredNestedGroups = item.nestedGroups
+          ?.map((group) => ({
+            ...group,
+            subItems: group.subItems.filter((sub) => canAccess(sub.path)),
+          }))
+          .filter((group) => group.subItems.length > 0) || [];
+
+        // Also filter voucher links that are appended manually under transactions
+        const hasVoucherLinks = item.key === 'transactions' && (
+          canAccess('/vouchers/journal') ||
+          canAccess('/vouchers/cash-bank') ||
+          canAccess('/vouchers/loan')
+        );
+
+        // Hide the parent menu if all children are filtered out
+        if (filteredSubItems.length === 0 && filteredNestedGroups.length === 0 && !hasVoucherLinks) {
+          return null;
+        }
+
+        return {
+          ...item,
+          subItems: filteredSubItems,
+          nestedGroups: filteredNestedGroups,
+        };
+      })
+      .filter(Boolean) as NavItem[];
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [canAccess]);
+
   // Helper to render NavLink with consistent premium styling
   const renderLink = (path: string, label: string, icon?: React.ReactNode, paddingLeft: string = 'var(--spacing-md)') => {
     const isActive = path === '/' ? currentPath === '/' : (currentPath === path || currentPath.startsWith(path + '/'));
@@ -293,7 +338,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         overflowX: 'hidden',
         padding: '12px 0',
       }}>
-        {navStructure.map(item => {
+        {filteredNavStructure.map(item => {
           // Direct top-level link
           if (item.path) {
             return renderLink(item.path, item.label, item.icon);
@@ -382,9 +427,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                   {/* Append other direct links for Transactions (Jobs, Vouchers etc.) at first-level under Transactions parent */}
                   {item.key === 'transactions' && (
                     <>
-                      {renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
-                      {renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
-                      {renderLink('/vouchers/loan', 'Loan Book', <Briefcase size={16} />, '32px')}
+                      {canAccess('/vouchers/journal') && renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
+                      {canAccess('/vouchers/cash-bank') && renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
+                      {canAccess('/vouchers/loan') && renderLink('/vouchers/loan', 'Loan Book', <Briefcase size={16} />, '32px')}
                     </>
                   )}
                 </div>

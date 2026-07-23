@@ -1564,6 +1564,10 @@ model User {
   lastLoginAt          DateTime?  @map("last_login_at") @db.DateTime(3)
   lastPasswordChange   DateTime?  @map("last_password_change") @db.DateTime(3)
 
+  employeeCode         String?    @unique @map("employee_code") @db.VarChar(50)
+  department           String?    @db.VarChar(100)
+  remarks              String?    @db.VarChar(255)
+
   // Audit
   createdBy Int?      @map("created_by") @db.UnsignedInt
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)

@@ -27,6 +27,7 @@ import { PreferencesModule } from './modules/preferences/preferences.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { HealthModule } from './modules/system-health/health.module';
 import { LicenseModule } from './modules/system-license/license.module';
+import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { LicenseModule } from './modules/system-license/license.module';
     AuditModule,
     HealthModule,
     LicenseModule,
+    SuperAdminModule,
   ],
   controllers: [],
   providers: [

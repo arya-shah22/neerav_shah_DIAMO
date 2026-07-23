@@ -39,59 +39,31 @@ export class AuthService {
       throw new UnauthorizedException('Invalid username or password');
     }
 
+    if (user.status === 'LOCKED') {
+      throw new UnauthorizedException('Your account has been locked. Please contact your Super Administrator.');
+    }
+
     if (user.status !== 'ACTIVE') {
       throw new UnauthorizedException('User account is inactive or blocked');
     }
 
-    // Resolve company security lockout settings
-    const companyAccess = await this.prisma.userCompanyAccess.findFirst({
-      where: { userId: user.id },
-    });
-    
-    let maxFailedAttempts = 5;
-    let lockoutDurationMinutes = 30;
-
-    if (companyAccess) {
-      const setting = await this.prisma.systemSetting.findFirst({
-        where: {
-          companyId: companyAccess.companyId,
-          settingKey: 'AUDIT_SECURITY_SETTINGS',
-        },
-      });
-      if (setting && setting.settingValue) {
-        const val = setting.settingValue as any;
-        if (val.maxFailedLoginAttempts !== undefined) {
-          maxFailedAttempts = Number(val.maxFailedLoginAttempts);
-        }
-        if (val.lockoutDurationMinutes !== undefined) {
-          lockoutDurationMinutes = Number(val.lockoutDurationMinutes);
-        }
-      }
-    }
-
-    // Enforce lockout check
-    if (maxFailedAttempts > 0 && user.failedLoginAttempts >= maxFailedAttempts) {
-      const lastFailed = await this.prisma.loginHistory.findFirst({
-        where: { userId: user.id, action: 'FAILED' },
-        orderBy: { createdAt: 'desc' },
-      });
-
-      if (lastFailed) {
-        const lockoutEnd = new Date(lastFailed.createdAt.getTime() + lockoutDurationMinutes * 60 * 1000);
-        if (new Date() < lockoutEnd) {
-          const waitTime = Math.ceil((lockoutEnd.getTime() - new Date().getTime()) / 60000);
-          throw new UnauthorizedException(`Account locked due to multiple failed login attempts. Please wait ${waitTime} minutes.`);
-        }
-      }
-    }
-
     const isPasswordValid = await bcrypt.compare(password, user.passwordHash);
     if (!isPasswordValid) {
+      const nextFailedAttempts = user.failedLoginAttempts + 1;
+      const mustLock = nextFailedAttempts >= 5;
+
       await this.prisma.user.update({
         where: { id: user.id },
-        data: { failedLoginAttempts: { increment: 1 } },
+        data: { 
+          failedLoginAttempts: nextFailedAttempts,
+          status: mustLock ? 'LOCKED' : user.status
+        },
       });
-      await this.logLoginHistory(user.id, 'FAILED', 'Invalid password');
+      await this.logLoginHistory(user.id, 'FAILED', mustLock ? 'Account locked after 5 failed attempts' : 'Invalid password');
+      
+      if (mustLock) {
+        throw new UnauthorizedException('Your account has been locked due to 5 consecutive failed login attempts. Please contact your Super Administrator.');
+      }
       throw new UnauthorizedException('Invalid username or password');
     }
 
