@@ -298,7 +298,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             hsnNumber: it.hsnNumber || '7113',
             quantity: 0,
             carats: Number(it.carats),
-            pieces: it.pieces || 1,
+            pieces: it.pieces === 0 || it.pieces === null ? null : (it.pieces || 1),
+            isPiecesUncounted: it.pieces === 0 || it.pieces === null,
             rate: Number(it.rate),
             discountPct: Number(it.discountPct) || 0,
             stockPacketId: it.stockPacketId ?? undefined,
@@ -342,7 +343,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
           hsnNumber: it.hsnNumber || '7113',
           quantity: 0,
           carats: Number(it.carats),
-          pieces: it.pieces || 1,
+          pieces: it.pieces === 0 || it.pieces === null ? null : (it.pieces || 1),
+          isPiecesUncounted: it.pieces === 0 || it.pieces === null,
           rate: Number(it.rate),
           discountPct: Number(it.discountPct) || 0,
           stockPacketId: it.stockPacketId || undefined,
@@ -545,7 +547,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
               <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>QUALITY *</th>
               <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', width: '100px' }}>QUANTITY</th>
               <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', width: '120px' }}>CARATS *</th>
-              <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', width: '100px' }}>PIECES</th>
+              <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', width: '140px' }}>PIECES</th>
               <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', width: '120px' }}>RATE *</th>
               <th style={{ padding: '8px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)', width: '140px', textAlign: 'right' }}>NET AMOUNT</th>
               <th style={{ padding: '8px', width: '50px' }}></th>
@@ -559,8 +561,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
 
               return (
                 <React.Fragment key={field.id}>
-                  <tr style={{ borderBottom: isServiceQuality ? '1px solid var(--color-border)' : 'none' }}>
-                    <td style={{ padding: '8px' }}>
+                  <tr style={{ borderBottom: isServiceQuality ? '1px solid var(--color-border)' : 'none', verticalAlign: 'middle' }}>
+                    <td style={{ padding: '8px', verticalAlign: 'middle' }}>
                       <FormSelect
                         control={control}
                         name={`items.${index}.qualityId`}
@@ -568,26 +570,68 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                         toValue={Number}
                       />
                     </td>
-                    <td style={{ padding: '8px' }}>
+                    <td style={{ padding: '8px', verticalAlign: 'middle' }}>
                       {isServiceQuality ? (
                         <Input type="number" step="0.01" {...register(`items.${index}.quantity`, { valueAsNumber: true })} />
                       ) : (
                         <div style={{ textAlign: 'center', color: 'var(--color-text-secondary)', fontSize: '13px' }}>—</div>
                       )}
                     </td>
-                    <td style={{ padding: '8px' }}>
+                    <td style={{ padding: '8px', verticalAlign: 'middle' }}>
                       <Input type="number" step="0.001" {...register(`items.${index}.carats`, { valueAsNumber: true })} />
                     </td>
-                    <td style={{ padding: '8px' }}>
-                      <Input type="number" {...register(`items.${index}.pieces`, { valueAsNumber: true })} />
+                    <td style={{ padding: '8px', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                        <div style={{ flex: 1 }}>
+                          <Input
+                            type="number"
+                            disabled={!!watch(`items.${index}.isPiecesUncounted`)}
+                            placeholder={watch(`items.${index}.isPiecesUncounted`) ? 'None' : 'Pcs'}
+                            {...register(`items.${index}.pieces`, {
+                              valueAsNumber: true,
+                              setValueAs: (v) => (watch(`items.${index}.isPiecesUncounted`) ? null : (v ? Number(v) : null)),
+                            })}
+                          />
+                        </div>
+                        <label
+                          title="Check if pieces are uncountable"
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            color: watch(`items.${index}.isPiecesUncounted`) ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                            cursor: 'pointer',
+                            userSelect: 'none',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          <input
+                            type="checkbox"
+                            {...register(`items.${index}.isPiecesUncounted`)}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setValue(`items.${index}.isPiecesUncounted`, checked);
+                              if (checked) {
+                                setValue(`items.${index}.pieces`, null as any);
+                              } else {
+                                setValue(`items.${index}.pieces`, 1);
+                              }
+                            }}
+                            style={{ accentColor: 'var(--color-accent)', width: '13px', height: '13px', cursor: 'pointer' }}
+                          />
+                          N/A
+                        </label>
+                      </div>
                     </td>
-                    <td style={{ padding: '8px' }}>
+                    <td style={{ padding: '8px', verticalAlign: 'middle' }}>
                       <Input type="number" step="0.01" {...register(`items.${index}.rate`, { valueAsNumber: true })} />
                     </td>
-                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600, fontSize: '14px' }}>
+                    <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600, fontSize: '14px', verticalAlign: 'middle' }}>
                       ₹{(itemTotals[index]?.gross || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
                     </td>
-                    <td style={{ padding: '8px', textAlign: 'center' }}>
+                    <td style={{ padding: '8px', textAlign: 'center', verticalAlign: 'middle' }}>
                       {fields.length > 1 && (
                         <Button variant="ghost" size="sm" onClick={() => remove(index)}>
                           <Trash2 size={14} color="var(--color-danger)" />
@@ -767,7 +811,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         <Button
           type="button"
           variant="secondary"
-          onClick={() => append({ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0, isManualStockId: false })}
+          onClick={() => append({ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, isPiecesUncounted: false, rate: 0, discountPct: 0, isManualStockId: false })}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '24px' }}
         >
           <Plus size={14} /> Add Row

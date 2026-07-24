@@ -144,7 +144,13 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
                 </td>
                 <td style={{ padding: '10px 8px', fontSize: '13px' }}>{item.hsnNumber || '—'}</td>
                 <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.carats).toFixed(3)}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{item.pieces}</td>
+                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>
+                  {item.pieces === 0 || item.pieces === null || item.pieces === undefined ? (
+                    <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>None</span>
+                  ) : (
+                    item.pieces
+                  )}
+                </td>
                 <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>₹{Number(item.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
                 <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.gstPct || 0).toFixed(2)}%</td>
                 <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>₹{Number(item.grossAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>

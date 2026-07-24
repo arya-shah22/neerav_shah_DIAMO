@@ -471,6 +471,7 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                         {cfg.itemTable.showSrNoColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'left' }}>#</th>}
                         <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'left' }}>Item / Quality</th>
                         {cfg.itemTable.showHsnColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'center' }}>HSN</th>}
+                        {cfg.itemTable.showQuantityColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Qty</th>}
                         {cfg.itemTable.showPurityColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Carats</th>}
                         <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Pcs</th>
                         <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Rate</th>
@@ -491,8 +492,11 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                             )}
                           </td>
                           {cfg.itemTable.showHsnColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'center', fontSize: '0.85em' }}>{item.hsnCode || item.hsnNumber || '—'}</td>}
+                          {cfg.itemTable.showQuantityColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{Number(item.quantity || 0) > 0 ? Number(item.quantity).toFixed(2) : '—'}</td>}
                           {cfg.itemTable.showPurityColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{Number(item.carats || 0).toFixed(2)}</td>}
-                          <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{item.pieces || 0}</td>
+                          <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>
+                            {item.pieces === 0 || item.pieces === null || item.pieces === undefined ? '—' : item.pieces}
+                          </td>
                           <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>₹{Number(item.rate || 0).toLocaleString('en-IN')}</td>
                           {cfg.itemTable.showDiscountColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{item.discountPercent || 0}%</td>}
                           <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right', fontWeight: 700 }}>₹{Number(item.amount || item.grossAmount || 0).toLocaleString('en-IN')}</td>

@@ -350,7 +350,7 @@ export class InvoiceService {
 
       for (const [index, it] of itemsData.entries()) {
         const carats = Number(it.carats) || 0;
-        const pieces = Number(it.pieces) || 1;
+        const pieces = (it.isPiecesUncounted || it.pieces === null || it.pieces === undefined || it.pieces === '') ? 0 : (Number(it.pieces) || 0);
         const rate = Number(it.rate) || 0;
         const discountPct = Number(it.discountPct) || 0;
         const gstPct = Number(it.gstPct) || 0;
@@ -914,7 +914,7 @@ export class InvoiceService {
 
       for (const [index, it] of itemsData.entries()) {
         const carats = Number(it.carats) || 0;
-        const pieces = Number(it.pieces) || 1;
+        const pieces = (it.isPiecesUncounted || it.pieces === null || it.pieces === undefined || it.pieces === '') ? 0 : (Number(it.pieces) || 0);
         const rate = Number(it.rate) || 0;
         const discountPct = Number(it.discountPct) || 0;
         const gstPct = Number(it.gstPct) || 0;

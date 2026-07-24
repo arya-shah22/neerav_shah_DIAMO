@@ -514,6 +514,7 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
             <SectionHeader icon="📦" title="Item Table Columns" />
             <ToggleRow label="Show SR # Column" checked={config.itemTable.showSrNoColumn} onChange={(v) => updateConfig('itemTable', 'showSrNoColumn', v)} />
             <ToggleRow label="Show HSN/SAC Code" checked={config.itemTable.showHsnColumn} onChange={(v) => updateConfig('itemTable', 'showHsnColumn', v)} />
+            <ToggleRow label="Show Quantities Column" checked={config.itemTable.showQuantityColumn} onChange={(v) => updateConfig('itemTable', 'showQuantityColumn', v)} />
             <ToggleRow label="Show Discount Column" checked={config.itemTable.showDiscountColumn} onChange={(v) => updateConfig('itemTable', 'showDiscountColumn', v)} />
             <ToggleRow label="Show Purity/Carat" checked={config.itemTable.showPurityColumn} onChange={(v) => updateConfig('itemTable', 'showPurityColumn', v)} />
             <ToggleRow label="Show Packet ID Reference" checked={config.itemTable.showPacketIdColumn} onChange={(v) => updateConfig('itemTable', 'showPacketIdColumn', v)} />
@@ -984,6 +985,7 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
                             {config.itemTable.showSrNoColumn && <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'left' }}>#</th>}
                             <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'left' }}>PARTICULARS</th>
                             {config.itemTable.showHsnColumn && <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'center' }}>HSN</th>}
+                            {config.itemTable.showQuantityColumn && <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>QTY</th>}
                             {config.itemTable.showPurityColumn && <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>CARATS</th>}
                             <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>PCS</th>
                             <th style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>RATE</th>
@@ -1002,6 +1004,7 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
                                 )}
                               </td>
                               {config.itemTable.showHsnColumn && <td style={{ padding: isCompact ? '2px' : '4px', textAlign: 'center', fontSize: '0.85em' }}>71023910</td>}
+                              {config.itemTable.showQuantityColumn && <td style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>{(1.0 * i).toFixed(2)}</td>}
                               {config.itemTable.showPurityColumn && <td style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>{(1.5 * i).toFixed(2)}</td>}
                               <td style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>{i}</td>
                               <td style={{ padding: isCompact ? '2px' : '4px', textAlign: 'right' }}>₹{(50000 * i).toLocaleString('en-IN')}</td>

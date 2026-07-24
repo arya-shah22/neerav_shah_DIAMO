@@ -30,6 +30,7 @@ export interface IPrintPartyConfig {
 export interface IPrintItemTableConfig {
   showSrNoColumn: boolean;
   showHsnColumn: boolean;
+  showQuantityColumn: boolean;
   showDiscountColumn: boolean;
   showPurityColumn: boolean;
   showPacketIdColumn: boolean;
@@ -122,6 +123,7 @@ export const DEFAULT_LAYOUT_CONFIG: IPrintLayoutConfig = {
   itemTable: {
     showSrNoColumn: true,
     showHsnColumn: true,
+    showQuantityColumn: false,
     showDiscountColumn: false,
     showPurityColumn: true,
     showPacketIdColumn: true,

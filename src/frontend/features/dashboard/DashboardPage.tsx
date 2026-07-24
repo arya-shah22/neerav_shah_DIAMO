@@ -168,7 +168,7 @@ export const DashboardPage: React.FC = () => {
         
         {/* Card 1: Receivables */}
         <div
-          onClick={() => navigate('/reports/outstandings')}
+          onClick={() => navigate('/transactions/sales?filter=pending')}
           style={{
             background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
@@ -221,7 +221,7 @@ export const DashboardPage: React.FC = () => {
 
         {/* Card 2: Payables */}
         <div
-          onClick={() => navigate('/reports/outstandings')}
+          onClick={() => navigate('/transactions/purchases?filter=pending')}
           style={{
             background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
@@ -377,7 +377,7 @@ export const DashboardPage: React.FC = () => {
         
         {/* Cash Book Telemetry */}
         <div
-          onClick={() => navigate('/vouchers/cashbook')}
+          onClick={() => navigate('/vouchers/cash-bank')}
           style={{
             background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
@@ -423,7 +423,7 @@ export const DashboardPage: React.FC = () => {
 
         {/* Bank Book Telemetry */}
         <div
-          onClick={() => navigate('/vouchers/cashbook')}
+          onClick={() => navigate('/vouchers/cash-bank')}
           style={{
             background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',

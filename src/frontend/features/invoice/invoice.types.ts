@@ -52,6 +52,8 @@ export interface IInvoice {
   totalIgst: number;
   roundOff: number;
   netAmount: number;
+  jamaAmount?: number;
+  outstandingAmount?: number;
   referenceInvoiceId?: number | null;
   referenceBillNumber?: string | null;
   narration?: string;
