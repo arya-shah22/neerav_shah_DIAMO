@@ -222,7 +222,7 @@ export const PreferencesConfig: React.FC<PreferencesConfigProps> = ({ companyId 
       {/* Section Divider */}
       <div style={{ width: '100%', height: '1px', background: 'var(--color-border)', margin: '4px 0' }} />
 
-      {/* SECTION 2: Startup Behavior */}
+      {/* SECTION 2: Startup Behavior & Default Landing Target */}
       <div style={{
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
@@ -234,10 +234,10 @@ export const PreferencesConfig: React.FC<PreferencesConfigProps> = ({ companyId 
         gap: '16px'
       }}>
         <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <LogIn size={18} /> Startup Behavior
+          <LogIn size={18} /> Startup Behavior & Landing Target
         </h3>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -254,6 +254,40 @@ export const PreferencesConfig: React.FC<PreferencesConfigProps> = ({ companyId 
               </span>
             </div>
           </label>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+              Default Startup Landing Page
+            </label>
+            <select
+              value={localStorage.getItem('diamo_landing_page') || '/dashboard'}
+              onChange={(e) => {
+                localStorage.setItem('diamo_landing_page', e.target.value);
+                showToast(`Default landing page updated to ${e.target.selectedOptions[0].text}`, 'success');
+              }}
+              style={{
+                width: '340px',
+                padding: '10px 14px',
+                borderRadius: '8px',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-bg)',
+                color: 'var(--color-text-primary)',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+              }}
+            >
+              <option value="/dashboard">🏠 Dashboard Overview (/dashboard)</option>
+              <option value="/transactions/sales/new">🧾 New Sale Invoice (/transactions/sales/new)</option>
+              <option value="/transactions/purchases/new">🛍️ New Purchase Bill (/transactions/purchases/new)</option>
+              <option value="/inventory/stock">💎 Stock Inventory (/inventory/stock)</option>
+              <option value="/vouchers/cash-bank">💵 Cash & Bank Book (/vouchers/cash-bank)</option>
+              <option value="/reports/ledger">📊 General Ledger (/reports/ledger)</option>
+            </select>
+            <span style={{ fontSize: '11px', color: '#64748b' }}>
+              Select which screen opens immediately after login.
+            </span>
+          </div>
         </div>
       </div>
 

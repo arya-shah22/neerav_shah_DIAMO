@@ -415,6 +415,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   // ─── Phase 8: Accounting (JV) ─────────────────────────────
   ipcHandle(ipcMain, 'journal:list', (payload) => journalController.handleList(payload));
   ipcHandle(ipcMain, 'journal:preview-number', (payload) => journalController.handlePreviewNumber(payload));
+  ipcHandle(ipcMain, 'journal:pending-bills', (payload) => journalController.handleGetPendingBills(payload));
   ipcHandle(ipcMain, 'journal:create', (payload) => journalController.handleCreate(payload));
   ipcHandle(ipcMain, 'journal:delete', (payload) => journalController.handleDelete(payload));
 
@@ -513,11 +514,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'audit:save-settings', (payload) => auditController.handleSaveSettings(payload));
   ipcHandle(ipcMain, 'audit:list', (payload) => auditController.handleListLogs(payload));
 
-  // ─── Phase 13.9: Database Health & System Diagnostics ───────
+  // ─── Phase 13.9 & 16: Database Health & System Diagnostics ───────
   ipcHandle(ipcMain, 'health:get-status', (payload) => healthController.handleGetStatus(payload));
   ipcHandle(ipcMain, 'health:run-diagnostics', (payload) => healthController.handleRunDiagnostics(payload));
   ipcHandle(ipcMain, 'health:optimize-db', (payload) => healthController.handleOptimizeDb(payload));
-  ipcHandle(ipcMain, 'health:clear-cache', () => healthController.handleClearCache());
+  ipcHandle(ipcMain, 'health:clear-cache', (payload) => healthController.handleClearCache(payload));
+  ipcHandle(ipcMain, 'health:run-integrity-audit', (payload) => healthController.handleRunIntegrityAudit(payload));
+  ipcHandle(ipcMain, 'health:apply-repair', (payload) => healthController.handleApplyDataRepair(payload));
 
   // ─── Phase 13.10: License & Version Management ──────────────
   ipcHandle(ipcMain, 'license:get-info', (payload) => licenseController.handleGetInfo(payload));

@@ -66,47 +66,40 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
   // Auto-expand menus based on current URL path on load/route change
   useEffect(() => {
     const nextOpen: Record<string, boolean> = { ...openMenus };
-    
+
     if (currentPath.startsWith('/masters')) {
       nextOpen['masters'] = true;
-    }
-    if (
-      currentPath.startsWith('/inventory') ||
-      currentPath.startsWith('/transactions') ||
-      currentPath.startsWith('/vouchers')
-    ) {
-      nextOpen['transactions'] = true;
-    }
-    
-    if (currentPath.startsWith('/reports')) {
-      nextOpen['reports'] = true;
-    }
-    
-    // Sub-nested groups under transactions
-    if (
-      currentPath.startsWith('/transactions/sales') ||
-      currentPath.startsWith('/transactions/sale-')
-    ) {
-      nextOpen['sale'] = true;
-    }
-    if (
-      currentPath.startsWith('/transactions/purchases') ||
-      currentPath.startsWith('/transactions/purchase-')
-    ) {
-      nextOpen['purchase'] = true;
-    }
-    if (
-      currentPath.startsWith('/transactions/challans') ||
-      currentPath.startsWith('/transactions/orders')
-    ) {
-      nextOpen['challan'] = true;
-    }
-    if (currentPath.startsWith('/transactions/jobs')) {
+    } else if (currentPath.startsWith('/inventory') || currentPath === '/reports/stock') {
+      nextOpen['inventory'] = true;
+    } else if (currentPath.startsWith('/transactions/jobs') || currentPath === '/transactions/challans/job-work') {
       nextOpen['job'] = true;
-    }
+    } else if (currentPath.startsWith('/transactions')) {
+      nextOpen['transactions'] = true;
 
-    if (currentPath.startsWith('/settings') || currentPath.startsWith('/admin')) {
+      // Sub-nested groups under Trading
+      if (currentPath.startsWith('/transactions/sales') || currentPath.startsWith('/transactions/sale-')) {
+        nextOpen['sale'] = true;
+      } else if (currentPath.startsWith('/transactions/purchases') || currentPath.startsWith('/transactions/purchase-')) {
+        nextOpen['purchase'] = true;
+      } else if (currentPath.startsWith('/transactions/challans') || currentPath.startsWith('/transactions/orders')) {
+        nextOpen['challan'] = true;
+      }
+    } else if (currentPath.startsWith('/vouchers') || currentPath === '/reports/day-book') {
+      nextOpen['vouchers'] = true;
+    } else if (currentPath.startsWith('/reports')) {
+      nextOpen['reports'] = true;
+
+      if (
+        currentPath.startsWith('/reports/gst') ||
+        currentPath.startsWith('/reports/gstr') ||
+        currentPath.startsWith('/reports/tds-tcs')
+      ) {
+        nextOpen['taxation'] = true;
+      }
+    } else if (currentPath.startsWith('/settings') || currentPath.startsWith('/admin')) {
       nextOpen['system'] = true;
+    } else if (currentPath.startsWith('/dashboard')) {
+      nextOpen['dashboard'] = true;
     }
 
     setOpenMenus(nextOpen);
@@ -127,12 +120,12 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       icon: <LayoutDashboard size={18} />,
       subItems: [
         { path: '/dashboard', label: 'Overview', icon: <Sparkles size={16} /> },
-        { path: '/dashboard/analytics', label: 'Business Analytics', icon: <TrendingUp size={16} /> },
+        { path: '/dashboard/analytics', label: 'Analytics', icon: <TrendingUp size={16} /> },
       ],
     },
     {
       key: 'masters',
-      label: 'Account & Masters',
+      label: 'Masters',
       icon: <Users size={18} />,
       subItems: [
         { path: '/masters/business/companies', label: 'Companies', icon: <Building2 size={16} /> },
@@ -144,55 +137,71 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       ],
     },
     {
-      key: 'transactions',
-      label: 'Transactions',
+      key: 'inventory',
+      label: 'Inventory',
       icon: <Package size={18} />,
       subItems: [
         { path: '/inventory/stock', label: 'Stock Inventory', icon: <Package size={16} /> },
+        { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
       ],
+    },
+    {
+      key: 'transactions',
+      label: 'Trading',
+      icon: <ShoppingCart size={18} />,
       nestedGroups: [
         {
           key: 'sale',
-          label: 'Sale Book',
+          label: 'Sales',
           icon: <ShoppingCart size={16} />,
           subItems: [
-            { path: '/transactions/sales', label: 'Sale Invoice' },
-            { path: '/transactions/sale-returns', label: 'Sale Return / CN' },
-            { path: '/transactions/sale-debit-notes', label: 'Sale Debit Note' },
+            { path: '/transactions/sales', label: 'Sale Invoice', icon: <FileText size={14} /> },
+            { path: '/transactions/sale-returns', label: 'Sale Return / CN', icon: <FileText size={14} /> },
+            { path: '/transactions/sale-debit-notes', label: 'Sale Debit Note', icon: <FileText size={14} /> },
           ],
         },
         {
           key: 'purchase',
-          label: 'Purchase Book',
+          label: 'Purchases',
           icon: <ShoppingBag size={16} />,
           subItems: [
-            { path: '/transactions/purchases', label: 'Purchase Invoice' },
-            { path: '/transactions/purchase-returns', label: 'Purchase Return / DN' },
-            { path: '/transactions/purchase-credit-notes', label: 'Purchase Credit Note' },
+            { path: '/transactions/purchases', label: 'Purchase Invoice', icon: <FileText size={14} /> },
+            { path: '/transactions/purchase-returns', label: 'Purchase Return / DN', icon: <FileText size={14} /> },
+            { path: '/transactions/purchase-credit-notes', label: 'Purchase Credit Note', icon: <FileText size={14} /> },
           ],
         },
         {
           key: 'challan',
-          label: 'Memo Book',
+          label: 'Orders & Memos',
           icon: <FileText size={16} />,
           subItems: [
-            { path: '/transactions/challans/trading', label: 'Jhanghad (Trading)' },
-            { path: '/transactions/challans/job-work', label: 'Job Work Issue' },
-            { path: '/transactions/orders/sales', label: 'Sales Order' },
-            { path: '/transactions/orders/purchases', label: 'Purchase Order' },
-          ],
-        },
-        {
-          key: 'job',
-          label: 'Job Book',
-          icon: <Briefcase size={16} />,
-          subItems: [
-            { path: '/transactions/jobs/income', label: 'Job Income' },
-            { path: '/transactions/jobs/expense', label: 'Job Expense' },
+            { path: '/transactions/challans/trading', label: 'Jhanghad (Trading)', icon: <FileText size={14} /> },
+            { path: '/transactions/orders/sales', label: 'Sales Order', icon: <FileText size={14} /> },
+            { path: '/transactions/orders/purchases', label: 'Purchase Order', icon: <FileText size={14} /> },
           ],
         },
       ],
-      // We can append direct links at the end of transactions as well
+    },
+    {
+      key: 'job',
+      label: 'Job Work',
+      icon: <Briefcase size={18} />,
+      subItems: [
+        { path: '/transactions/challans/job-work', label: 'Job Work Issue', icon: <FileText size={16} /> },
+        { path: '/transactions/jobs/income', label: 'Job Income', icon: <Briefcase size={16} /> },
+        { path: '/transactions/jobs/expense', label: 'Job Expense', icon: <Briefcase size={16} /> },
+      ],
+    },
+    {
+      key: 'vouchers',
+      label: 'Vouchers & Banking',
+      icon: <Landmark size={18} />,
+      subItems: [
+        { path: '/vouchers/cash-bank', label: 'Cash & Bank Book', icon: <Coins size={16} /> },
+        { path: '/vouchers/journal', label: 'Journal Voucher (JV)', icon: <Landmark size={16} /> },
+        { path: '/vouchers/loan', label: 'Loan Book', icon: <Briefcase size={16} /> },
+        { path: '/reports/day-book', label: 'Day Book', icon: <FileText size={16} /> },
+      ],
     },
     {
       key: 'reports',
@@ -206,21 +215,27 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         { path: '/reports/cash-flow', label: 'Cash Flow', icon: <FileText size={16} /> },
         { path: '/reports/fund-flow', label: 'Fund Flow', icon: <FileText size={16} /> },
         { path: '/reports/outstanding', label: 'Outstanding Statements', icon: <FileText size={16} /> },
-        { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
-        { path: '/reports/gst', label: 'GST Dashboard', icon: <FileText size={16} /> },
-        { path: '/reports/gstr1', label: 'GSTR-1 Report', icon: <FileText size={16} /> },
-        { path: '/reports/gstr2', label: 'GSTR-2 & ITC Rec', icon: <FileText size={16} /> },
-        { path: '/reports/gstr3b', label: 'GSTR-3B Summary', icon: <FileText size={16} /> },
-        { path: '/reports/gst-analytics', label: 'GST Analytics', icon: <FileText size={16} /> },
-        { path: '/reports/tds-tcs', label: 'TDS & TCS', icon: <FileText size={16} /> },
-        { path: '/reports/mis', label: 'MIS & Analytics', icon: <BarChart3 size={16} /> },
+        { path: '/reports/mis', label: 'MIS Analytics', icon: <BarChart3 size={16} /> },
         { path: '/reports/intelligence', label: 'Report Intelligence', icon: <Brain size={16} /> },
-        { path: '/reports/day-book', label: 'Day Book', icon: <FileText size={16} /> },
+      ],
+      nestedGroups: [
+        {
+          key: 'taxation',
+          label: 'Taxation & Compliance',
+          icon: <Shield size={16} />,
+          subItems: [
+            { path: '/reports/gst', label: 'GST Dashboard', icon: <BarChart3 size={14} /> },
+            { path: '/reports/gstr1', label: 'GSTR-1', icon: <FileText size={14} /> },
+            { path: '/reports/gstr2', label: 'GSTR-2B', icon: <FileText size={14} /> },
+            { path: '/reports/gstr3b', label: 'GSTR-3B', icon: <FileText size={14} /> },
+            { path: '/reports/tds-tcs', label: 'TDS & TCS', icon: <Shield size={14} /> },
+          ],
+        },
       ],
     },
     {
       key: 'system',
-      label: 'System & settings',
+      label: 'System',
       icon: <Settings size={18} />,
       subItems: [
         { path: '/settings', label: 'Settings', icon: <Settings size={16} /> },
@@ -251,15 +266,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
           }))
           .filter((group) => group.subItems.length > 0) || [];
 
-        // Also filter voucher links that are appended manually under transactions
-        const hasVoucherLinks = item.key === 'transactions' && (
-          canAccess('/vouchers/journal') ||
-          canAccess('/vouchers/cash-bank') ||
-          canAccess('/vouchers/loan')
-        );
-
         // Hide the parent menu if all children are filtered out
-        if (filteredSubItems.length === 0 && filteredNestedGroups.length === 0 && !hasVoucherLinks) {
+        if (filteredSubItems.length === 0 && filteredNestedGroups.length === 0) {
           return null;
         }
 
@@ -298,8 +306,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
         }}
         title={collapsed ? label : undefined}
       >
-        {icon}
-        {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{label}</span>}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', height: '18px', flexShrink: 0 }}>
+          {icon || <div style={{ width: '16px', height: '16px' }} />}
+        </div>
+        {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>}
       </NavLink>
     );
   };
@@ -376,12 +386,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                   transition: 'all var(--transition-fast)',
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', minWidth: 0 }}>
                   {item.icon}
-                  {!collapsed && <span style={{ whiteSpace: 'nowrap' }}>{item.label}</span>}
+                  {!collapsed && <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.label}</span>}
                 </div>
                 {!collapsed && (
-                  isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />
+                  <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0, marginLeft: '8px' }}>
+                    {isMenuOpen ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                  </div>
                 )}
               </button>
 
@@ -424,21 +436,14 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
                         {/* Double-nested terminal page links */}
                         {isGroupOpen && (
                           <div style={{ display: 'flex', flexDirection: 'column', background: 'rgba(0,0,0,0.08)' }}>
-                            {group.subItems.map(sub => renderLink(sub.path, sub.label, undefined, '48px'))}
+                            {group.subItems.map(sub => renderLink(sub.path, sub.label, sub.icon, '48px'))}
                           </div>
                         )}
                       </div>
                     );
                   })}
 
-                  {/* Append other direct links for Transactions (Jobs, Vouchers etc.) at first-level under Transactions parent */}
-                  {item.key === 'transactions' && (
-                    <>
-                      {canAccess('/vouchers/journal') && renderLink('/vouchers/journal', 'Journal Voucher (JV)', <Landmark size={16} />, '32px')}
-                      {canAccess('/vouchers/cash-bank') && renderLink('/vouchers/cash-bank', 'Cash / Bank', <Coins size={16} />, '32px')}
-                      {canAccess('/vouchers/loan') && renderLink('/vouchers/loan', 'Loan Book', <Briefcase size={16} />, '32px')}
-                    </>
-                  )}
+                  {/* Append other direct links if needed */}
                 </div>
               )}
             </div>

@@ -54,14 +54,38 @@ export class HealthController {
     }
   }
 
-  async handleClearCache(): Promise<IApiResponse<any>> {
+  async handleClearCache(payload?: { target?: string }): Promise<IApiResponse<any>> {
     try {
-      const result = await this.healthService.clearSystemCache();
+      const result = await this.healthService.clearSystemCache(payload?.target);
       return { success: true, data: result };
     } catch (err) {
       return {
         success: false,
         error: err instanceof Error ? err.message : 'Failed to clear system cache',
+      };
+    }
+  }
+
+  async handleRunIntegrityAudit(payload: { companyId: number }): Promise<IApiResponse<any>> {
+    try {
+      const result = await this.healthService.runDataIntegrityAudit(payload.companyId);
+      return { success: true, data: result };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Data integrity audit failed',
+      };
+    }
+  }
+
+  async handleApplyDataRepair(payload: { companyId: number; category: string }): Promise<IApiResponse<any>> {
+    try {
+      const result = await this.healthService.applyDataRepair(payload.companyId, payload.category);
+      return { success: true, data: result };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Data repair failed',
       };
     }
   }

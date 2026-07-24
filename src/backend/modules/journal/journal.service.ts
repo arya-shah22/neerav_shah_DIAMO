@@ -4,7 +4,7 @@
 
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { JournalType, VoucherStatus, DebitCreditType, VoucherType } from '@prisma/client';
+import { JournalType, VoucherStatus, DebitCreditType, VoucherType, PaymentStatus } from '@prisma/client';
 import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
 
 @Injectable()
@@ -126,7 +126,77 @@ export class JournalService {
   }
 
   /**
-   * Create a Journal Voucher entry and post balanced entries to GL
+   * Get pending unpaid/partially-paid bills for a specific party account
+   */
+  async getPendingBillsByAccount(companyId: number, accountId: number) {
+    if (!companyId || !accountId) return [];
+
+    // 1. Try OutstandingBill table
+    const bills = await this.prisma.outstandingBill.findMany({
+      where: {
+        companyId,
+        accountId,
+        status: { in: [PaymentStatus.UNPAID, PaymentStatus.PARTIAL] },
+        outstandingAmount: { gt: 0 }
+      },
+      orderBy: { billDate: 'asc' }
+    });
+
+    if (bills.length > 0) {
+      return bills;
+    }
+
+    // 2. Direct Fallback — Sale Invoices for Customer
+    const sales = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        customerId: accountId,
+        isDeleted: false,
+        status: { not: 'DRAFT' },
+        outstandingAmount: { gt: 0 }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+
+    if (sales.length > 0) {
+      return sales.map(s => ({
+        id: s.id,
+        billNumber: s.voucherNumber,
+        billDate: s.invoiceDate,
+        outstandingAmount: s.outstandingAmount,
+        originalAmount: s.netAmount,
+        billType: 'DEBIT',
+        sourceVoucherType: VoucherType.SALE_INVOICE,
+        sourceVoucherId: s.id,
+      }));
+    }
+
+    // 3. Direct Fallback — Purchase Invoices for Supplier
+    const purchases = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        supplierId: accountId,
+        isDeleted: false,
+        status: { not: 'DRAFT' },
+        outstandingAmount: { gt: 0 }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+
+    return purchases.map(p => ({
+      id: p.id,
+      billNumber: p.voucherNumber,
+      billDate: p.invoiceDate,
+      outstandingAmount: p.outstandingAmount,
+      originalAmount: p.netAmount,
+      billType: 'CREDIT',
+      sourceVoucherType: VoucherType.PURCHASE_INVOICE,
+      sourceVoucherId: p.id,
+    }));
+  }
+
+  /**
+   * Create a Journal Voucher entry and post balanced entries to GL & bill allocations
    */
   async create(companyId: number, data: Record<string, any>) {
     const financialYearId = Number(data.financialYearId);
@@ -134,6 +204,7 @@ export class JournalService {
     const drAccountId = Number(data.drAccountId);
     const crAccountId = Number(data.crAccountId);
     const amount = Number(data.amount) || 0;
+    const outstandingBillId = data.outstandingBillId ? Number(data.outstandingBillId) : null;
 
     if (!drAccountId || !crAccountId) {
       throw new BadRequestException('Debit and Credit accounts must be selected');
@@ -151,6 +222,7 @@ export class JournalService {
       cgst: Number(data.cgst) || 0,
       igst: Number(data.igst) || 0,
       tds: Number(data.tds) || 0,
+      outstandingBillId
     });
 
     const isManual = data.isManualBillNumber === true;
@@ -159,7 +231,7 @@ export class JournalService {
       : await this.generateVoucherNumber(companyId, financialYearId);
 
     return this.prisma.$transaction(async (tx) => {
-      // Create Voucher Header
+      // Create Voucher Header & Lines
       const voucher = await tx.journalVoucher.create({
         data: {
           companyId,
@@ -186,6 +258,7 @@ export class JournalService {
                 debitCreditType: DebitCreditType.CREDIT,
                 amount,
                 narration: 'JV Credit Entry',
+                outstandingBillId: outstandingBillId || undefined,
               }
             ]
           }
@@ -224,21 +297,145 @@ export class JournalService {
         }
       });
 
+      // 3. Bill Settlement / Kasar Discount Allocation logic
+      if (outstandingBillId) {
+        const bill = await tx.outstandingBill.findUnique({
+          where: { id: outstandingBillId }
+        });
+
+        if (bill) {
+          const currentOutstanding = Number(bill.outstandingAmount);
+          const currentAllocated = Number(bill.allocatedAmount);
+          const settleAmt = Math.min(amount, currentOutstanding);
+          const nextOutstanding = Math.max(0, currentOutstanding - settleAmt);
+          const nextAllocated = currentAllocated + settleAmt;
+          const newStatus = nextOutstanding <= 0 ? 'PAID' : 'PARTIAL';
+
+          // Update OutstandingBill table
+          await tx.outstandingBill.update({
+            where: { id: outstandingBillId },
+            data: {
+              allocatedAmount: nextAllocated,
+              outstandingAmount: nextOutstanding,
+              status: newStatus as any
+            }
+          });
+
+          // Sync underlying Sale or Purchase Invoice table
+          if (bill.sourceVoucherType === VoucherType.SALE_INVOICE) {
+            await tx.saleInvoice.update({
+              where: { id: bill.sourceVoucherId },
+              data: {
+                outstandingAmount: nextOutstanding,
+                status: newStatus as any
+              }
+            });
+          } else if (bill.sourceVoucherType === VoucherType.PURCHASE_INVOICE) {
+            await tx.purchaseInvoice.update({
+              where: { id: bill.sourceVoucherId },
+              data: {
+                outstandingAmount: nextOutstanding,
+                status: newStatus as any
+              }
+            });
+          }
+        } else {
+          // Direct Invoice Fallback Update
+          const saleInv = await tx.saleInvoice.findUnique({ where: { id: outstandingBillId } });
+          if (saleInv) {
+            const currentOutstanding = Number(saleInv.outstandingAmount);
+            const settleAmt = Math.min(amount, currentOutstanding);
+            const nextOutstanding = Math.max(0, currentOutstanding - settleAmt);
+            const newStatus = nextOutstanding <= 0 ? 'PAID' : 'PARTIAL';
+
+            await tx.saleInvoice.update({
+              where: { id: outstandingBillId },
+              data: {
+                outstandingAmount: nextOutstanding,
+                status: newStatus as any
+              }
+            });
+          } else {
+            const purInv = await tx.purchaseInvoice.findUnique({ where: { id: outstandingBillId } });
+            if (purInv) {
+              const currentOutstanding = Number(purInv.outstandingAmount);
+              const settleAmt = Math.min(amount, currentOutstanding);
+              const nextOutstanding = Math.max(0, currentOutstanding - settleAmt);
+              const newStatus = nextOutstanding <= 0 ? 'PAID' : 'PARTIAL';
+
+              await tx.purchaseInvoice.update({
+                where: { id: outstandingBillId },
+                data: {
+                  outstandingAmount: nextOutstanding,
+                  status: newStatus as any
+                }
+              });
+            }
+          }
+        }
+      }
+
       return voucher;
     });
   }
 
   /**
-   * Delete a Journal Voucher and reverse GL postings
+   * Delete a Journal Voucher and reverse GL & Bill allocations
    */
   async delete(id: number, companyId: number) {
     const voucher = await this.prisma.journalVoucher.findFirst({
-      where: { id, companyId, isDeleted: false }
+      where: { id, companyId, isDeleted: false },
+      include: { lines: true }
     });
     if (!voucher) throw new BadRequestException('Journal Voucher not found');
 
     return this.prisma.$transaction(async (tx) => {
-      // Delete GL entries
+      // 1. Reverse Bill Allocation if present
+      for (const line of voucher.lines) {
+        if (line.outstandingBillId) {
+          const bill = await tx.outstandingBill.findUnique({
+            where: { id: line.outstandingBillId }
+          });
+
+          if (bill) {
+            const lineAmt = Number(line.amount);
+            const currentAllocated = Number(bill.allocatedAmount);
+            const currentOutstanding = Number(bill.outstandingAmount);
+            const nextAllocated = Math.max(0, currentAllocated - lineAmt);
+            const nextOutstanding = Math.min(Number(bill.originalAmount), currentOutstanding + lineAmt);
+            const newStatus = nextOutstanding >= Number(bill.originalAmount) ? 'UNPAID' : 'PARTIAL';
+
+            await tx.outstandingBill.update({
+              where: { id: line.outstandingBillId },
+              data: {
+                allocatedAmount: nextAllocated,
+                outstandingAmount: nextOutstanding,
+                status: newStatus as any
+              }
+            });
+
+            if (bill.sourceVoucherType === VoucherType.SALE_INVOICE) {
+              await tx.saleInvoice.update({
+                where: { id: bill.sourceVoucherId },
+                data: {
+                  outstandingAmount: nextOutstanding,
+                  status: newStatus as any
+                }
+              });
+            } else if (bill.sourceVoucherType === VoucherType.PURCHASE_INVOICE) {
+              await tx.purchaseInvoice.update({
+                where: { id: bill.sourceVoucherId },
+                data: {
+                  outstandingAmount: nextOutstanding,
+                  status: newStatus as any
+                }
+              });
+            }
+          }
+        }
+      }
+
+      // 2. Delete GL entries
       await tx.generalLedgerEntry.deleteMany({
         where: {
           companyId,
@@ -247,7 +444,7 @@ export class JournalService {
         }
       });
 
-      // Soft delete voucher
+      // 3. Soft delete voucher
       await tx.journalVoucher.update({
         where: { id },
         data: {

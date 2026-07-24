@@ -14,8 +14,9 @@ export const companySchema = z.object({
     .max(150, { message: 'Company name cannot exceed 150 characters' }),
   companyCode: z
     .string()
-    .length(3, { message: 'Company code must be exactly 3 characters' })
-    .transform((val) => val.toUpperCase()),
+    .optional()
+    .or(z.literal(''))
+    .transform((val) => (val && val.trim() ? val.trim().toUpperCase().substring(0, 3) : '')),
   panNumber: z
     .string()
     .min(10, { message: 'PAN Number must be 10 characters' })

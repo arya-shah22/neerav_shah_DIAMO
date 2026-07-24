@@ -64,6 +64,8 @@ export const AccountFormPage: React.FC = () => {
       gstPct: null,
       brokerId: null,
       udyamMsme: '',
+      tdsPct: null,
+      tcsPct: null,
       creditDays: 0,
       creditLimit: 0,
       addressLine1: '',
@@ -125,6 +127,8 @@ export const AccountFormPage: React.FC = () => {
             gstPct: a.gstPct != null ? Number(a.gstPct) : null,
             brokerId: a.brokerId,
             udyamMsme: a.udyamMsme || '',
+            tdsPct: a.tdsPct != null ? Number(a.tdsPct) : null,
+            tcsPct: a.tcsPct != null ? Number(a.tcsPct) : null,
             creditDays: a.creditDays,
             creditLimit: Number(a.creditLimit),
             addressLine1: a.addressLine1 || '',
@@ -217,7 +221,6 @@ export const AccountFormPage: React.FC = () => {
                 toString={(v) => String(v ?? '')}
               />
               <Input label="Account Name *" error={errors.accountName?.message} {...register('accountName')} />
-              <Input label="Print Name" error={errors.printName?.message} {...register('printName')} />
               
               <FormSelect
                 control={control}
@@ -262,7 +265,7 @@ export const AccountFormPage: React.FC = () => {
                     style={{ width: '16px', height: '16px', accentColor: 'var(--color-accent)' }}
                   />
                   <label htmlFor="canBuySellBoth" style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
-                    Can this party buy & sell both? (Auto-creates Customer and Supplier ledgers)
+                    Can this party buy & sell both? (Enable unified Customer & Supplier transactions)
                   </label>
                 </div>
               </section>
@@ -374,7 +377,7 @@ export const AccountFormPage: React.FC = () => {
           {/* GST & TAX */}
           <section style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Tax & GST</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
               <FormSelect
                 control={control}
                 name="gstRegType"
@@ -390,6 +393,22 @@ export const AccountFormPage: React.FC = () => {
               />
               <Input label="GSTIN" {...register('gstinNumber')} />
               <Input label="PAN" {...register('panNumber')} />
+              <Input
+                label="TDS Rate (%)"
+                placeholder="e.g. 0.10"
+                type="number"
+                step="0.01"
+                error={errors.tdsPct?.message}
+                {...register('tdsPct', { valueAsNumber: true })}
+              />
+              <Input
+                label="TCS Rate (%)"
+                placeholder="e.g. 0.10"
+                type="number"
+                step="0.01"
+                error={errors.tcsPct?.message}
+                {...register('tcsPct', { valueAsNumber: true })}
+              />
             </div>
           </section>
 

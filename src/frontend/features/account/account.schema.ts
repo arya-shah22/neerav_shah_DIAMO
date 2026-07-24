@@ -11,6 +11,8 @@ export const accountSchema = z.object({
   gstPct: z.number().min(0).max(100).optional().nullable(),
   brokerId: z.number().optional().nullable(),
   udyamMsme: z.string().max(50).optional().or(z.literal('')),
+  tdsPct: z.number().min(0).max(100).optional().nullable(),
+  tcsPct: z.number().min(0).max(100).optional().nullable(),
   creditDays: z.number().min(0).default(0),
   creditLimit: z.number().min(0).default(0),
   addressLine1: z.string().max(200).optional().or(z.literal('')),

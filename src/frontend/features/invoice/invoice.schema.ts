@@ -9,7 +9,7 @@ export const invoiceItemSchema = z.object({
   isPiecesUncounted: z.boolean().optional().default(false),
   rate: z.number({ required_error: 'Rate is required' }).min(0, 'Rate cannot be negative'),
   discountPct: z.number().min(0).max(100).default(0),
-  stockPacketId: z.number().nullable().optional(),
+  stockPacketId: z.preprocess((val) => (val === '' || val === null || Number.isNaN(val) ? null : Number(val)), z.number().nullable().optional()),
   stockIdNumber: z.string().optional(),
   isManualStockId: z.boolean().optional().default(false),
   category: z.string().optional(),

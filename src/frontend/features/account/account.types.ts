@@ -28,6 +28,7 @@ export interface IAccount {
   udyamMsme: string | null;
   tdsLedgerId: number | null;
   tdsPct: number | null;
+  tcsPct: number | null;
   creditDays: number;
   creditLimit: number;
   addressLine1: string | null;

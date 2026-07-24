@@ -145,6 +145,40 @@ export const JVBookPage: React.FC = () => {
     }
   };
 
+  // Bill Adjustment / Kasar Settlement states
+  const [isBillAdjustment, setIsBillAdjustment] = useState(false);
+  const [pendingBills, setPendingBills] = useState<any[]>([]);
+  const [selectedBillId, setSelectedBillId] = useState<number | null>(null);
+  const { invoke: fetchPendingBills } = useIpc<any[]>('journal:pending-bills');
+
+  // Load pending bills when party account changes (checking both Cr and Dr accounts)
+  const partyAccountId = crAccountId || drAccountId;
+
+  useEffect(() => {
+    if (!companyId || !partyAccountId || !isBillAdjustment) {
+      setPendingBills([]);
+      setSelectedBillId(null);
+      return;
+    }
+    fetchPendingBills({ companyId, accountId: partyAccountId }).then((res) => {
+      if (res.success && res.data) {
+        setPendingBills(res.data);
+      }
+    });
+  }, [companyId, partyAccountId, isBillAdjustment, fetchPendingBills]);
+
+  // When a bill is selected, auto-fill amount with its pending balance if amount is 0
+  const handleSelectBill = (billIdStr: string) => {
+    const bId = Number(billIdStr) || null;
+    setSelectedBillId(bId);
+    if (bId) {
+      const target = pendingBills.find((b) => b.id === bId);
+      if (target && (!amount || amount === 0)) {
+        setAmount(Number(target.outstandingAmount) || 0);
+      }
+    }
+  };
+
   // Handlers
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -171,6 +205,7 @@ export const JVBookPage: React.FC = () => {
       amount,
       isManualBillNumber,
       billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
+      outstandingBillId: isBillAdjustment ? selectedBillId : null,
       sgst: sgstPct,
       cgst: cgstPct,
       igst: igstPct,
@@ -186,6 +221,9 @@ export const JVBookPage: React.FC = () => {
       // Reset form states
       setDrAccountId(null);
       setCrAccountId(null);
+      setIsBillAdjustment(false);
+      setSelectedBillId(null);
+      setPendingBills([]);
       setAmount(0);
       setSgstPct(0);
       setSgstAmt(0);
@@ -356,22 +394,52 @@ export const JVBookPage: React.FC = () => {
         flexDirection: 'column',
         gap: '20px',
       }}>
-        {/* Bill Number Config Row */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px', background: 'var(--color-row-alt)', padding: '12px', borderRadius: 'var(--radius-md)' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 600 }}>
-            <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} />
-            Enter bill number manually
-          </label>
-          <div style={{ flex: 1, maxWidth: '300px' }}>
-            <Input 
-              placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
-              disabled={!isManualBillNumber} 
-              value={billNumber}
-              onChange={(e) => setBillNumber(e.target.value)}
+        {/* Feature Checkbox Row */}
+        <div style={{
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '12px',
+          background: isBillAdjustment ? 'rgba(59, 130, 246, 0.04)' : 'var(--color-row-alt)',
+          border: isBillAdjustment ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+          padding: '14px 16px',
+          borderRadius: 'var(--radius-md)',
+          transition: 'all var(--transition-fast)'
+        }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', fontWeight: 600, fontSize: '13px', color: 'var(--color-primary)' }}>
+            <input
+              type="checkbox"
+              checked={isBillAdjustment}
+              onChange={(e) => {
+                const checked = e.target.checked;
+                setIsBillAdjustment(checked);
+                if (!checked) {
+                  setSelectedBillId(null);
+                  setPendingBills([]);
+                }
+              }}
+              style={{ width: '16px', height: '16px', accentColor: 'var(--color-accent)' }}
             />
+            <span>Adjust Specific Bill (Kasar / Discount Settlement)</span>
+          </label>
+
+          {/* Manual Bill Number Config */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', paddingTop: '8px', borderTop: '1px solid var(--color-border)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', fontSize: '13px', fontWeight: 500 }}>
+              <input type="checkbox" checked={isManualBillNumber} onChange={(e) => setIsManualBillNumber(e.target.checked)} />
+              Enter bill number manually
+            </label>
+            <div style={{ flex: 1, maxWidth: '300px' }}>
+              <Input 
+                placeholder={previewVoucherNo || "Auto-Generated sequential number"} 
+                disabled={!isManualBillNumber} 
+                value={billNumber}
+                onChange={(e) => setBillNumber(e.target.value)}
+              />
+            </div>
           </div>
         </div>
 
+        {/* Dynamic Inputs Grid */}
         <div style={{
           display: 'grid',
           gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
@@ -384,30 +452,70 @@ export const JVBookPage: React.FC = () => {
             onChange={(e) => setVoucherDate(e.target.value)}
           />
 
-          <Select
-            label="Debit Account (Dr. A/C) *"
-            value={drAccountId ? String(drAccountId) : ''}
-            onChange={(val) => setDrAccountId(Number(val) || null)}
-            options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
-            placeholder="Select debit account"
-          />
+          {isBillAdjustment ? (
+            <>
+              {/* Party Selection in Bill Adjustment Mode */}
+              <Select
+                label="Party Name *"
+                value={crAccountId ? String(crAccountId) : (drAccountId ? String(drAccountId) : '')}
+                onChange={(val) => {
+                  const pId = Number(val) || null;
+                  setCrAccountId(pId);
+                  setDrAccountId(null);
+                }}
+                options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
+                placeholder="Select Party Name"
+              />
 
-          <Select
-            label="Credit Account (Cr. A/C) *"
-            value={crAccountId ? String(crAccountId) : ''}
-            onChange={(val) => setCrAccountId(Number(val) || null)}
-            options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
-            placeholder="Select credit account"
-          />
+              {/* Bill Selection in Bill Adjustment Mode */}
+              <Select
+                label="Select Pending Bill *"
+                value={selectedBillId ? String(selectedBillId) : ''}
+                onChange={handleSelectBill}
+                disabled={!partyAccountId}
+                options={pendingBills.map((b) => ({
+                  value: String(b.id),
+                  label: `${b.billNumber} (${new Date(b.billDate).toLocaleDateString('en-IN')}) — Unpaid: ₹${Number(b.outstandingAmount).toLocaleString('en-IN')}`
+                }))}
+                placeholder={!partyAccountId ? "Select Party first..." : (pendingBills.length === 0 ? "No pending bills found" : "Choose bill to adjust...")}
+              />
+            </>
+          ) : (
+            <>
+              {/* Standard Debit & Credit Selects */}
+              <Select
+                label="Debit Account (Dr. A/C) *"
+                value={drAccountId ? String(drAccountId) : ''}
+                onChange={(val) => setDrAccountId(Number(val) || null)}
+                options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
+                placeholder="Select debit account"
+              />
+
+              <Select
+                label="Credit Account (Cr. A/C) *"
+                value={crAccountId ? String(crAccountId) : ''}
+                onChange={(val) => setCrAccountId(Number(val) || null)}
+                options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
+                placeholder="Select credit account"
+              />
+            </>
+          )}
 
           <Input
-            label="Amount *"
+            label="Kasar / Discount Amount *"
             type="number"
             placeholder="0.00"
             value={amount || ''}
             onChange={(e) => handleAmountChange(Number(e.target.value))}
           />
         </div>
+
+        {/* Bill Settlement Informational Banner */}
+        {isBillAdjustment && selectedBillId && (
+          <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '12px 16px', borderRadius: '6px', fontSize: '13px', color: 'var(--color-primary)', border: '1px solid rgba(59, 130, 246, 0.2)' }}>
+            💡 <strong>Bill Settlement:</strong> Deducting <strong>₹{Number(amount || 0).toLocaleString('en-IN')}</strong> from bill <strong>#{pendingBills.find(b => b.id === selectedBillId)?.billNumber}</strong> outstanding balance and marking it as settled/paid.
+          </div>
+        )}
 
         {/* Taxes and Adjustments Grid */}
         <div style={{

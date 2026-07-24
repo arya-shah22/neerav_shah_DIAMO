@@ -138,37 +138,18 @@ export class AccountService {
       };
 
       if (canBuySellBoth) {
-        // Create Debtors (Customer) Account
+        // Create single unified account with exact user name under Sundry Debtors
         const debtorGroupId = await getOrCreateGroup(targetCoId, true);
-        const customerName = `${(data.accountName as string).trim()} (Customer)`;
+        const cleanName = (data.accountName as string).trim();
         const dupDebtor = await this.prisma.account.findFirst({
-          where: { companyId: targetCoId, accountName: customerName, isDeleted: false },
+          where: { companyId: targetCoId, accountName: cleanName, isDeleted: false },
         });
 
         let createdDebtor = dupDebtor;
         if (!dupDebtor) {
           createdDebtor = await this.prisma.account.create({
             data: {
-              ...this.mapAccountFields({ ...data, accountName: customerName, accountGroupId: debtorGroupId }),
-              companyId: targetCoId,
-              isBroker,
-            },
-            include: { accountGroup: { select: { id: true, groupName: true } } },
-          });
-        }
-
-        // Create Creditors (Supplier) Account
-        const creditorGroupId = await getOrCreateGroup(targetCoId, false);
-        const supplierName = `${(data.accountName as string).trim()} (Supplier)`;
-        const dupCreditor = await this.prisma.account.findFirst({
-          where: { companyId: targetCoId, accountName: supplierName, isDeleted: false },
-        });
-
-        let createdCreditor = dupCreditor;
-        if (!dupCreditor) {
-          createdCreditor = await this.prisma.account.create({
-            data: {
-              ...this.mapAccountFields({ ...data, accountName: supplierName, accountGroupId: creditorGroupId }),
+              ...this.mapAccountFields({ ...data, accountName: cleanName, accountGroupId: debtorGroupId }),
               companyId: targetCoId,
               isBroker,
             },
@@ -177,7 +158,7 @@ export class AccountService {
         }
 
         if (targetCoId === companyId) {
-          primaryAccount = createdDebtor || createdCreditor;
+          primaryAccount = createdDebtor;
         }
       } else {
         // Single Account Creation logic
@@ -341,7 +322,7 @@ export class AccountService {
     return {
       accountGroupId: data.accountGroupId as number,
       accountName: data.accountName as string,
-      printName: (data.printName as string) || null,
+      printName: (data.printName as string) || (data.accountName as string) || null,
       status: (data.status as AccountStatus) || AccountStatus.ACTIVE,
       gstinNumber: (data.gstinNumber as string) || null,
       panNumber: (data.panNumber as string) || null,
@@ -351,6 +332,7 @@ export class AccountService {
       udyamMsme: (data.udyamMsme as string) || null,
       tdsLedgerId: (data.tdsLedgerId && !isNaN(Number(data.tdsLedgerId))) ? Number(data.tdsLedgerId) : null,
       tdsPct: (data.tdsPct != null && !isNaN(Number(data.tdsPct))) ? Number(data.tdsPct) : null,
+      tcsPct: (data.tcsPct != null && !isNaN(Number(data.tcsPct))) ? Number(data.tcsPct) : null,
       creditDays: (!isNaN(Number(data.creditDays))) ? Number(data.creditDays) : 0,
       creditLimit: (!isNaN(Number(data.creditLimit))) ? Number(data.creditLimit) : 0,
       addressLine1: (data.addressLine1 as string) || null,

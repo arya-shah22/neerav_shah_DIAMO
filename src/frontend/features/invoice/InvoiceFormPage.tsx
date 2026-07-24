@@ -448,6 +448,17 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     }
   };
 
+  const onError = (errors: any) => {
+    console.error('Form Validation Errors:', errors);
+    const firstKey = Object.keys(errors)[0];
+    if (firstKey) {
+      const errMsg = errors[firstKey]?.message || errors[firstKey]?.root?.message || 'Please check required fields';
+      showToast(`Validation Error (${firstKey}): ${errMsg}`, 'error');
+    } else {
+      showToast('Please fill in all required fields marked with *', 'error');
+    }
+  };
+
   if (!isReady || !activeFinancialYear) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company and financial year first.</p>;
   }
@@ -462,7 +473,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       </div>
 
       <form
-        onSubmit={handleSubmit(onSubmit)}
+        onSubmit={handleSubmit(onSubmit, onError)}
         style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
       >
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Header Information</h2>
@@ -651,9 +662,10 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                               </label>
                               <select
                                 style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: '13px', color: 'var(--color-primary)' }}
-                                {...register(`items.${index}.stockPacketId`, { valueAsNumber: true })}
+                                value={watch(`items.${index}.stockPacketId`) || ''}
                                 onChange={(e) => {
-                                  const pktId = Number(e.target.value);
+                                  const pktId = e.target.value ? Number(e.target.value) : null;
+                                  setValue(`items.${index}.stockPacketId`, pktId);
                                   const pkt = availablePackets.find((p) => p.id === pktId);
                                   if (pkt) {
                                     setValue(`items.${index}.carats`, Number(pkt.caratWeight));

@@ -131,11 +131,17 @@ export const CompanyFormPage: React.FC = () => {
   }, [id, isEdit, fetchCompany, fetchStates, reset, navigate, showToast]);
 
   const onSubmit = async (data: CompanyFormData) => {
+    let finalData = { ...data };
+    if (!finalData.companyCode || !finalData.companyCode.trim()) {
+      const cleanName = finalData.companyName.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      finalData.companyCode = (cleanName.substring(0, 3) || 'CO').padEnd(3, 'X');
+    }
+
     let res;
     if (isEdit) {
-      res = await updateCompany({ id: parseInt(id!), data });
+      res = await updateCompany({ id: parseInt(id!), data: finalData });
     } else {
-      res = await createCompany(data);
+      res = await createCompany(finalData);
     }
 
     if (res && res.success) {
@@ -196,13 +202,6 @@ export const CompanyFormPage: React.FC = () => {
                 placeholder="e.g. Diastar Exports Pvt Ltd"
                 error={errors.companyName?.message}
                 {...register('companyName')}
-              />
-              <Input
-                label="Company Code *"
-                placeholder="e.g. DST"
-                maxLength={3}
-                error={errors.companyCode?.message}
-                {...register('companyCode')}
               />
               <Input
                 label="PAN Number *"
@@ -276,23 +275,10 @@ export const CompanyFormPage: React.FC = () => {
                 </div>
               </div>
               <Input
-                label="TAN (Optional)"
-                placeholder="e.g. AHMD01234F"
-                maxLength={10}
-                error={errors.tanNumber?.message}
-                {...register('tanNumber')}
-              />
-              <Input
                 label="Udyam MSME (Optional)"
                 placeholder="e.g. UDYAM-GJ-01-0123456"
                 error={errors.udyamMsme?.message}
                 {...register('udyamMsme')}
-              />
-              <Input
-                label="IEC Code (Import Export Code)"
-                placeholder="e.g. 0500123456"
-                error={errors.iecCode?.message}
-                {...register('iecCode')}
               />
               <Input
                 label="Business Type"

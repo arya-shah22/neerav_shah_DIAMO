@@ -505,6 +505,7 @@ model Account {
   udyamMsme   String?     @map("udyam_msme") @db.VarChar(30)
   tdsLedgerId Int?        @map("tds_ledger_id") @db.UnsignedInt
   tdsPct      Decimal?    @map("tds_pct") @db.Decimal(5, 2)
+  tcsPct      Decimal?    @map("tcs_pct") @db.Decimal(5, 2)
   gstPct      Decimal?    @map("gst_pct") @db.Decimal(5, 2)
   brokerId    Int?        @map("broker_id") @db.UnsignedInt
 
@@ -1023,13 +1024,16 @@ model JournalVoucherLine {
   debitCreditType  DebitCreditType @map("debit_credit_type")
   amount           Decimal         @map("amount") @db.Decimal(18, 2)
   narration        String?         @db.VarChar(255)
+  outstandingBillId Int?             @map("outstanding_bill_id") @db.UnsignedInt
 
   // Relations
-  journalVoucher JournalVoucher @relation(fields: [journalVoucherId], references: [id])
-  account        Account        @relation(fields: [accountId], references: [id])
+  journalVoucher  JournalVoucher   @relation(fields: [journalVoucherId], references: [id])
+  account         Account          @relation(fields: [accountId], references: [id])
+  outstandingBill OutstandingBill? @relation(fields: [outstandingBillId], references: [id])
 
   @@index([journalVoucherId], map: "IX_journal_voucher_lines_voucher")
   @@index([accountId], map: "IX_journal_voucher_lines_account")
+  @@index([outstandingBillId], map: "IX_journal_voucher_lines_bill")
   @@map("journal_voucher_lines")
 }
 
@@ -1247,9 +1251,10 @@ model OutstandingBill {
   updatedAt DateTime @updatedAt @map("updated_at") @db.DateTime(3)
 
   // Relations
-  company     Company              @relation(fields: [companyId], references: [id])
-  account     Account              @relation(fields: [accountId], references: [id])
-  allocations CashBankAllocation[]
+  company             Company              @relation(fields: [companyId], references: [id])
+  account             Account              @relation(fields: [accountId], references: [id])
+  allocations         CashBankAllocation[]
+  journalVoucherLines JournalVoucherLine[]
 
   @@index([companyId, accountId, status], map: "IX_outstanding_bills_account")
   @@index([companyId, dueDate], map: "IX_outstanding_bills_due_date")

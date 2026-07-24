@@ -8,19 +8,14 @@ import { PrismaService } from '../../database/prisma.service';
 import { IUserWorkspaceData } from '../../../shared/types/workspace.types';
 
 const DEFAULT_QUICK_ACTIONS = [
-  { id: 'new_sale', label: 'New Sale Invoice', path: '/transactions/sales/new', iconName: 'ShoppingCart', color: '#2563eb' },
-  { id: 'new_purchase', label: 'New Purchase Bill', path: '/transactions/purchases/new', iconName: 'ShoppingBag', color: '#16a34a' },
-  { id: 'cash_receipt', label: 'Cash / Bank Voucher', path: '/vouchers/cash-bank', iconName: 'Wallet', color: '#8b5cf6' },
-  { id: 'add_stock', label: 'Add Stock Packet', path: '/inventory/stock/new', iconName: 'Gem', color: '#06b6d4' },
-  { id: 'add_account', label: 'New Party Account', path: '/masters/accounting/accounts/new', iconName: 'Users', color: '#f59e0b' },
+  { id: '/transactions/sales', label: 'New Sale Invoice', path: '/transactions/sales', iconName: 'ShoppingCart', color: '#1e40af' },
+  { id: '/transactions/purchases', label: 'New Purchase Bill', path: '/transactions/purchases', iconName: 'ShoppingBag', color: '#166534' },
+  { id: '/vouchers/cash-bank', label: 'Cash / Bank Voucher', path: '/vouchers/cash-bank', iconName: 'Wallet', color: '#6b21a8' },
+  { id: '/inventory/stock', label: 'Add Stock Packet', path: '/inventory/stock', iconName: 'Gem', color: '#155e75' },
+  { id: '/masters/accounting/accounts', label: 'New Party Account', path: '/masters/accounting/accounts', iconName: 'Users', color: '#92400e' },
 ];
 
-const DEFAULT_PINNED_PAGES = [
-  { label: 'Sale Invoices', path: '/transactions/sales', iconName: 'ShoppingCart' },
-  { label: 'Purchase Invoices', path: '/transactions/purchases', iconName: 'ShoppingBag' },
-  { label: 'Stock Inventory', path: '/inventory/stock', iconName: 'Gem' },
-  { label: 'Cash & Bank Book', path: '/vouchers/cash-bank', iconName: 'Wallet' },
-];
+const DEFAULT_PINNED_PAGES: any[] = [];
 
 @Injectable()
 export class UserWorkspaceService {
@@ -36,7 +31,7 @@ export class UserWorkspaceService {
       ws = await this.prisma.userWorkspace.create({
         data: {
           userId,
-          favoritePages: DEFAULT_PINNED_PAGES,
+          favoritePages: [],
           quickActions: DEFAULT_QUICK_ACTIONS,
           recentItems: [],
         },
@@ -45,7 +40,7 @@ export class UserWorkspaceService {
 
     return {
       userId,
-      favoritePages: (ws.favoritePages as any) || DEFAULT_PINNED_PAGES,
+      favoritePages: (ws.favoritePages as any) || [],
       quickActions: (ws.quickActions as any) || DEFAULT_QUICK_ACTIONS,
       recentItems: (ws.recentItems as any) || [],
     };

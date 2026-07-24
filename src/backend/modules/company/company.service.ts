@@ -41,15 +41,29 @@ export class CompanyService {
   }
 
   async create(data: any) {
+    if (!data.companyCode || !data.companyCode.trim()) {
+      const cleanName = (data.companyName || 'CO').replace(/[^A-Za-z0-9]/g, '').toUpperCase();
+      let code = (cleanName.substring(0, 3) || 'CO').padEnd(3, 'X');
+      
+      // Ensure unique code
+      const existing = await this.prisma.company.findUnique({ where: { companyCode: code } });
+      if (existing && !existing.isDeleted) {
+        code = (cleanName.substring(0, 2) + Math.floor(Math.random() * 10)).toUpperCase();
+      }
+      data.companyCode = code;
+    }
+
     // Check if code or name is already in use
     const existingCode = await this.prisma.company.findUnique({
       where: { companyCode: data.companyCode },
     });
     if (existingCode) {
       if (!existingCode.isDeleted) {
-        throw new BadRequestException('Company code is already in use');
+        // If auto-generated collision occurs, generate a random suffix
+        data.companyCode = (data.companyCode.substring(0, 2) + Math.floor(Math.random() * 10)).toUpperCase();
+      } else {
+        await this.removeLegacyCompany(existingCode.id);
       }
-      await this.removeLegacyCompany(existingCode.id);
     }
 
     const existingName = await this.prisma.company.findUnique({

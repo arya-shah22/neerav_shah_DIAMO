@@ -1140,6 +1140,12 @@ export class InvoiceService {
       // 3. Update invoice header in the correct table
       let updatedInvoice: any;
 
+      const oldJama = Number(existing.jamaAmount) || 0;
+      const newOutstanding = Math.max(0, netAmount - oldJama);
+      const newPaymentStatus = (oldJama === 0 || newOutstanding === netAmount)
+        ? PaymentStatus.UNPAID
+        : (newOutstanding <= 0 ? PaymentStatus.PAID : PaymentStatus.PARTIAL);
+
       if (existingIsPurchase) {
         updatedInvoice = await tx.purchaseInvoice.update({
           where: { id },
@@ -1162,6 +1168,8 @@ export class InvoiceService {
             totalIgst,
             roundOff,
             netAmount,
+            outstandingAmount: newOutstanding,
+            paymentStatus: newPaymentStatus as any,
             narration: data.narration || '',
             updatedAt: new Date(),
             items: { create: parsedItems },
@@ -1197,6 +1205,8 @@ export class InvoiceService {
             totalIgst,
             roundOff,
             netAmount,
+            outstandingAmount: newOutstanding,
+            paymentStatus: newPaymentStatus as any,
             narration: data.narration || '',
             updatedAt: new Date(),
             items: { create: parsedItems },

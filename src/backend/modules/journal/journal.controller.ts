@@ -37,6 +37,15 @@ export class JournalController {
     }
   }
 
+  async handleGetPendingBills(payload: { companyId: number; accountId: number }) {
+    try {
+      const data = await this.journalService.getPendingBillsByAccount(payload.companyId, payload.accountId);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
   async handlePreviewNumber(payload: { companyId: number; financialYearId: number }) {
     try {
       const data = await this.journalService.previewVoucherNumber(payload.companyId, payload.financialYearId);
