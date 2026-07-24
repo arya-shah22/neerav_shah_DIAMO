@@ -29,6 +29,8 @@ import { HealthModule } from './modules/system-health/health.module';
 import { LicenseModule } from './modules/system-license/license.module';
 import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
+import { NotificationModule } from './modules/notification/notification.module';
+import { UserWorkspaceModule } from './modules/user-workspace/workspace.module';
 
 @Module({
   imports: [
@@ -57,6 +59,8 @@ import { DashboardModule } from './modules/dashboard/dashboard.module';
     LicenseModule,
     SuperAdminModule,
     DashboardModule,
+    NotificationModule,
+    UserWorkspaceModule,
   ],
   controllers: [],
   providers: [

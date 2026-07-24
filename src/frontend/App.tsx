@@ -88,6 +88,7 @@ const PermissionGuardOutlet: React.FC = () => {
 };
 
 import { DashboardPage } from './features/dashboard/DashboardPage';
+import { AnalyticsDashboardPage } from './features/dashboard/AnalyticsDashboardPage';
 
 // ─── App Root ────────────────────────────────────────────────
 
@@ -106,6 +107,7 @@ const App: React.FC = () => {
                <Route element={<PermissionGuardOutlet />}>
                 <Route path="/" element={<Navigate to="/dashboard" replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
+                <Route path="/dashboard/analytics" element={<AnalyticsDashboardPage />} />
 
                 {/* Stage 1: Company Master */}
                 <Route path="/masters/business/companies" element={<CompanyListPage />} />

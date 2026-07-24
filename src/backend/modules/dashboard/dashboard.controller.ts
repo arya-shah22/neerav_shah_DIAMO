@@ -32,4 +32,16 @@ export class DashboardController {
       };
     }
   }
+
+  async handleGetAnalytics(payload: { companyId: number }): Promise<IApiResponse<any>> {
+    try {
+      const data = await this.dashboardService.getBusinessAnalytics(payload.companyId);
+      return { success: true, data };
+    } catch (err) {
+      return {
+        success: false,
+        error: err instanceof Error ? err.message : 'Failed to retrieve business analytics data',
+      };
+    }
+  }
 }

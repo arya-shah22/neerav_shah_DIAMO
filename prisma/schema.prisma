@@ -1908,3 +1908,21 @@ model LoanRepayment {
 
   @@map("loan_repayments")
 }
+
+model AppNotification {
+  id         Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId  Int?     @map("company_id") @db.UnsignedInt
+  userId     Int?     @map("user_id") @db.UnsignedInt
+  title      String   @db.VarChar(255)
+  message    String   @db.Text
+  category   String   @default("SYSTEM") @db.VarChar(50) // RECEIVABLE, PAYABLE, STOCK, SYSTEM, USER, FINANCIAL
+  priority   String   @default("MEDIUM") @db.VarChar(20) // CRITICAL, HIGH, MEDIUM, LOW, INFO
+  targetPath String?  @map("target_path") @db.VarChar(255)
+  isRead     Boolean  @default(false) @map("is_read")
+  isResolved Boolean  @default(false) @map("is_resolved")
+  createdAt  DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@index([companyId, isRead], map: "IX_app_notifications_company_read")
+  @@map("app_notifications")
+}
+

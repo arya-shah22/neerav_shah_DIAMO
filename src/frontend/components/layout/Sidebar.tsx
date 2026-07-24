@@ -7,6 +7,8 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { usePagePermissions } from '../../hooks/usePagePermissions';
 import {
   LayoutDashboard,
+  Sparkles,
+  TrendingUp,
   ShoppingCart,
   ShoppingBag,
   FileText,
@@ -123,7 +125,10 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       key: 'dashboard',
       label: 'Dashboard',
       icon: <LayoutDashboard size={18} />,
-      path: '/dashboard',
+      subItems: [
+        { path: '/dashboard', label: 'Overview', icon: <Sparkles size={16} /> },
+        { path: '/dashboard/analytics', label: 'Business Analytics', icon: <TrendingUp size={16} /> },
+      ],
     },
     {
       key: 'masters',
@@ -270,7 +275,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
 
   // Helper to render NavLink with consistent premium styling
   const renderLink = (path: string, label: string, icon?: React.ReactNode, paddingLeft: string = 'var(--spacing-md)') => {
-    const isActive = path === '/' ? currentPath === '/' : (currentPath === path || currentPath.startsWith(path + '/'));
+    const isActive = (path === '/' || path === '/dashboard')
+      ? currentPath === path
+      : (currentPath === path || currentPath.startsWith(path + '/'));
     return (
       <NavLink
         key={path}

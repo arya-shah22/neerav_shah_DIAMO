@@ -63,3 +63,13 @@ export interface IDashboardKpiSummary {
     activeSessionsCount: number;
   };
 }
+
+export interface IBusinessAnalyticsData {
+  monthlySalesTrend: { month: string; sales: number; invoices: number }[];
+  monthlyPurchaseTrend: { month: string; purchases: number; bills: number }[];
+  monthlyProfitTrend: { month: string; grossRevenue: number; purchaseCost: number; grossProfit: number; marginPct: number }[];
+  stockAgingProfile: { range: string; carats: number; count: number; value: number }[];
+  qualityWiseShare: { qualityName: string; carats: number; salesValue: number }[];
+  topCustomers: { customerName: string; totalSpent: number; invoiceCount: number }[];
+  topSuppliers: { supplierName: string; totalPurchased: number; billCount: number }[];
+}

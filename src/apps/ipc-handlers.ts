@@ -28,6 +28,8 @@ import { HealthController } from '../backend/modules/system-health/health.contro
 import { LicenseController } from '../backend/modules/system-license/license.controller';
 import { SuperAdminController } from '../backend/modules/super-admin/super-admin.controller';
 import { DashboardController } from '../backend/modules/dashboard/dashboard.controller';
+import { NotificationController } from '../backend/modules/notification/notification.controller';
+import { UserWorkspaceController } from '../backend/modules/user-workspace/workspace.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -72,9 +74,23 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const licenseController = nestApp.get(LicenseController);
   const superAdminController = nestApp.get(SuperAdminController);
   const dashboardController = nestApp.get(DashboardController);
+  const notificationController = nestApp.get(NotificationController);
+  const userWorkspaceController = nestApp.get(UserWorkspaceController);
 
   // ─── Dashboard ───────────────────────────────────────────
   ipcHandle(ipcMain, 'dashboard:get-telemetry', (payload) => dashboardController.handleGetTelemetry(payload));
+  ipcHandle(ipcMain, 'dashboard:get-analytics', (payload) => dashboardController.handleGetAnalytics(payload));
+
+  // ─── Notifications ───────────────────────────────────────
+  ipcHandle(ipcMain, 'notification:get-all', (payload) => notificationController.handleGetNotifications(payload));
+  ipcHandle(ipcMain, 'notification:mark-read', (payload) => notificationController.handleMarkAsRead(payload));
+  ipcHandle(ipcMain, 'notification:mark-all-read', (payload) => notificationController.handleMarkAllAsRead(payload));
+  ipcHandle(ipcMain, 'notification:dismiss', (payload) => notificationController.handleDismiss(payload));
+
+  // ─── User Personal Workspace ─────────────────────────────
+  ipcHandle(ipcMain, 'workspace:get', (payload) => userWorkspaceController.handleGetWorkspace(payload));
+  ipcHandle(ipcMain, 'workspace:update', (payload) => userWorkspaceController.handleUpdateWorkspace(payload));
+  ipcHandle(ipcMain, 'workspace:log-recent', (payload) => userWorkspaceController.handleLogRecentPage(payload));
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({

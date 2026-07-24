@@ -10,7 +10,8 @@ export interface PageEntry {
 
 export const PAGE_REGISTRY: PageEntry[] = [
   // Dashboard
-  { uri: '/dashboard', label: 'Dashboard', category: 'Dashboard' },
+  { uri: '/dashboard', label: 'Overview', category: 'Dashboard' },
+  { uri: '/dashboard/analytics', label: 'Business Analytics', category: 'Dashboard' },
 
   // Masters
   { uri: '/masters/business/companies', label: 'Companies', category: 'Account & Masters' },

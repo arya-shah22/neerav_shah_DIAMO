@@ -11,11 +11,13 @@ import { useAuthStore } from '../../state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from '../../state/company-store';
 import { Button } from '../../components/ui';
 import { IDashboardKpiSummary } from '../../../shared/types/dashboard.types';
+import { IUserWorkspaceData } from '../../../shared/types/workspace.types';
+import { PAGE_REGISTRY, PAGE_CATEGORIES } from '../../config/page-registry';
 import {
   ArrowUpRight, RefreshCw, 
   Wallet, DollarSign, Building, Gem, PackageCheck, 
   Users, UserCheck, ShieldCheck, ArrowRight,
-  Sparkles, Activity, FileText
+  Sparkles, Activity, FileText, Zap, Plus, Settings, Check, X
 } from 'lucide-react';
 
 const formatCurrency = (val: number) => {
@@ -35,7 +37,25 @@ export const DashboardPage: React.FC = () => {
   const [telemetry, setTelemetry] = useState<IDashboardKpiSummary | null>(null);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  const [workspace, setWorkspace] = useState<IUserWorkspaceData | null>(null);
+  const [showCustomizeModal, setShowCustomizeModal] = useState(false);
+  const [selectedCategory, setSelectedCategory] = useState<string>('Transactions');
+
   const { invoke: getTelemetry, loading } = useIpc<IDashboardKpiSummary>('dashboard:get-telemetry');
+  const { invoke: getWorkspace } = useIpc<IUserWorkspaceData>('workspace:get');
+  const { invoke: updateWorkspace } = useIpc<IUserWorkspaceData>('workspace:update');
+
+  const fetchWorkspace = useCallback(async () => {
+    if (!user?.id) return;
+    const res = await getWorkspace({ userId: user.id });
+    if (res.success && res.data) {
+      setWorkspace(res.data);
+    }
+  }, [user?.id, getWorkspace]);
+
+  useEffect(() => {
+    fetchWorkspace();
+  }, [fetchWorkspace]);
 
   // Clock tick
   useEffect(() => {
@@ -158,6 +178,243 @@ export const DashboardPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* ─── 1.5. Personal Workspace & Quick Actions ───────────────────── */}
+      <div
+        style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '16px',
+          padding: '20px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '16px',
+          boxShadow: '0 2px 10px rgba(0,0,0,0.02)',
+        }}
+      >
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Zap size={18} color="var(--color-accent)" />
+            <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--color-text-primary)' }}>
+              My Quick Workspace & Entry Actions
+            </h2>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+              Personalized for {user?.fullName || 'User'}
+            </span>
+            <button
+              onClick={() => setShowCustomizeModal(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                background: 'var(--color-bg)',
+                border: '1px solid var(--color-border)',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--color-accent)',
+                cursor: 'pointer',
+              }}
+            >
+              <Settings size={13} /> Customize Shortcuts
+            </button>
+          </div>
+        </div>
+
+        {/* Action Buttons Grid */}
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px' }}>
+          {(workspace?.quickActions || [
+            { id: 'new_sale', label: 'New Sale Invoice', path: '/transactions/sales/new', iconName: 'Plus', color: '#1e40af' },
+            { id: 'new_purchase', label: 'New Purchase Bill', path: '/transactions/purchases/new', iconName: 'Plus', color: '#166534' },
+            { id: 'cash_bank', label: 'Cash / Bank Voucher', path: '/vouchers/cash-bank', iconName: 'Wallet', color: '#6b21a8' },
+            { id: 'add_stock', label: 'Add Stock Packet', path: '/inventory/stock/new', iconName: 'Gem', color: '#155e75' },
+            { id: 'add_account', label: 'New Party Account', path: '/masters/accounting/accounts/new', iconName: 'Users', color: '#92400e' },
+          ]).map((act, idx) => {
+            const bgColors = ['#eff6ff', '#f0fdf4', '#f3e8ff', '#ecfeff', '#fffbeb', '#fef2f2'];
+            const borderColors = ['#bfdbfe', '#bbf7d0', '#e9d5ff', '#a5f3fc', '#fde68a', '#fecaca'];
+            const bg = bgColors[idx % bgColors.length];
+            const border = borderColors[idx % borderColors.length];
+
+            return (
+              <button
+                key={act.id || act.path}
+                onClick={() => navigate(act.path)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '10px',
+                  padding: '12px 14px',
+                  background: bg,
+                  border: `1px solid ${border}`,
+                  borderRadius: '10px',
+                  cursor: 'pointer',
+                  color: act.color || '#1e40af',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                }}
+              >
+                <Plus size={16} /> {act.label.startsWith('+') ? act.label : `+ ${act.label}`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* ─── Customize Workspace Modal ───────────────────────────────── */}
+      {showCustomizeModal && workspace && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(15, 23, 42, 0.6)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+          }}
+        >
+          <div
+            style={{
+              width: '640px',
+              maxHeight: '85vh',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: '16px',
+              boxShadow: '0 25px 50px -12px rgba(0,0,0,0.25)',
+              display: 'flex',
+              flexDirection: 'column',
+              overflow: 'hidden',
+            }}
+          >
+            {/* Modal Header */}
+            <div
+              style={{
+                padding: '16px 20px',
+                borderBottom: '1px solid var(--color-border)',
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                background: '#f8fafc',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <Zap size={18} color="var(--color-accent)" />
+                <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--color-text-primary)' }}>
+                  Customize Quick Action Entry Buttons
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowCustomizeModal(false)}
+                style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b' }}
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div style={{ padding: '20px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0 }}>
+                Select any pages across the ERP to add as direct ⚡ Quick Action Entry Buttons on your personal home workspace.
+              </p>
+
+              {/* Category Filter Tabs */}
+              <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '4px' }}>
+                {PAGE_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setSelectedCategory(cat)}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid',
+                      borderColor: selectedCategory === cat ? 'var(--color-accent)' : 'var(--color-border)',
+                      background: selectedCategory === cat ? 'var(--color-accent)' : 'var(--color-bg)',
+                      color: selectedCategory === cat ? '#ffffff' : 'var(--color-text-secondary)',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+
+              {/* Pages Selector Grid */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+                {PAGE_REGISTRY.filter((p) => p.category === selectedCategory).map((page) => {
+                  const isSelected = workspace.quickActions?.some((q) => q.path === page.uri);
+                  return (
+                    <button
+                      key={page.uri}
+                      onClick={async () => {
+                        let currentActions = workspace.quickActions || [];
+                        if (isSelected) {
+                          currentActions = currentActions.filter((q) => q.path !== page.uri);
+                        } else {
+                          currentActions = [
+                            ...currentActions,
+                            { id: page.uri, label: page.label, path: page.uri, iconName: 'Plus', color: '#1e40af' },
+                          ];
+                        }
+                        const res = await updateWorkspace({
+                          userId: user!.id,
+                          workspace: { quickActions: currentActions },
+                        });
+                        if (res.success && res.data) {
+                          setWorkspace(res.data);
+                        }
+                      }}
+                      style={{
+                        padding: '12px',
+                        borderRadius: '10px',
+                        border: '1px solid',
+                        borderColor: isSelected ? 'var(--color-accent)' : 'var(--color-border)',
+                        background: isSelected ? 'rgba(59, 130, 246, 0.08)' : 'var(--color-bg)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                        + {page.label}
+                      </span>
+                      {isSelected ? (
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--color-accent)', fontWeight: 700 }}>
+                          <Check size={14} /> Added
+                        </span>
+                      ) : (
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-muted)' }}>+ Add Action</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div
+              style={{
+                padding: '14px 20px',
+                borderTop: '1px solid var(--color-border)',
+                background: '#f8fafc',
+                display: 'flex',
+                justifyContent: 'flex-end',
+              }}
+            >
+              <Button onClick={() => setShowCustomizeModal(false)} variant="primary" size="sm">
+                Done
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── 2. Financial KPI Telemetry Cards Grid ────────────────────── */}
       <div style={{
