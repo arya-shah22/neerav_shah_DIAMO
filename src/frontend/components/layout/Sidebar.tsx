@@ -27,7 +27,8 @@ import {
   Package,
   ChevronDown,
   ChevronRight,
-  Brain
+  Brain,
+  RefreshCw,
 } from 'lucide-react';
 
 interface SidebarProps {
@@ -71,7 +72,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       nextOpen['masters'] = true;
     } else if (currentPath.startsWith('/inventory') || currentPath === '/reports/stock') {
       nextOpen['inventory'] = true;
-    } else if (currentPath.startsWith('/transactions/jobs') || currentPath === '/transactions/challans/job-work') {
+    } else if (currentPath.startsWith('/transactions/jobs') || currentPath.startsWith('/transactions/challans/job-work')) {
       nextOpen['job'] = true;
     } else if (currentPath.startsWith('/transactions')) {
       nextOpen['transactions'] = true;
@@ -142,6 +143,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       icon: <Package size={18} />,
       subItems: [
         { path: '/inventory/stock', label: 'Stock Inventory', icon: <Package size={16} /> },
+        { path: '/inventory/stock-conversion', label: 'Stock Conversion', icon: <RefreshCw size={16} /> },
         { path: '/reports/stock', label: 'Stock Report', icon: <FileText size={16} /> },
       ],
     },

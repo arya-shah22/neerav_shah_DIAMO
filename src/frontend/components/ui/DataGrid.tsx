@@ -198,8 +198,8 @@ export function DataGrid<T extends object>({
         </table>
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
+      {/* Pagination & Count */}
+      {sortedData.length > 0 && (
         <div style={{
           display: 'flex',
           alignItems: 'center',
@@ -212,52 +212,56 @@ export function DataGrid<T extends object>({
           borderBottomLeftRadius: '8px',
           borderBottomRightRadius: '8px'
         }}>
-          <span style={{ fontWeight: 500 }}>{sortedData.length} total records</span>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <button
-              disabled={page === 0}
-              onClick={() => setPage((p) => p - 1)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '6px',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                background: 'var(--color-bg-card)',
-                cursor: page === 0 ? 'not-allowed' : 'pointer',
-                color: 'var(--color-text)',
-                opacity: page === 0 ? 0.4 : 1,
-                transition: 'all 0.2s',
-                outline: 'none'
-              }}
-            >
-              <ChevronLeft size={16} />
-            </button>
-            <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text)' }}>
-              Page {page + 1} of {totalPages}
-            </span>
-            <button
-              disabled={page >= totalPages - 1}
-              onClick={() => setPage((p) => p + 1)}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '6px',
-                border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                background: 'var(--color-bg-card)',
-                cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
-                color: 'var(--color-text)',
-                opacity: page >= totalPages - 1 ? 0.4 : 1,
-                transition: 'all 0.2s',
-                outline: 'none'
-              }}
-            >
-              <ChevronRight size={16} />
-            </button>
-          </div>
+          <span style={{ fontWeight: 500 }}>
+            Showing {page * pageSize + 1}–{Math.min((page + 1) * pageSize, sortedData.length)} of {sortedData.length} total records
+          </span>
+          {totalPages > 1 && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <button
+                disabled={page === 0}
+                onClick={() => setPage((p) => p - 1)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '6px',
+                  background: 'var(--color-bg-card)',
+                  cursor: page === 0 ? 'not-allowed' : 'pointer',
+                  color: 'var(--color-text)',
+                  opacity: page === 0 ? 0.4 : 1,
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+              >
+                <ChevronLeft size={16} />
+              </button>
+              <span style={{ fontWeight: 600, fontSize: '13px', color: 'var(--color-text)' }}>
+                Page {page + 1} of {totalPages}
+              </span>
+              <button
+                disabled={page >= totalPages - 1}
+                onClick={() => setPage((p) => p + 1)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  padding: '6px',
+                  border: '1px solid var(--color-border)',
+                  borderRadius: '6px',
+                  background: 'var(--color-bg-card)',
+                  cursor: page >= totalPages - 1 ? 'not-allowed' : 'pointer',
+                  color: 'var(--color-text)',
+                  opacity: page >= totalPages - 1 ? 0.4 : 1,
+                  transition: 'all 0.2s',
+                  outline: 'none'
+                }}
+              >
+                <ChevronRight size={16} />
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>

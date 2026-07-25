@@ -144,6 +144,7 @@ enum StockStatus {
   RETURNED
   DAMAGED
   ARCHIVED
+  PROCESSED
 }
 
 enum StockOwnership {
@@ -169,6 +170,7 @@ enum MovementType {
   MANUAL_ADJUSTMENT
   CORRECTION
   ARCHIVE
+  QUALITY_TRANSFORMATION
 }
 
 enum VoucherType {
@@ -195,6 +197,7 @@ enum VoucherType {
   STOCK_ADJUSTMENT
   OPENING
   LOAN_VOUCHER
+  STOCK_CONVERSION
 }
 
 enum NumberingMethod {
@@ -386,6 +389,7 @@ model Company {
   userCompanyAccess      UserCompanyAccess[]
   notificationRecords    NotificationRecord[]
   Loan                   Loan[]
+  stockConversions       StockConversion[]
 
   @@map("companies")
 }
@@ -638,7 +642,9 @@ model Quality {
   purchaseInvoiceItems PurchaseInvoiceItem[]
   challanItems         ChallanItem[]
   jobVoucherItems      JobVoucherItem[]
-  stockPackets         StockPacket[]
+  stockPackets                StockPacket[]
+  conversionSourceQualities   StockConversion[]       @relation("ConversionSourceQuality")
+  conversionOutputQualities   StockConversionOutput[] @relation("ConversionOutputQuality")
 
   @@unique([companyId, qualityName], map: "UQ_qualities_company_name")
   @@unique([companyId, itemCode], map: "UQ_qualities_company_code")
@@ -1327,6 +1333,10 @@ model StockPacket {
   currentOwnerId   Int?           @map("current_owner_id") @db.UnsignedInt
   currentLocation  String?        @map("current_location") @db.VarChar(100)
 
+  // Lineage / Origin Tracking
+  sourcePacketId    Int?    @map("source_packet_id") @db.UnsignedInt
+  sourceTransformId Int?    @map("source_transform_id") @db.UnsignedInt
+
   // Audit
   createdBy Int?      @map("created_by") @db.UnsignedInt
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -1340,16 +1350,21 @@ model StockPacket {
   // Relations
   company        Company            @relation(fields: [companyId], references: [id])
   quality        Quality            @relation(fields: [qualityId], references: [id])
+  sourcePacket   StockPacket?       @relation("PacketLineage", fields: [sourcePacketId], references: [id])
+  derivedPackets StockPacket[]      @relation("PacketLineage")
   movements      StockMovement[]
   reservations   StockReservation[]
   media          StockMedia[]
-  jobCostEntries JobCostEntry[]
+  jobCostEntries    JobCostEntry[]
+  conversionSources StockConversion[]       @relation("ConversionSource")
+  conversionOutputs StockConversionOutput[] @relation("ConversionOutput")
 
   @@unique([companyId, stockIdNumber], map: "UQ_stock_packets_id_number")
   @@index([companyId, currentStatus], map: "IX_stock_packets_status")
   @@index([companyId, shape, color, clarity], map: "IX_stock_packets_physical")
   @@index([companyId, caratWeight], map: "IX_stock_packets_weight")
   @@index([companyId, qualityId], map: "IX_stock_packets_quality")
+  @@index([sourcePacketId], map: "IX_stock_packets_source")
   @@fulltext([stockIdNumber], map: "FT_stock_packets_id")
   @@map("stock_packets")
 }
@@ -1929,5 +1944,87 @@ model AppNotification {
 
   @@index([companyId, isRead], map: "IX_app_notifications_company_read")
   @@map("app_notifications")
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: STOCK QUALITY TRANSFORMATION (Rough → Diamond Conversion)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Records a quality transformation event (e.g. Rough → Polished Diamond).
+model StockConversion {
+  id                Int      @id @default(autoincrement()) @db.UnsignedInt
+  companyId         Int      @map("company_id") @db.UnsignedInt
+  conversionDate    DateTime @map("conversion_date") @db.Date
+  conversionNumber  String   @map("conversion_number") @db.VarChar(50)
+
+  // Input (Source Rough Packet)
+  sourcePacketId    Int      @map("source_packet_id") @db.UnsignedInt
+  sourceQualityId   Int      @map("source_quality_id") @db.UnsignedInt
+  sourceCarats      Decimal  @map("source_carats") @db.Decimal(12, 3)
+  sourceCost        Decimal  @default(0.00) @map("source_cost") @db.Decimal(18, 2)
+
+  // Consumption Mode
+  isFullConsumption Boolean  @default(true) @map("is_full_consumption")
+  consumedCarats    Decimal  @default(0.000) @map("consumed_carats") @db.Decimal(12, 3)
+  remainingCarats   Decimal  @default(0.000) @map("remaining_carats") @db.Decimal(12, 3)
+
+  // Job Work Reference (optional)
+  jobVoucherId      Int?     @map("job_voucher_id") @db.UnsignedInt
+  challanVoucherId  Int?     @map("challan_voucher_id") @db.UnsignedInt
+  processingCost    Decimal  @default(0.00) @map("processing_cost") @db.Decimal(18, 2)
+
+  // Yield Summary
+  totalOutputCarats Decimal  @default(0.000) @map("total_output_carats") @db.Decimal(12, 3)
+  weightLoss        Decimal  @default(0.000) @map("weight_loss") @db.Decimal(12, 3)
+  lossPercentage    Decimal  @default(0.00) @map("loss_percentage") @db.Decimal(5, 2)
+
+  narration         String?  @db.Text
+
+  // Audit
+  createdBy Int?     @map("created_by") @db.UnsignedInt
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+  isDeleted Boolean  @default(false) @map("is_deleted")
+
+  // Relations
+  company       Company     @relation(fields: [companyId], references: [id])
+  sourcePacket  StockPacket @relation("ConversionSource", fields: [sourcePacketId], references: [id])
+  sourceQuality Quality     @relation("ConversionSourceQuality", fields: [sourceQualityId], references: [id])
+  outputItems   StockConversionOutput[]
+
+  @@index([companyId, conversionDate], map: "IX_stock_conversions_date")
+  @@index([sourcePacketId], map: "IX_stock_conversions_source")
+  @@map("stock_conversions")
+}
+
+/// Output line items of a stock conversion (each becomes a new StockPacket).
+model StockConversionOutput {
+  id                Int     @id @default(autoincrement()) @db.UnsignedInt
+  stockConversionId Int     @map("stock_conversion_id") @db.UnsignedInt
+  rowNumber         Int     @map("row_number") @db.UnsignedInt
+
+  // Output Packet Reference
+  outputPacketId    Int     @map("output_packet_id") @db.UnsignedInt
+  outputQualityId   Int     @map("output_quality_id") @db.UnsignedInt
+
+  // Physical Properties
+  carats            Decimal @map("carats") @db.Decimal(12, 3)
+  pieces            Int     @default(1) @db.UnsignedInt
+  shape             String? @db.VarChar(30)
+  color             String? @db.VarChar(30)
+  clarity           String? @db.VarChar(30)
+  cut               String? @db.VarChar(30)
+
+  // Cost — manually entered by user
+  costPerCarat      Decimal @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
+  totalCost         Decimal @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  remarks           String? @db.VarChar(255)
+
+  // Relations
+  stockConversion StockConversion @relation(fields: [stockConversionId], references: [id])
+  outputPacket    StockPacket     @relation("ConversionOutput", fields: [outputPacketId], references: [id])
+  outputQuality   Quality         @relation("ConversionOutputQuality", fields: [outputQualityId], references: [id])
+
+  @@index([stockConversionId], map: "IX_stock_conversion_outputs_conv")
+  @@map("stock_conversion_outputs")
 }
 

@@ -106,6 +106,45 @@ export const StockDetailPage: React.FC = () => {
             </div>
           </div>
 
+          {/* Lineage / Origin Card (shows if converted from Rough) */}
+          {packet.sourcePacket && (
+            <div style={{ ...cardStyle, borderLeft: '4px solid var(--color-accent)' }}>
+              <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🔗 Origin / Lineage (Converted Stock)
+              </h2>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+                <DetailRow
+                  label="Source Packet"
+                  value={
+                    <a
+                      onClick={() => navigate(`/inventory/stock/${packet.sourcePacket?.id}`)}
+                      style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                      {packet.sourcePacket.stockIdNumber}
+                    </a>
+                  }
+                />
+                <DetailRow label="Original Quality" value={packet.sourcePacket.quality?.qualityName || '—'} />
+                <DetailRow label="Original Weight" value={`${Number(packet.sourcePacket.caratWeight).toFixed(3)} ct`} />
+                <DetailRow label="Source Status" value={packet.sourcePacket.currentStatus} />
+                {packet.sourceTransformId && (
+                  <DetailRow
+                    label="Conversion Record"
+                    value={
+                      <a
+                        onClick={() => navigate(`/inventory/stock-conversion/${packet.sourceTransformId}`)}
+                        style={{ color: 'var(--color-accent)', fontWeight: 600, cursor: 'pointer' }}
+                      >
+                        View Conversion #{packet.sourceTransformId}
+                      </a>
+                    }
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+
           <div style={cardStyle}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Measurements & Certification</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>

@@ -152,7 +152,6 @@ export class ChallanService {
     const partyId = Number(data.partyId);
     if (!partyId) throw new BadRequestException('Party is required');
 
-    const voucherNumber = await this.previewVoucherNumber(companyId, financialYearId, purpose);
     const vType = purposeToVoucherType(purpose);
 
     return this.prisma.$transaction(async (tx) => {
@@ -168,8 +167,8 @@ export class ChallanService {
         });
       }
 
-      // 1. Increment sequence
-      await tx.voucherNumberSequence.upsert({
+      // 1. Increment sequence atomically inside transaction
+      const sequence = await tx.voucherNumberSequence.upsert({
         where: {
           companyId_financialYearId_voucherType: {
             companyId,
@@ -189,6 +188,32 @@ export class ChallanService {
           lastGeneratedAt: new Date(),
         },
       });
+
+      // Format voucher number using sequence inside transaction
+      const company = await tx.company.findUnique({ where: { id: companyId } });
+      const fy = await tx.financialYear.findUnique({ where: { id: financialYearId } });
+      const config = await tx.voucherNumberConfig.findFirst({
+        where: { companyId, voucherType: vType },
+      });
+      const startYear = fy ? fy.fromDate.getFullYear() : new Date().getFullYear();
+      const endYear = fy ? fy.toDate.getFullYear() : new Date().getFullYear();
+      const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
+
+      let typeAbbr = 'CHL';
+      if (purpose === 'JOB_WORK') typeAbbr = 'CH-JW';
+      else if (purpose === 'TRADING_JHANGHAD') typeAbbr = 'CH-T';
+      else if (purpose === 'SALE_ORDER') typeAbbr = 'CH-SO';
+      else if (purpose === 'PURCHASE_ORDER') typeAbbr = 'CH-PO';
+
+      const activeConfig = config || {
+        prefix: typeAbbr,
+        separator: '-',
+        suffix: '',
+        digitLength: 6,
+        includeYear: true,
+      };
+
+      const voucherNumber = formatVoucherNumber(sequence.currentNumber, activeConfig, yearSuffix, typeAbbr, company?.companyCode || '');
 
       // 2. Validate items and lock packets
       const itemsList = Array.isArray(data.items) ? data.items : [];

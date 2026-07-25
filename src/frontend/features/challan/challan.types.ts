@@ -10,7 +10,16 @@ export type ChallanPurpose =
   | 'SALE_ORDER'
   | 'PURCHASE_ORDER';
 
-export type ChallanStatus = 'DRAFT' | 'ISSUED' | 'DISPATCHED' | 'RECEIVED' | 'RETURNED' | 'PARTIALLY_RETURNED' | 'CLOSED' | 'CANCELLED';
+export type ChallanStatus =
+  | 'DRAFT'
+  | 'ISSUED'
+  | 'DISPATCHED'
+  | 'RECEIVED'
+  | 'RETURNED'
+  | 'PARTIALLY_RETURNED'
+  | 'CONVERTED'
+  | 'CLOSED'
+  | 'CANCELLED';
 
 export interface IChallanItem {
   id?: number;
@@ -76,6 +85,7 @@ export const CHALLAN_STATUS_LABELS: Record<ChallanStatus, string> = {
   RECEIVED: 'Received',
   RETURNED: 'Returned',
   PARTIALLY_RETURNED: 'Partially Returned',
+  CONVERTED: 'Converted',
   CLOSED: 'Closed',
   CANCELLED: 'Cancelled',
 };
@@ -90,6 +100,7 @@ export const CHALLAN_STATUS_BADGE_VARIANT: Record<
   RECEIVED: 'success',
   RETURNED: 'success',
   PARTIALLY_RETURNED: 'warning',
+  CONVERTED: 'info',
   CLOSED: 'default',
   CANCELLED: 'danger',
 };

@@ -107,6 +107,16 @@ export class StockService {
       where: { id, companyId, isDeleted: false },
       include: {
         ...STOCK_INCLUDE,
+        sourcePacket: {
+          select: {
+            id: true,
+            stockIdNumber: true,
+            caratWeight: true,
+            qualityId: true,
+            quality: { select: { id: true, qualityName: true, itemCode: true } },
+            currentStatus: true,
+          },
+        },
         movements: { orderBy: { createdAt: 'desc' }, take: 1 },
         _count: { select: { movements: true, reservations: true, media: true } },
       },

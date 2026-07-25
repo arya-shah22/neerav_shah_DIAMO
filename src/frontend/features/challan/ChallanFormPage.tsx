@@ -40,6 +40,11 @@ interface StockPacketObj {
   costPerCarat: number;
   qualityId: number;
   currentStatus: string;
+  quality?: {
+    id: number;
+    qualityName: string;
+    itemCode: string;
+  };
 }
 
 export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = false }) => {
@@ -377,6 +382,12 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
       }));
       setReturnItems(itemsToReturn);
       setShowStatusModal(true);
+    } else if (newStatus === 'CONVERTED') {
+      const firstPacketId = items.find((it) => it.stockPacketId)?.stockPacketId;
+      const queryParams = new URLSearchParams();
+      if (firstPacketId) queryParams.set('packetId', String(firstPacketId));
+      if (id) queryParams.set('challanId', String(id));
+      navigate(`/inventory/stock-conversion/new?${queryParams.toString()}`);
     } else if (newStatus === 'RETURNED') {
       if (confirm('Mark this challan as completely returned? All items will be marked fully returned, and reserved stock packets will become AVAILABLE.')) {
         await executeStatusUpdate(newStatus);
@@ -586,7 +597,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
           <thead>
             <tr style={{ textAlign: 'left', borderBottom: '2px solid var(--color-border)' }}>
               {(purpose === 'TRADING_JHANGHAD' || purpose === 'JOB_WORK') && (
-                <th style={{ padding: '8px 4px' }}>Select Stock Packet</th>
+                <th style={{ padding: '8px 4px', width: '240px' }}>Select Stock Packet</th>
               )}
               <th style={{ padding: '8px 4px' }}>Description of Goods (Quality) *</th>
               <th style={{ padding: '8px 4px', width: '100px' }}>CARATS *</th>
@@ -606,11 +617,17 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
               return (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
                   {(purpose === 'TRADING_JHANGHAD' || purpose === 'JOB_WORK') && (
-                    <td style={{ padding: '8px 4px' }}>
+                    <td style={{ padding: '8px 4px', width: '240px' }}>
                       <Select
                         value={row.stockPacketId ? String(row.stockPacketId) : ''}
                         onChange={(val: string) => handleRowChange(idx, 'stockPacketId', val)}
-                        options={availableForThisRow.map(p => ({ value: String(p.id), label: p.stockIdNumber }))}
+                        options={availableForThisRow.map(p => {
+                          const qName = p.quality?.qualityName || qualities.find(q => q.id === p.qualityId)?.qualityName || '';
+                          return {
+                            value: String(p.id),
+                            label: qName ? `${p.stockIdNumber} (${qName})` : p.stockIdNumber,
+                          };
+                        })}
                         placeholder="Select Packet"
                         disabled={viewMode}
                       />

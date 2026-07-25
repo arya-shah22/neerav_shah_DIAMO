@@ -451,6 +451,16 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const onError = (errors: any) => {
     console.error('Form Validation Errors:', errors);
     const firstKey = Object.keys(errors)[0];
+    if (firstKey === 'items' && Array.isArray(errors.items)) {
+      const itemErrIndex = errors.items.findIndex((itemErr: any) => itemErr && Object.keys(itemErr).length > 0);
+      if (itemErrIndex !== -1) {
+        const itemErrObj = errors.items[itemErrIndex];
+        const fieldKey = Object.keys(itemErrObj)[0];
+        const msg = itemErrObj[fieldKey]?.message || 'Required field missing';
+        showToast(`Item #${itemErrIndex + 1} Error (${fieldKey}): ${msg}`, 'error');
+        return;
+      }
+    }
     if (firstKey) {
       const errMsg = errors[firstKey]?.message || errors[firstKey]?.root?.message || 'Please check required fields';
       showToast(`Validation Error (${firstKey}): ${errMsg}`, 'error');
@@ -664,8 +674,9 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                 style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: '13px', color: 'var(--color-primary)' }}
                                 value={watch(`items.${index}.stockPacketId`) || ''}
                                 onChange={(e) => {
-                                  const pktId = e.target.value ? Number(e.target.value) : null;
-                                  setValue(`items.${index}.stockPacketId`, pktId);
+                                  const val = e.target.value;
+                                  const pktId = (val && val !== '' && val !== 'null') ? Number(val) : null;
+                                  setValue(`items.${index}.stockPacketId`, pktId as any);
                                   const pkt = availablePackets.find((p) => p.id === pktId);
                                   if (pkt) {
                                     setValue(`items.${index}.carats`, Number(pkt.caratWeight));
@@ -797,13 +808,13 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                   onChange: (e) => { e.target.value = e.target.value.toUpperCase(); }
                                 })} 
                               />
-                              <Input label="Length (mm)" type="number" step="0.01" {...register(`items.${index}.lengthMm`, { valueAsNumber: true })} />
-                              <Input label="Width (mm)" type="number" step="0.01" {...register(`items.${index}.widthMm`, { valueAsNumber: true })} />
-                              <Input label="Depth (mm)" type="number" step="0.01" {...register(`items.${index}.depthMm`, { valueAsNumber: true })} />
-                              <Input label="Depth %" type="number" step="0.1" {...register(`items.${index}.totalDepthPct`, { valueAsNumber: true })} />
+                              <Input label="Length (mm)" type="number" step="0.01" {...register(`items.${index}.lengthMm`)} />
+                              <Input label="Width (mm)" type="number" step="0.01" {...register(`items.${index}.widthMm`)} />
+                              <Input label="Depth (mm)" type="number" step="0.01" {...register(`items.${index}.depthMm`)} />
+                              <Input label="Depth %" type="number" step="0.1" {...register(`items.${index}.totalDepthPct`)} />
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px' }}>
-                              <Input label="Table %" type="number" step="0.1" {...register(`items.${index}.tablePct`, { valueAsNumber: true })} />
+                              <Input label="Table %" type="number" step="0.1" {...register(`items.${index}.tablePct`)} />
                               <Input label="Certificate Type" placeholder="e.g. GIA" {...register(`items.${index}.certificateType`)} />
                               <Input label="Certificate Number" placeholder="e.g. 12345" {...register(`items.${index}.certificateNumber`)} />
                               <Input label="Image URL" placeholder="e.g. http://..." {...register(`items.${index}.imageLink`)} />

@@ -1,15 +1,31 @@
 import { z } from 'zod';
 
+const optionalNumber = z.preprocess((val) => {
+  if (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val))) {
+    return undefined;
+  }
+  return Number(val);
+}, z.number().optional().nullable());
+
 export const invoiceItemSchema = z.object({
-  qualityId: z.number({ required_error: 'Quality is required' }),
+  qualityId: z.number({ required_error: 'Quality is required', invalid_type_error: 'Quality is required' }).min(1, 'Quality is required'),
   hsnNumber: z.string().max(8).optional().default('7113'),
-  quantity: z.number().optional().default(0),
-  carats: z.number({ required_error: 'Carats is required' }).positive('Carats must be positive'),
-  pieces: z.number().min(0).optional().nullable().default(1),
+  quantity: optionalNumber.default(0),
+  carats: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? 0 : Number(val)),
+    z.number({ required_error: 'Carats is required' }).positive('Carats must be greater than 0')
+  ),
+  pieces: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? null : Number(val)),
+    z.number().min(0).optional().nullable().default(1)
+  ),
   isPiecesUncounted: z.boolean().optional().default(false),
-  rate: z.number({ required_error: 'Rate is required' }).min(0, 'Rate cannot be negative'),
-  discountPct: z.number().min(0).max(100).default(0),
-  stockPacketId: z.preprocess((val) => (val === '' || val === null || Number.isNaN(val) ? null : Number(val)), z.number().nullable().optional()),
+  rate: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? 0 : Number(val)),
+    z.number({ required_error: 'Rate is required' }).min(0, 'Rate cannot be negative')
+  ),
+  discountPct: optionalNumber.default(0),
+  stockPacketId: z.preprocess((val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? null : Number(val)), z.number().nullable().optional()),
   stockIdNumber: z.string().optional(),
   isManualStockId: z.boolean().optional().default(false),
   category: z.string().optional(),
@@ -21,11 +37,11 @@ export const invoiceItemSchema = z.object({
   symmetry: z.string().optional(),
   certificateType: z.string().optional(),
   certificateNumber: z.string().optional(),
-  lengthMm: z.number().optional().nullable(),
-  widthMm: z.number().optional().nullable(),
-  depthMm: z.number().optional().nullable(),
-  totalDepthPct: z.number().optional().nullable(),
-  tablePct: z.number().optional().nullable(),
+  lengthMm: optionalNumber,
+  widthMm: optionalNumber,
+  depthMm: optionalNumber,
+  totalDepthPct: optionalNumber,
+  tablePct: optionalNumber,
   imageLink: z.string().optional(),
   videoLink: z.string().optional(),
 });

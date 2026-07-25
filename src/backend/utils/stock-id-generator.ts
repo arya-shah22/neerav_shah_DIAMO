@@ -69,27 +69,52 @@ export async function generateStockIdNumber(
   const separator = activeConfig.separator ?? '-';
   const pattern = activeConfig.includeYear !== false ? `${prefix}${separator}${year}${separator}` : `${prefix}${separator}`;
 
-  const existing = await prisma.stockPacket.findMany({
-    where: {
-      companyId,
-      stockIdNumber: { startsWith: pattern },
-    },
-    select: { stockIdNumber: true },
-  });
-
+  // Concurrency-safe Sequence Generation: Query max sequence with row-level lock or raw SQL FOR UPDATE
   let nextSequence = 1;
-  if (existing.length > 0) {
-    let maxSeq = 0;
-    for (const item of existing) {
-      const segment = item.stockIdNumber.slice(pattern.length);
-      const parsed = parseInt(segment, 10);
-      if (!Number.isNaN(parsed) && /^\d+$/.test(segment)) {
-        if (parsed > maxSeq) {
-          maxSeq = parsed;
+  try {
+    const rawResult: Array<{ stock_id_number: string }> = await (prisma as any).$queryRawUnsafe(
+      `SELECT stock_id_number FROM stock_packets WHERE company_id = ? AND stock_id_number LIKE ? ORDER BY id DESC FOR UPDATE`,
+      companyId,
+      `${pattern}%`
+    );
+
+    if (rawResult && rawResult.length > 0) {
+      let maxSeq = 0;
+      for (const item of rawResult) {
+        if (!item.stock_id_number) continue;
+        const segment = item.stock_id_number.slice(pattern.length);
+        const parsed = parseInt(segment, 10);
+        if (!Number.isNaN(parsed) && /^\d+$/.test(segment)) {
+          if (parsed > maxSeq) {
+            maxSeq = parsed;
+          }
         }
       }
+      nextSequence = maxSeq + 1;
     }
-    nextSequence = maxSeq + 1;
+  } catch (err) {
+    // Fallback if raw query is not supported in current tx context
+    const existing = await prisma.stockPacket.findMany({
+      where: {
+        companyId,
+        stockIdNumber: { startsWith: pattern },
+      },
+      select: { stockIdNumber: true },
+    });
+
+    if (existing.length > 0) {
+      let maxSeq = 0;
+      for (const item of existing) {
+        const segment = item.stockIdNumber.slice(pattern.length);
+        const parsed = parseInt(segment, 10);
+        if (!Number.isNaN(parsed) && /^\d+$/.test(segment)) {
+          if (parsed > maxSeq) {
+            maxSeq = parsed;
+          }
+        }
+      }
+      nextSequence = maxSeq + 1;
+    }
   }
 
   return formatStockIdNumber(nextSequence, activeConfig, year);

@@ -12,6 +12,7 @@ import { AccountController } from '../backend/modules/account/account.controller
 import { BrokerController } from '../backend/modules/broker/broker.controller';
 import { QualityController } from '../backend/modules/quality/quality.controller';
 import { StockController } from '../backend/modules/stock/stock.controller';
+import { StockConversionController } from '../backend/modules/stock/stock-conversion.controller';
 import { InvoiceController } from '../backend/modules/invoice/invoice.controller';
 import { ChallanController } from '../backend/modules/challan/challan.controller';
 import { JobController } from '../backend/modules/job/job.controller';
@@ -58,6 +59,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const brokerController = nestApp.get(BrokerController);
   const qualityController = nestApp.get(QualityController);
   const stockController = nestApp.get(StockController);
+  const stockConversionController = nestApp.get(StockConversionController);
   const invoiceController = nestApp.get(InvoiceController);
   const challanController = nestApp.get(ChallanController);
   const jobController = nestApp.get(JobController);
@@ -387,6 +389,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'stock:save-voucher-config', (payload) => stockController.handleSaveVoucherConfig(payload));
   ipcHandle(ipcMain, 'stock:shapes-list', (companyId: number) => stockController.handleListShapes(companyId));
   ipcHandle(ipcMain, 'stock:import-csv', (payload) => stockController.handleImportCsv(payload));
+
+  // ─── Stock Conversion (Quality Transformation) ────────────
+  ipcHandle(ipcMain, 'stock-conversion:list', (payload) => stockConversionController.handleList(payload));
+  ipcHandle(ipcMain, 'stock-conversion:get', (payload) => stockConversionController.handleGet(payload));
+  ipcHandle(ipcMain, 'stock-conversion:by-packet', (payload) => stockConversionController.handleGetByPacket(payload));
+  ipcHandle(ipcMain, 'stock-conversion:create', (payload) => stockConversionController.handleCreate(payload));
+  ipcHandle(ipcMain, 'stock-conversion:delete', (payload) => stockConversionController.handleDelete(payload));
 
   // ─── Stage 4: Invoices ───────────────────────────────────
   ipcHandle(ipcMain, 'invoice:list', (payload) => invoiceController.handleList(payload));

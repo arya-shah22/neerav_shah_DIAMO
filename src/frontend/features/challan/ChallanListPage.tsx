@@ -139,8 +139,14 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
       }));
       setReturnItems(itemsToReturn);
       setShowStatusModal(true);
+    } else if (newStatus === 'CONVERTED') {
+      const firstPacketId = row.items.find((it) => it.stockPacketId)?.stockPacketId;
+      const queryParams = new URLSearchParams();
+      if (firstPacketId) queryParams.set('packetId', String(firstPacketId));
+      queryParams.set('challanId', String(row.id));
+      navigate(`/inventory/stock-conversion/new?${queryParams.toString()}`);
     } else if (newStatus === 'RETURNED') {
-      if (confirm('Mark this challan as completely returned? Reserved packets will become AVAILABLE.')) {
+      if (confirm('Mark this job work issue/challan as completely returned? Reserved packets will be returned to inventory as Available.')) {
         const res = await updateChallanStatus({
           id: row.id,
           companyId,

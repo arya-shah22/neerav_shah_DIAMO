@@ -3,6 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import { ChevronDown } from 'lucide-react';
 
 const OPTION_HEIGHT_PX = 32;
@@ -36,6 +37,7 @@ export const Combobox: React.FC<ComboboxProps> = ({
   const [isOpen, setIsOpen] = useState(false);
   const [inputText, setInputText] = useState(value);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [dropdownCoords, setDropdownCoords] = useState<{ top: number; left: number; width: number }>({ top: 0, left: 0, width: 0 });
   const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
@@ -43,9 +45,32 @@ export const Combobox: React.FC<ComboboxProps> = ({
 
   const listMaxHeight = maxVisibleItems * OPTION_HEIGHT_PX;
 
+  const updateCoords = useCallback(() => {
+    if (inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownCoords({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX,
+        width: rect.width,
+      });
+    }
+  }, []);
+
   useEffect(() => {
     setInputText(value);
   }, [value]);
+
+  useEffect(() => {
+    if (isOpen) {
+      updateCoords();
+      window.addEventListener('resize', updateCoords);
+      window.addEventListener('scroll', updateCoords, true);
+      return () => {
+        window.removeEventListener('resize', updateCoords);
+        window.removeEventListener('scroll', updateCoords, true);
+      };
+    }
+  }, [isOpen, updateCoords]);
 
   const filteredOptions = useMemo(() => {
     const query = inputText.trim().toLowerCase();
@@ -63,9 +88,17 @@ export const Combobox: React.FC<ComboboxProps> = ({
     [onChange],
   );
 
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+      const target = e.target as Node;
+      if (
+        containerRef.current &&
+        !containerRef.current.contains(target) &&
+        dropdownRef.current &&
+        !dropdownRef.current.contains(target)
+      ) {
         if (isOpen) {
           commitValue(inputText);
         }
@@ -208,19 +241,19 @@ export const Combobox: React.FC<ComboboxProps> = ({
           />
         </button>
 
-        {isOpen && !disabled && (
+        {isOpen && !disabled && createPortal(
           <div
+            ref={dropdownRef}
             style={{
-              position: 'absolute',
-              top: '100%',
-              left: 0,
-              right: 0,
-              marginTop: '4px',
+              position: 'fixed',
+              top: `${dropdownCoords.top - window.scrollY}px`,
+              left: `${dropdownCoords.left - window.scrollX}px`,
+              width: `${dropdownCoords.width}px`,
               background: 'var(--color-surface)',
               border: '1px solid var(--color-border)',
               borderRadius: 'var(--radius-md)',
-              boxShadow: 'var(--shadow-lg)',
-              zIndex: 'var(--z-dropdown)',
+              boxShadow: '0 8px 24px rgba(0, 0, 0, 0.15)',
+              zIndex: 99999,
               overflow: 'hidden',
             }}
           >
@@ -257,17 +290,13 @@ export const Combobox: React.FC<ComboboxProps> = ({
                       height: `${OPTION_HEIGHT_PX}px`,
                       display: 'flex',
                       alignItems: 'center',
-                      padding: '0 8px',
-                      fontSize: 'var(--text-label)',
-                      cursor: 'pointer',
-                      background:
-                        option === value
-                          ? 'var(--color-accent-light)'
-                          : index === highlightedIndex
-                            ? 'var(--color-row-alt)'
-                            : 'transparent',
+                      padding: '0 10px',
+                      fontSize: 'var(--text-body)',
                       color: option === value ? 'var(--color-accent)' : 'var(--color-text-primary)',
                       fontWeight: option === value ? 600 : 400,
+                      background: index === highlightedIndex ? 'var(--color-row-alt)' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'background var(--transition-fast)',
                     }}
                   >
                     {option}
@@ -275,7 +304,8 @@ export const Combobox: React.FC<ComboboxProps> = ({
                 ))
               )}
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
 

@@ -57,26 +57,23 @@ export class JournalService {
       });
     }
 
-    let sequence = await this.prisma.voucherNumberSequence.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
-    });
-    if (!sequence) {
-      sequence = await this.prisma.voucherNumberSequence.create({
-        data: {
+    const sequence = await this.prisma.voucherNumberSequence.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
           companyId,
           financialYearId,
           voucherType: VoucherType.JOURNAL_VOUCHER,
-          currentNumber: 0,
-          lastGeneratedAt: new Date(),
         },
-      });
-    }
-
-    const nextNum = sequence.currentNumber + 1;
-    await this.prisma.voucherNumberSequence.update({
-      where: { id: sequence.id },
-      data: {
-        currentNumber: nextNum,
+      },
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: VoucherType.JOURNAL_VOUCHER,
+        currentNumber: 1,
+        lastGeneratedAt: new Date(),
+      },
+      update: {
+        currentNumber: { increment: 1 },
         lastGeneratedAt: new Date(),
       },
     });
@@ -84,7 +81,7 @@ export class JournalService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(nextNum, config, yearSuffix, 'JV', company.companyCode);
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'JV', company.companyCode);
   }
 
   async previewVoucherNumber(companyId: number, financialYearId: number): Promise<string> {

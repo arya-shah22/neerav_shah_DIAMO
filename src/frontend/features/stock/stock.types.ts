@@ -11,7 +11,8 @@ export type StockStatus =
   | 'SOLD'
   | 'RETURNED'
   | 'DAMAGED'
-  | 'ARCHIVED';
+  | 'ARCHIVED'
+  | 'PROCESSED';
 
 export type StockCategory = 'CERTIFIED' | 'NON_CERTIFIED';
 
@@ -28,7 +29,8 @@ export type MovementType =
   | 'TRADING_MEMO'
   | 'MANUAL_ADJUSTMENT'
   | 'CORRECTION'
-  | 'ARCHIVE';
+  | 'ARCHIVE'
+  | 'QUALITY_TRANSFORMATION';
 
 export interface IStockQualityRef {
   id: number;
@@ -64,6 +66,17 @@ export interface IStockPacket {
   currentOwnership: StockOwnership;
   currentOwnerId: number | null;
   currentLocation: string | null;
+  // Lineage
+  sourcePacketId?: number | null;
+  sourceTransformId?: number | null;
+  sourcePacket?: {
+    id: number;
+    stockIdNumber: string;
+    caratWeight: number;
+    qualityId: number;
+    quality?: IStockQualityRef;
+    currentStatus: StockStatus;
+  } | null;
   imageLink?: string | null;
   videoLink?: string | null;
   media?: IStockMedia[];
@@ -97,6 +110,52 @@ export interface IStockMovement {
   createdAt: string;
 }
 
+// ─── Stock Conversion Types ─────────────────────────────────
+
+export interface IStockConversionOutput {
+  id: number;
+  stockConversionId: number;
+  rowNumber: number;
+  outputPacketId: number;
+  outputQualityId: number;
+  carats: number;
+  pieces: number;
+  shape: string | null;
+  color: string | null;
+  clarity: string | null;
+  cut: string | null;
+  costPerCarat: number;
+  totalCost: number;
+  remarks: string | null;
+  outputPacket?: IStockPacket;
+  outputQuality?: IStockQualityRef;
+}
+
+export interface IStockConversion {
+  id: number;
+  companyId: number;
+  conversionDate: string;
+  conversionNumber: string;
+  sourcePacketId: number;
+  sourceQualityId: number;
+  sourceCarats: number;
+  sourceCost: number;
+  isFullConsumption: boolean;
+  consumedCarats: number;
+  remainingCarats: number;
+  jobVoucherId: number | null;
+  challanVoucherId: number | null;
+  processingCost: number;
+  totalOutputCarats: number;
+  weightLoss: number;
+  lossPercentage: number;
+  narration: string | null;
+  createdAt: string;
+  sourcePacket?: IStockPacket;
+  sourceQuality?: IStockQualityRef;
+  outputItems: IStockConversionOutput[];
+}
+
 export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   CREATED: 'Created',
   PURCHASED: 'Purchased',
@@ -107,6 +166,7 @@ export const STOCK_STATUS_LABELS: Record<StockStatus, string> = {
   RETURNED: 'Returned',
   DAMAGED: 'Damaged',
   ARCHIVED: 'Archived',
+  PROCESSED: 'Processed',
 };
 
 /** Statuses that allow editing packet details (matches backend EDITABLE_STATUSES). */
@@ -132,8 +192,10 @@ export const STOCK_STATUS_BADGE_VARIANT: Record<
   RETURNED: 'info',
   DAMAGED: 'danger',
   ARCHIVED: 'default',
+  PROCESSED: 'info',
 };
 
 export const CERTIFICATE_TYPES = ['IGI', 'GIA', 'HRD', 'SGL'] as const;
 
 export { DEFAULT_DIAMOND_SHAPES as DIAMOND_SHAPES } from '../../../shared/constants/diamond-shapes';
+

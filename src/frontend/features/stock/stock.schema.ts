@@ -21,7 +21,7 @@ export const stockSchema = z
     category: z.enum(['CERTIFIED', 'NON_CERTIFIED']).default('NON_CERTIFIED'),
     registrationDate: z.string().min(1, 'Registration date is required'),
     currentStatus: z
-      .enum(['CREATED', 'PURCHASED', 'AVAILABLE', 'HOLD', 'JOB_WORK', 'SOLD', 'RETURNED', 'DAMAGED', 'ARCHIVED'])
+      .enum(['CREATED', 'PURCHASED', 'AVAILABLE', 'HOLD', 'JOB_WORK', 'SOLD', 'RETURNED', 'DAMAGED', 'ARCHIVED', 'PROCESSED'])
       .default('AVAILABLE'),
     currentLocation: z.string().max(100).optional(),
     shape: z.string().max(30).optional(),

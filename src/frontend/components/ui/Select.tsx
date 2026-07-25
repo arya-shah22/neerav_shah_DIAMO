@@ -332,13 +332,16 @@ export const Select: React.FC<SelectProps> = ({
         aria-expanded={isOpen}
         onClick={() => {
           if (!disabled) {
+            if (!isOpen) {
+              updateDropdownPosition();
+            }
             setIsOpen((open) => {
               const next = !open;
               if (next) {
-                setTimeout(() => {
+                requestAnimationFrame(() => {
                   updateDropdownPosition();
                   if (searchable) inputRef.current?.focus();
-                }, 0);
+                });
               }
               return next;
             });

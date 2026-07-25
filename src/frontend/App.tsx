@@ -16,6 +16,8 @@ import { AccountListPage, AccountFormPage } from './features/account';
 import { BrokerListPage, BrokerFormPage } from './features/broker';
 import { QualityListPage, QualityFormPage } from './features/quality';
 import { StockListPage, StockFormPage, StockDetailPage } from './features/stock';
+import { StockConversionListPage } from './features/stock/StockConversionListPage';
+import { StockConversionFormPage } from './features/stock/StockConversionFormPage';
 import { InvoiceListPage, InvoiceFormPage, InvoiceViewPage } from './features/invoice';
 import { ChallanListPage, ChallanFormPage } from './features/challan';
 import { JobListPage, JobFormPage } from './features/job';
@@ -145,6 +147,9 @@ const App: React.FC = () => {
                 <Route path="/inventory/stock/new" element={<StockFormPage />} />
                 <Route path="/inventory/stock/edit/:id" element={<StockFormPage />} />
                 <Route path="/inventory/stock/:id" element={<StockDetailPage />} />
+                <Route path="/inventory/stock-conversion" element={<StockConversionListPage />} />
+                <Route path="/inventory/stock-conversion/new" element={<StockConversionFormPage />} />
+                <Route path="/inventory/stock-conversion/:id" element={<StockConversionFormPage viewMode />} />
 
                 {/* Stage 4: Invoices (Sale & Purchase Books) */}
                 <Route path="/transactions/sales" element={<InvoiceListPage type="SALE_INVOICE" />} />

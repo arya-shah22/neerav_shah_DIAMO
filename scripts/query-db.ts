@@ -43,18 +43,23 @@ async function run() {
   });
   console.log(CBV.map(c => ({ id: c.id, type: c.transactionType, num: c.voucherNumber, amt: c.amount.toString(), ref: c.referenceBillNo, isDeleted: c.isDeleted })));
 
-  console.log('--- General Ledger Entries ---');
-  console.log('--- Journal Vouchers ---');
-  const jvs = await prisma.journalVoucher.findMany({
-    where: { companyId: 1 },
-    include: { lines: { include: { account: true } } }
+  console.log('--- Challan Vouchers ---');
+  const challans = await prisma.challanVoucher.findMany({
+    include: { party: true, items: true }
   });
-  console.log(JSON.stringify(jvs.map(j => ({
-    id: j.id,
-    num: j.voucherNumber,
-    status: j.status,
-    lines: j.lines.map(l => ({ id: l.id, accId: l.accountId, name: l.account.accountName, type: l.debitCreditType, amt: l.amount.toString() }))
-  })), null, 2));
+  console.log(JSON.stringify(challans, null, 2));
+
+  console.log('--- Job Vouchers ---');
+  const jobs = await prisma.jobVoucher.findMany({
+    include: { party: true, items: true }
+  });
+  console.log(JSON.stringify(jobs, null, 2));
+
+  console.log('--- Stock Conversions ---');
+  const conversions = await prisma.stockConversion.findMany({
+    include: { outputItems: true }
+  });
+  console.log(JSON.stringify(conversions, null, 2));
 }
 
 run().catch(console.error).finally(() => prisma.$disconnect());

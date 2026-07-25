@@ -461,7 +461,12 @@ export const StockListPage: React.FC = () => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
-          <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Diamond Inventory</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Diamond Inventory</h1>
+            <Badge variant="primary" style={{ fontSize: '13px', padding: '3px 10px', fontWeight: 600 }}>
+              {stock ? stock.length : 0} {stock?.length === 1 ? 'Packet' : 'Packets'}
+            </Badge>
+          </div>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
             Stock packets for {activeCompany?.companyName}
           </p>
