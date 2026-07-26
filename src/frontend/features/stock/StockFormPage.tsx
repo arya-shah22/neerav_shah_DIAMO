@@ -134,6 +134,7 @@ export const StockFormPage: React.FC = () => {
           certificateNumber: s.certificateNumber ?? undefined,
           costPerCarat: Number(s.costPerCarat),
           totalCost: Number(s.totalCost),
+          targetSaleRate: s.targetSaleRate != null ? Number(s.targetSaleRate) : undefined,
           imageLink: s.imageLink ?? '',
           videoLink: s.videoLink ?? '',
         });
@@ -418,10 +419,11 @@ export const StockFormPage: React.FC = () => {
 
         {/* Valuation */}
         <div style={sectionStyle}>
-          <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation</h2>
+          <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation & Target Selling</h2>
           <div style={grid3}>
-            <Input label="Cost per Carat" type="number" step="0.01" {...register('costPerCarat', { valueAsNumber: true })} />
-            <Input label="Total Cost" type="number" step="0.01" {...register('totalCost', { valueAsNumber: true })} />
+            <Input label="Cost per Carat (₹)" type="number" step="0.01" {...register('costPerCarat', { valueAsNumber: true })} />
+            <Input label="Total Cost (₹)" type="number" step="0.01" {...register('totalCost', { valueAsNumber: true })} />
+            <Input label="Target Sale Rate (₹/ct) [Optional]" type="number" step="0.01" placeholder="Target asking price" {...register('targetSaleRate', { valueAsNumber: true })} />
           </div>
         </div>
 

@@ -746,7 +746,7 @@ export const getFundFlowPDFHtml = (ffData: any, activeCompany: any, startDate: s
   `;
 };
 
-export const getStockReportCSV = (reportData: any, activeTab: 'REGISTER' | 'QUALITY') => {
+export const getStockReportCSV = (reportData: any, activeTab: 'REGISTER' | 'QUALITY' | 'PROFITABILITY') => {
   let rows: any[] = [];
   
   // Add summary header lines
@@ -776,6 +776,28 @@ export const getStockReportCSV = (reportData: any, activeTab: 'REGISTER' | 'QUAL
         p.totalValue,
         `"${p.currentStatus}"`,
         `"${p.location}"`
+      ]);
+    });
+  } else if (activeTab === 'PROFITABILITY') {
+    rows.push(['PACKET NUMBER', 'QUALITY', 'CARATS', 'COST RATE (₹/CT)', 'TOTAL COST (₹)', 'TARGET RATE (₹/CT)', 'TARGET VALUATION (₹)', 'EST PROFIT (₹)', 'EST MARGIN %', 'STATUS']);
+    reportData.packets.forEach((p: any) => {
+      const cw = Number(p.caratWeight || 0);
+      const costVal = Number(p.totalValue || 0);
+      const tgtRate = p.targetSaleRate != null ? Number(p.targetSaleRate) : null;
+      const targetVal = tgtRate != null ? cw * tgtRate : '';
+      const profit = tgtRate != null && typeof targetVal === 'number' ? targetVal - costVal : '';
+      const margin = tgtRate != null && typeof targetVal === 'number' && targetVal > 0 && typeof profit === 'number' ? ((profit / targetVal) * 100).toFixed(2) : '';
+      rows.push([
+        `"${p.stockIdNumber}"`,
+        `"${p.qualityName}"`,
+        cw,
+        p.costRate,
+        costVal,
+        tgtRate != null ? tgtRate : '',
+        targetVal,
+        profit,
+        margin,
+        `"${p.currentStatus}"`
       ]);
     });
   } else {

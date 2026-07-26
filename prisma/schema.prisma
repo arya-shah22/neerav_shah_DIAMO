@@ -779,8 +779,9 @@ model SaleInvoiceItem {
   igstAmount    Decimal @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
   cessPct       Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
   cessAmount    Decimal @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
-  netAmount     Decimal @default(0.00) @map("net_amount") @db.Decimal(18, 2)
-  stockPacketId Int?    @map("stock_packet_id") @db.UnsignedInt
+  netAmount      Decimal  @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  targetSaleRate Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
+  stockPacketId  Int?     @map("stock_packet_id") @db.UnsignedInt
 
   // Relations
   saleInvoice SaleInvoice @relation(fields: [saleInvoiceId], references: [id])
@@ -880,7 +881,8 @@ model PurchaseInvoiceItem {
   hsnNumber         String  @map("hsn_number") @db.VarChar(8)
   carats            Decimal @map("carats") @db.Decimal(12, 3)
   pieces            Int     @default(1) @db.UnsignedInt
-  rate              Decimal @map("rate") @db.Decimal(18, 2)
+  rate              Decimal  @map("rate") @db.Decimal(18, 2)
+  targetSaleRate    Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
   lessPct           Decimal @default(0.00) @map("less_pct") @db.Decimal(5, 2)
   termsRate         Decimal @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
   grossAmount       Decimal @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
@@ -1324,8 +1326,9 @@ model StockPacket {
   certificateNumber String? @unique @map("certificate_number") @db.VarChar(50)
 
   // Valuation
-  costPerCarat Decimal @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
-  totalCost    Decimal @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  costPerCarat   Decimal  @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
+  totalCost      Decimal  @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  targetSaleRate Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
 
   // Denormalized Status (updated by StockMovement events)
   currentStatus    StockStatus    @default(CREATED) @map("current_status")
@@ -2015,8 +2018,9 @@ model StockConversionOutput {
   cut               String? @db.VarChar(30)
 
   // Cost — manually entered by user
-  costPerCarat      Decimal @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
-  totalCost         Decimal @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  costPerCarat      Decimal  @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
+  totalCost         Decimal  @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  targetSaleRate    Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
   remarks           String? @db.VarChar(255)
 
   // Relations

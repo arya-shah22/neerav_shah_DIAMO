@@ -352,4 +352,60 @@ export class AccountService {
       openingBalanceType: (data.openingBalanceType as DebitCreditType) || null,
     };
   }
+
+  async seedDefaultAccounts(companyId: number) {
+    const getGroup = async (groupName: string, nature: 'ASSET' | 'LIABILITY' | 'INCOME' | 'EXPENSE') => {
+      let grp = await this.prisma.accountGroup.findFirst({
+        where: { companyId, groupName, isDeleted: false },
+      });
+      if (!grp) {
+        grp = await this.prisma.accountGroup.create({
+          data: { companyId, groupName, nature, sortOrder: 1 },
+        });
+      }
+      return grp.id;
+    };
+
+    const gCash = await getGroup('Cash-in-Hand', 'ASSET');
+    const gBank = await getGroup('Bank Accounts', 'ASSET');
+    const gSales = await getGroup('Sales Accounts', 'INCOME');
+    const gPurchase = await getGroup('Purchase Accounts', 'EXPENSE');
+    const gTaxes = await getGroup('Duties & Taxes', 'LIABILITY');
+    const gDirectExp = await getGroup('Direct Expenses', 'EXPENSE');
+
+    const defaultAccounts = [
+      { name: 'Main Cash Account', groupId: gCash, opening: 500000 },
+      { name: 'HDFC Bank Ltd - Current A/c', groupId: gBank, bankAcc: '50200012345678', ifsc: 'HDFC0000123', opening: 2500000 },
+      { name: 'ICICI Bank - Export A/c', groupId: gBank, bankAcc: '60300098765432', ifsc: 'ICIC0000456', opening: 1500000 },
+      { name: 'Sales - Diamonds', groupId: gSales },
+      { name: 'Purchase - Rough Diamonds', groupId: gPurchase },
+      { name: 'CGST Input/Output', groupId: gTaxes },
+      { name: 'SGST Input/Output', groupId: gTaxes },
+      { name: 'IGST Input/Output', groupId: gTaxes },
+      { name: 'Job Work Expense', groupId: gDirectExp },
+    ];
+
+    let createdCount = 0;
+    for (const item of defaultAccounts) {
+      const existing = await this.prisma.account.findFirst({
+        where: { companyId, accountName: item.name, isDeleted: false },
+      });
+      if (!existing) {
+        await this.prisma.account.create({
+          data: {
+            companyId,
+            accountGroupId: item.groupId,
+            accountName: item.name,
+            printName: item.name,
+            bankAccountNumber: item.bankAcc || null,
+            bankIfsc: item.ifsc || null,
+            openingBalanceAmount: item.opening || 0,
+            openingBalanceType: DebitCreditType.DEBIT,
+          },
+        });
+        createdCount++;
+      }
+    }
+    return { success: true, createdCount };
+  }
 }

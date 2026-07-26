@@ -71,7 +71,7 @@ const emptyRow = (): OutputRow => ({
   isExpanded: true,
 });
 
-export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ viewMode = false }) => {
+export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: boolean }> = ({ viewMode = false, editMode = false }) => {
   const { id } = useParams();
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -81,6 +81,7 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
   const { invoke: fetchPackets } = useIpc<any>('stock:list');
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const { invoke: createConversion } = useIpc('stock-conversion:create');
+  const { invoke: updateConversion } = useIpc('stock-conversion:update');
   const { invoke: fetchConversion } = useIpc<IStockConversion>('stock-conversion:get');
   const { invoke: fetchShapes } = useIpc<string[]>('stock:shapes-list');
 
@@ -115,7 +116,7 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
       if (pkts.success && pkts.data) {
         const rows = (pkts.data.rows || pkts.data || []) as IStockPacket[];
         const available = rows.filter(
-          (p) => p.currentStatus === 'AVAILABLE' || p.currentStatus === 'JOB_WORK'
+          (p) => p.currentStatus === 'AVAILABLE' || p.currentStatus === 'JOB_WORK' || (editMode && p.id === sourcePacketId)
         );
         setPacketsList(available);
         if (queryPacketId && !sourcePacketId) {
@@ -133,22 +134,63 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
       }
     };
     load();
-  }, [companyId, fetchPackets, fetchQualities, fetchShapes, queryPacketId]);
+  }, [companyId, fetchPackets, fetchQualities, fetchShapes, queryPacketId, editMode, sourcePacketId]);
 
-  // Load existing conversion for view mode
+  // Load existing conversion for view or edit mode
   useEffect(() => {
     if (!id || !companyId) return;
     const loadDetails = async () => {
       const res = await fetchConversion({ id: Number(id), companyId });
       if (res.success && res.data) {
         setConversionDetails(res.data);
+        if (editMode) {
+          const conv = res.data;
+          setConversionDate(conv.conversionDate ? new Date(conv.conversionDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0]);
+          setSourcePacketId(conv.sourcePacketId);
+          setIsFullConsumption(conv.isFullConsumption);
+          setConsumedCarats(Number(conv.consumedCarats) || 0);
+          setProcessingCost(Number(conv.processingCost) || 0);
+          setNarration(conv.narration || '');
+
+          if (conv.outputItems && conv.outputItems.length > 0) {
+            setOutputRows(
+              conv.outputItems.map((item: any) => ({
+                qualityId: item.outputQualityId || item.qualityId || 0,
+                carats: Number(item.carats) || 0,
+                pieces: Number(item.pieces) || 1,
+                shape: item.shape || '',
+                color: item.color || '',
+                clarity: item.clarity || '',
+                cut: item.cut || '',
+                costPerCarat: Number(item.costPerCarat) || 0,
+                totalCost: Number(item.totalCost) || 0,
+                remarks: item.remarks || '',
+                isManualStockId: false,
+                stockIdNumber: item.outputPacket?.stockIdNumber || '',
+                category: item.outputPacket?.category || 'NON_CERTIFIED',
+                polish: item.outputPacket?.polish || '',
+                symmetry: item.outputPacket?.symmetry || '',
+                lengthMm: item.outputPacket?.lengthMm || '',
+                widthMm: item.outputPacket?.widthMm || '',
+                depthMm: item.outputPacket?.depthMm || '',
+                totalDepthPct: item.outputPacket?.totalDepthPct || '',
+                tablePct: item.outputPacket?.tablePct || '',
+                certificateType: item.outputPacket?.certificateType || '',
+                certificateNumber: item.outputPacket?.certificateNumber || '',
+                imageLink: item.outputPacket?.imageLink || '',
+                videoLink: item.outputPacket?.videoLink || '',
+                isExpanded: true,
+              }))
+            );
+          }
+        }
       } else {
         showToast(res.error || 'Failed to load conversion', 'error');
         navigate(LIST_ROUTE);
       }
     };
     loadDetails();
-  }, [id, companyId, fetchConversion, showToast, navigate]);
+  }, [id, companyId, fetchConversion, editMode, showToast, navigate]);
 
   // When source packet changes
   useEffect(() => {
@@ -254,12 +296,15 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
       },
     };
 
-    const res = await createConversion(payload);
+    const res = editMode && id
+      ? await updateConversion({ id: Number(id), companyId, data: payload.data })
+      : await createConversion(payload);
+
     if (res.success) {
-      showToast('Stock conversion created successfully!', 'success');
+      showToast(editMode ? 'Stock conversion updated successfully!' : 'Stock conversion created successfully!', 'success');
       navigate(LIST_ROUTE);
     } else {
-      showToast(res.error || 'Failed to create conversion', 'error');
+      showToast(res.error || 'Failed to save conversion', 'error');
     }
   };
 
@@ -268,16 +313,24 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
     const d = conversionDetails;
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <Button variant="ghost" onClick={() => navigate(LIST_ROUTE)}><ArrowLeft size={18} /></Button>
-          <RefreshCw size={22} color="var(--color-accent)" />
-          <div>
-            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>{d.conversionNumber}</h1>
-            <p style={{ color: 'var(--color-text-secondary)' }}>{new Date(d.conversionDate).toLocaleDateString('en-IN')}</p>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+            <Button variant="ghost" onClick={() => navigate(LIST_ROUTE)}><ArrowLeft size={18} /></Button>
+            <RefreshCw size={22} color="var(--color-accent)" />
+            <div>
+              <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>{d.conversionNumber}</h1>
+              <p style={{ color: 'var(--color-text-secondary)' }}>{new Date(d.conversionDate).toLocaleDateString('en-IN')}</p>
+            </div>
           </div>
+          <Button
+            variant="secondary"
+            onClick={() => navigate(`/inventory/stock-conversion/edit/${d.id}`)}
+          >
+            Edit Conversion
+          </Button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--spacing-lg)' }}>
           {/* Source Info */}
           <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>Source (Input)</h2>
@@ -285,7 +338,7 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
               <div><strong>Packet:</strong> {d.sourcePacket?.stockIdNumber || '—'}</div>
               <div><strong>Quality:</strong> {d.sourceQuality?.qualityName || '—'}</div>
               <div><strong>Source Carats:</strong> {Number(d.sourceCarats).toFixed(3)} ct</div>
-              <div><strong>Source Cost:</strong> ₹{Number(d.sourceCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div><strong>Rough Purchase Cost:</strong> ₹{Number(d.sourceCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               <div><strong>Consumption:</strong> {d.isFullConsumption ? 'Full' : `Partial (${Number(d.consumedCarats).toFixed(3)} ct used, ${Number(d.remainingCarats).toFixed(3)} ct remaining)`}</div>
             </div>
           </div>
@@ -296,10 +349,40 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div><strong>Total Output:</strong> {Number(d.totalOutputCarats).toFixed(3)} ct</div>
               <div><strong>Weight Loss:</strong> {Number(d.weightLoss).toFixed(3)} ct ({Number(d.lossPercentage).toFixed(2)}%)</div>
-              <div><strong>Processing Cost:</strong> ₹{Number(d.processingCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div><strong>Job Work / Processing Cost:</strong> ₹{Number(d.processingCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               {d.narration && <div><strong>Narration:</strong> {d.narration}</div>}
             </div>
           </div>
+
+          {/* Lot Yield & Conversion Profit Analysis */}
+          {(() => {
+            const totalInputCost = Number(d.sourceCost) + Number(d.processingCost);
+            const totalOutputValue = d.outputItems.reduce((sum, item) => {
+              const itemVal = item.targetSaleRate != null && Number(item.targetSaleRate) > 0
+                ? Number(item.carats) * Number(item.targetSaleRate)
+                : Number(item.totalCost);
+              return sum + itemVal;
+            }, 0);
+            const netProfit = totalOutputValue - totalInputCost;
+            const profitMarginPct = totalOutputValue > 0 ? (netProfit / totalOutputValue) * 100 : 0;
+            const isProfit = netProfit >= 0;
+
+            return (
+              <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
+                <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>💎 Lot Yield & Profit Analysis</h2>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <div><strong>Total Input Investment:</strong> ₹{totalInputCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })} <span style={{ fontSize: '11px', opacity: 0.7 }}>(Rough + Job Work)</span></div>
+                  <div><strong>Total Output Valuation:</strong> ₹{totalOutputValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div>
+                    <strong>Net Conversion Profit:</strong>{' '}
+                    <span style={{ color: isProfit ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
+                      {isProfit ? '+' : ''}₹{netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({profitMarginPct.toFixed(2)}%)
+                    </span>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
 
         {/* Output Items Table */}
@@ -308,30 +391,36 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                {['#', 'Packet ID', 'Quality', 'Carats', 'Pcs', 'Shape', 'Color', 'Clarity', 'Cost/Ct', 'Total Cost'].map((h) => (
+                {['#', 'Packet ID', 'Quality', 'Carats', 'Pcs', 'Shape', 'Color', 'Clarity', 'Allocated Cost/Ct', 'Allocated Cost', 'Predicted Asking Rate', 'Target Valuation'].map((h) => (
                   <th key={h} style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
-              {d.outputItems.map((item) => (
-                <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '8px' }}>{item.rowNumber}</td>
-                  <td style={{ padding: '8px', fontFamily: 'monospace' }}>
-                    <a onClick={() => navigate(`/inventory/stock/${item.outputPacketId}`)} style={{ color: 'var(--color-accent)', cursor: 'pointer' }}>
-                      {item.outputPacket?.stockIdNumber || `#${item.outputPacketId}`}
-                    </a>
-                  </td>
-                  <td style={{ padding: '8px' }}>{item.outputQuality?.qualityName || '—'}</td>
-                  <td style={{ padding: '8px' }}>{Number(item.carats).toFixed(3)}</td>
-                  <td style={{ padding: '8px' }}>{item.pieces}</td>
-                  <td style={{ padding: '8px' }}>{item.shape || '—'}</td>
-                  <td style={{ padding: '8px' }}>{item.color || '—'}</td>
-                  <td style={{ padding: '8px' }}>{item.clarity || '—'}</td>
-                  <td style={{ padding: '8px' }}>₹{Number(item.costPerCarat).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ padding: '8px' }}>₹{Number(item.totalCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                </tr>
-              ))}
+              {d.outputItems.map((item) => {
+                const targetRate = item.targetSaleRate != null && Number(item.targetSaleRate) > 0 ? Number(item.targetSaleRate) : Number(item.costPerCarat);
+                const targetVal = Number(item.carats) * targetRate;
+                return (
+                  <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                    <td style={{ padding: '8px' }}>{item.rowNumber}</td>
+                    <td style={{ padding: '8px', fontFamily: 'monospace' }}>
+                      <a onClick={() => navigate(`/inventory/stock/${item.outputPacketId}`)} style={{ color: 'var(--color-accent)', cursor: 'pointer' }}>
+                        {item.outputPacket?.stockIdNumber || `#${item.outputPacketId}`}
+                      </a>
+                    </td>
+                    <td style={{ padding: '8px' }}>{item.outputQuality?.qualityName || '—'}</td>
+                    <td style={{ padding: '8px' }}>{Number(item.carats).toFixed(3)}</td>
+                    <td style={{ padding: '8px' }}>{item.pieces}</td>
+                    <td style={{ padding: '8px' }}>{item.shape || '—'}</td>
+                    <td style={{ padding: '8px' }}>{item.color || '—'}</td>
+                    <td style={{ padding: '8px' }}>{item.clarity || '—'}</td>
+                    <td style={{ padding: '8px', color: 'var(--color-text-secondary)' }}>₹{Number(item.costPerCarat).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', color: 'var(--color-text-secondary)' }}>₹{Number(item.totalCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', fontWeight: 600, color: '#0284c7' }}>₹{targetRate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', fontWeight: 700, color: 'var(--color-primary)' }}>₹{targetVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -467,8 +556,8 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
                   <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', minWidth: '220px' }}>Quality *</th>
                   <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '110px' }}>Carats *</th>
                   <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '90px' }}>Pieces</th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '120px' }}>Rate *</th>
-                  <th style={{ padding: '8px', textAlign: 'right', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '130px' }}>Net Amount</th>
+                  <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-accent)', textTransform: 'uppercase', minWidth: '180px' }}>Predicted Target Rate (₹/Ct) *</th>
+                  <th style={{ padding: '8px', textAlign: 'right', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '130px' }}>Target Valuation</th>
                   <th style={{ padding: '8px', width: '45px' }}></th>
                 </tr>
               </thead>
@@ -481,8 +570,8 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean }> = ({ view
                         <th style={{ padding: '8px 8px 4px 8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', minWidth: '220px' }}>Quality *</th>
                         <th style={{ padding: '8px 8px 4px 8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '110px' }}>Carats *</th>
                         <th style={{ padding: '8px 8px 4px 8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '90px' }}>Pieces</th>
-                        <th style={{ padding: '8px 8px 4px 8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '120px' }}>Rate *</th>
-                        <th style={{ padding: '8px 8px 4px 8px', textAlign: 'right', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '130px' }}>Net Amount</th>
+                        <th style={{ padding: '8px 8px 4px 8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-accent)', textTransform: 'uppercase', minWidth: '180px' }}>Predicted Target Rate (₹/Ct) *</th>
+                        <th style={{ padding: '8px 8px 4px 8px', textAlign: 'right', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '130px' }}>Target Valuation</th>
                         <th style={{ padding: '8px 8px 4px 8px', width: '45px' }}></th>
                       </tr>
                     )}

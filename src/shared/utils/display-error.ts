@@ -22,7 +22,10 @@ export function formatDisplayError(message: string | null | undefined, fallback 
     if (/parent_group_id/i.test(trimmed)) {
       return 'Cannot delete this group — child groups are still linked to it. Delete or move child groups first.';
     }
-    return 'This record is linked to other data and cannot be deleted yet.';
+    if (/delete/i.test(trimmed) || /remove/i.test(trimmed)) {
+      return 'This record is linked to other data and cannot be deleted.';
+    }
+    return fallback;
   }
 
   if (trimmed.includes('Unique constraint failed')) {

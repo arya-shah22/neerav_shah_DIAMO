@@ -165,9 +165,9 @@ export const AccountGroupPage: React.FC = () => {
           <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>Chart of accounts for {activeCompany?.companyName}</p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          {(!groups || groups.length === 0) && (
-            <Button variant="secondary" onClick={handleSeed}>Load Default Chart</Button>
-          )}
+          <Button variant="secondary" onClick={handleSeed}>
+            Load Default Account Groups
+          </Button>
           <Button variant="primary" onClick={handleNew} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Plus size={16} /> New Group
           </Button>

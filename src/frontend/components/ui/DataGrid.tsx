@@ -51,6 +51,11 @@ export function DataGrid<T extends object>({
   const [sortDir, setSortDir] = useState<SortDir>(null);
   const [page, setPage] = useState(0);
 
+  // Reset page to 0 whenever data changes (e.g., search filter applied across all pages)
+  React.useEffect(() => {
+    setPage(0);
+  }, [data]);
+
   // Sort
   const sortedData = useMemo(() => {
     if (!sortKey || !sortDir) return data;

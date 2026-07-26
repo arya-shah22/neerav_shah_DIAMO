@@ -378,6 +378,22 @@ export const StockListPage: React.FC = () => {
       render: (row) => row.certificateNumber ?? '—',
     },
     {
+      key: 'costPerCarat',
+      header: 'COST (₹/CT)',
+      render: (row) => `₹${Number(row.costPerCarat).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+    },
+    {
+      key: 'targetSaleRate',
+      header: 'TARGET RATE (₹/CT)',
+      render: (row) => row.targetSaleRate != null ? (
+        <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+          ₹{Number(row.targetSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        </span>
+      ) : (
+        <span style={{ opacity: 0.5 }}>—</span>
+      ),
+    },
+    {
       key: 'currentStatus',
       header: 'STATUS',
       width: '110px',

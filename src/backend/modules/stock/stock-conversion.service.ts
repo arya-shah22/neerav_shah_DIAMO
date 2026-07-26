@@ -171,14 +171,45 @@ export class StockConversionService {
         },
       });
 
+      // Calculate total input investment (consumed rough cost + processing charges)
+      const consumedRoughCost = isFullConsumption
+        ? Number(sourcePacket.totalCost)
+        : consumedCarats * Number(sourcePacket.costPerCarat);
+      const totalInputInvestment = consumedRoughCost + Number(processingCost || 0);
+
+      // Pre-calculate target valuations for proportionate cost allocation
+      const itemValuations = outputItems.map((item) => {
+        const carats = Number(item.carats) || 0;
+        const targetRate = item.targetSaleRate != null && !isNaN(Number(item.targetSaleRate)) && Number(item.targetSaleRate) > 0
+          ? Number(item.targetSaleRate)
+          : (Number(item.costPerCarat) || 0);
+        return {
+          carats,
+          targetRate,
+          valuation: carats * targetRate,
+        };
+      });
+      const totalLotValuation = itemValuations.reduce((sum, v) => sum + v.valuation, 0);
+
       // Create output packets and output items
       for (let i = 0; i < outputItems.length; i++) {
         const item = outputItems[i];
+        const valInfo = itemValuations[i];
         const qualityId = Number(item.qualityId);
         const carats = Number(item.carats) || 0;
         const pieces = Number(item.pieces) || 1;
-        const costPerCarat = Number(item.costPerCarat) || 0;
-        const totalCost = Number(item.totalCost) || carats * costPerCarat;
+
+        // Option 1: Calculate proportionate cost basis
+        let allocatedItemCost = 0;
+        if (totalLotValuation > 0) {
+          allocatedItemCost = totalInputInvestment * (valInfo.valuation / totalLotValuation);
+        } else if (totalOutputCarats > 0) {
+          allocatedItemCost = totalInputInvestment * (carats / totalOutputCarats);
+        } else {
+          allocatedItemCost = totalInputInvestment / (outputItems.length || 1);
+        }
+        const allocatedCostRate = carats > 0 ? allocatedItemCost / carats : 0;
+        const targetAskingRate = valInfo.targetRate;
 
         // Determine stock ID for new packet
         const stockIdNumber = item.isManualStockId && item.stockIdNumber?.trim()
@@ -214,8 +245,9 @@ export class StockConversionService {
             tablePct: item.tablePct != null ? Number(item.tablePct) : null,
             certificateType: item.certificateType || null,
             certificateNumber: item.certificateNumber || null,
-            costPerCarat,
-            totalCost,
+            costPerCarat: allocatedCostRate,
+            totalCost: allocatedItemCost,
+            targetSaleRate: targetAskingRate > 0 ? targetAskingRate : null,
             currentStatus: StockStatus.AVAILABLE,
             currentOwnership: sourcePacket.currentOwnership,
             sourcePacketId,
@@ -276,8 +308,9 @@ export class StockConversionService {
             color: item.color || null,
             clarity,
             cut,
-            costPerCarat,
-            totalCost,
+            costPerCarat: allocatedCostRate,
+            totalCost: allocatedItemCost,
+            targetSaleRate: targetAskingRate > 0 ? targetAskingRate : null,
             remarks: item.remarks || null,
           },
         });
@@ -446,5 +479,13 @@ export class StockConversionService {
 
       return { success: true };
     });
+  }
+
+  /**
+   * Update an existing stock conversion by reversing the previous output state and re-applying new details
+   */
+  async update(id: number, companyId: number, data: Record<string, any>) {
+    await this.delete(id, companyId);
+    return this.create(companyId, data);
   }
 }

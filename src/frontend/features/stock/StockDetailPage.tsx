@@ -201,10 +201,40 @@ export const StockDetailPage: React.FC = () => {
           </div>
 
           <div style={cardStyle}>
-            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation</h2>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation & Target Rate</h2>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <DetailRow label="Cost / Carat" value={`₹ ${Number(packet.costPerCarat).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
               <DetailRow label="Total Cost" value={`₹ ${Number(packet.totalCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
+              {packet.targetSaleRate != null ? (
+                <>
+                  <DetailRow
+                    label="Target Rate / Carat"
+                    value={
+                      <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+                        ₹ {Number(packet.targetSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    }
+                  />
+                  <DetailRow
+                    label="Target Valuation"
+                    value={
+                      <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>
+                        ₹ {(Number(packet.caratWeight) * Number(packet.targetSaleRate)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    }
+                  />
+                  <DetailRow
+                    label="Est. Profit / Carat"
+                    value={
+                      <span style={{ color: Number(packet.targetSaleRate) >= Number(packet.costPerCarat) ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
+                        ₹ {(Number(packet.targetSaleRate) - Number(packet.costPerCarat)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      </span>
+                    }
+                  />
+                </>
+              ) : (
+                <DetailRow label="Target Rate" value={<span style={{ opacity: 0.5 }}>Not set</span>} />
+              )}
             </div>
           </div>
 

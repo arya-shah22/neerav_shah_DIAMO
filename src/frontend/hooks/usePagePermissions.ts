@@ -26,10 +26,10 @@ export const usePagePermissions = create<PagePermissionsState>()((set, get) => (
     const state = get();
     // Super Admin bypasses all page restrictions
     if (state.isSuperAdmin) return true;
-    // If permissions haven't loaded yet, allow access (will be checked again)
+    // If permissions haven't loaded yet, allow transient check
     if (!state.isLoaded) return true;
-    // If no permissions are configured at all, allow everything (new user default)
-    if (state.allowedPages.length === 0) return true;
+    // If user is not super admin and has 0 allowed pages, deny access
+    if (state.allowedPages.length === 0) return false;
     // Check if the requested page URI matches any allowed page
     return state.allowedPages.some((allowed) =>
       pageUri === allowed || pageUri.startsWith(allowed + '/')

@@ -19,12 +19,13 @@ interface IQuality {
 
 export const StockReportPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'REGISTER' | 'QUALITY'>('DASHBOARD');
+  const [activeTab, setActiveTab] = useState<'DASHBOARD' | 'REGISTER' | 'QUALITY' | 'PROFITABILITY'>('DASHBOARD');
 
   // Filters State
   const [statusFilter, setStatusFilter] = useState('');
   const [qualityFilter, setQualityFilter] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [groupByConversionLot, setGroupByConversionLot] = useState(false);
   const [agingThreshold, setAgingThreshold] = useState<number>(() => {
     const saved = localStorage.getItem('diamo:aging-threshold');
     return saved ? Number(saved) : 180;
@@ -206,6 +207,153 @@ export const StockReportPage: React.FC = () => {
           ₹{Number(row.totalValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
         </span>
       )
+    },
+  ], []);
+
+  const profitabilityColumns: Column<any>[] = useMemo(() => [
+    { key: 'stockIdNumber', header: 'PACKET NO', sortable: true },
+    { key: 'qualityName', header: 'QUALITY', sortable: true },
+    { 
+      key: 'sourcePacketStockId', 
+      header: 'ORIGIN / ROUGH LOT', 
+      render: (row: any) => row.sourcePacketStockId ? (
+        <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-accent)', padding: '2px 6px', background: 'rgba(2, 132, 199, 0.1)', borderRadius: '4px' }}>
+          From {row.sourcePacketStockId}
+        </span>
+      ) : (
+        <span style={{ fontSize: '11px', opacity: 0.5 }}>Direct Purchase</span>
+      )
+    },
+    { 
+      key: 'caratWeight', 
+      header: 'CARATS', 
+      align: 'right',
+      render: (row) => `${Number(row.caratWeight).toFixed(3)} Cts`
+    },
+    { 
+      key: 'costRate', 
+      header: 'COST RATE (₹/CT)', 
+      align: 'right',
+      render: (row) => `₹${Number(row.costRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    },
+    { 
+      key: 'totalValue', 
+      header: 'TOTAL COST (₹)', 
+      align: 'right',
+      render: (row) => `₹${Number(row.totalValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+    },
+    { 
+      key: 'sellingRate', 
+      header: 'SALE / TARGET RATE (₹/CT)', 
+      align: 'right',
+      render: (row) => {
+        if (row.actualSaleRate != null) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span style={{ color: '#16a34a', fontWeight: 700 }}>
+                ₹{Number(row.actualSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} (SOLD)
+              </span>
+              {row.targetSaleRate != null && (
+                <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
+                  Target: ₹{Number(row.targetSaleRate).toLocaleString('en-IN')}
+                </span>
+              )}
+            </div>
+          );
+        }
+        if (row.targetSaleRate != null) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+              <span style={{ color: '#0284c7', fontWeight: 600 }}>
+                ₹{Number(row.targetSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </span>
+              <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
+                Target Asking
+              </span>
+            </div>
+          );
+        }
+        return <span style={{ opacity: 0.5 }}>—</span>;
+      }
+    },
+    { 
+      key: 'revenue', 
+      header: 'REVENUE / VALUATION (₹)', 
+      align: 'right',
+      render: (row) => {
+        const rate = row.actualSaleRate != null ? Number(row.actualSaleRate) : (row.targetSaleRate != null ? Number(row.targetSaleRate) : null);
+        if (rate == null) return <span style={{ opacity: 0.5 }}>—</span>;
+        const val = Number(row.caratWeight) * rate;
+        return <span style={{ fontWeight: 600 }}>₹{val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>;
+      }
+    },
+    { 
+      key: 'stockProfit', 
+      header: 'PROFIT / LOSS (₹)', 
+      align: 'right',
+      render: (row) => {
+        const rate = row.actualSaleRate != null ? Number(row.actualSaleRate) : (row.targetSaleRate != null ? Number(row.targetSaleRate) : null);
+        if (rate == null) return <span style={{ opacity: 0.5 }}>—</span>;
+        const totalRev = Number(row.caratWeight) * rate;
+        const profit = totalRev - Number(row.totalValue);
+        const isPos = profit >= 0;
+        const isRealized = row.actualSaleRate != null;
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+            <span style={{ color: isPos ? (isRealized ? '#16a34a' : '#0284c7') : '#dc2626', fontWeight: 700 }}>
+              {isPos ? '+' : ''}₹{profit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </span>
+            <span style={{ fontSize: '10px', fontWeight: 600, color: isRealized ? '#16a34a' : 'var(--color-text-secondary)' }}>
+              {isRealized ? 'Realized Net Profit' : 'Estimated Target Profit'}
+            </span>
+          </div>
+        );
+      }
+    },
+    { 
+      key: 'marginPct', 
+      header: 'MARGIN %', 
+      align: 'right',
+      render: (row) => {
+        const rate = row.actualSaleRate != null ? Number(row.actualSaleRate) : (row.targetSaleRate != null ? Number(row.targetSaleRate) : null);
+        if (rate == null) return <span style={{ opacity: 0.5 }}>—</span>;
+        const totalRev = Number(row.caratWeight) * rate;
+        const profit = totalRev - Number(row.totalValue);
+        const margin = totalRev > 0 ? (profit / totalRev) * 100 : 0;
+        const isPos = margin >= 0;
+        const isRealized = row.actualSaleRate != null;
+        return (
+          <span style={{ 
+            padding: '4px 8px', 
+            borderRadius: '4px', 
+            background: isPos ? (isRealized ? 'rgba(22, 163, 74, 0.15)' : 'rgba(2, 132, 199, 0.15)') : 'rgba(220, 38, 38, 0.15)',
+            color: isPos ? (isRealized ? '#16a34a' : '#0284c7') : '#dc2626', 
+            fontWeight: 700 
+          }}>
+            {margin.toFixed(2)}%
+          </span>
+        );
+      }
+    },
+    { 
+      key: 'currentStatus', 
+      header: 'STATUS', 
+      render: (row) => {
+        const isSold = row.currentStatus === 'SOLD';
+        const isAvailable = row.currentStatus === 'AVAILABLE';
+        return (
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            padding: '4px 8px',
+            borderRadius: '4px',
+            background: isSold ? '#dcfce7' : (isAvailable ? '#e0f2fe' : 'var(--color-warning-light)'),
+            color: isSold ? '#15803d' : (isAvailable ? '#0369a1' : 'var(--color-warning)'),
+          }}>
+            {isSold ? '✓ Realized (SOLD)' : (isAvailable ? '⏳ Vault (Unsold)' : row.currentStatus)}
+          </span>
+        );
+      }
     },
   ], []);
 
@@ -413,35 +561,61 @@ export const StockReportPage: React.FC = () => {
 
       {/* Summary Cards */}
       {reportData && (
-        <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
+        <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+          {/* Card 0: Total Packets */}
           <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
             <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Total Packets</span>
             <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)', marginTop: '4px' }}>
               {reportData.summary.totalPackets}
             </div>
             <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.totalCarats.toFixed(3)} Carats
+              {reportData.summary.totalCarats.toFixed(3)} Carats Total
             </span>
           </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Total Valuation</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-success)', marginTop: '4px' }}>
-              ₹{reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          {/* Card 1: Current Active Vault Valuation */}
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderLeft: '4px solid #16a34a', borderRadius: '8px', padding: '16px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>1. Current Active Valuation</span>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
+              ₹{(reportData.summary.activeValuation ?? (reportData.summary.statusBreakdown.available.value + reportData.summary.statusBreakdown.reserved.value + reportData.summary.statusBreakdown.jobWork.value)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>Based on Landed Cost</span>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
+              {(reportData.summary.activePacketsCount ?? (reportData.summary.statusBreakdown.available.count + reportData.summary.statusBreakdown.reserved.count + reportData.summary.statusBreakdown.jobWork.count))} Packets ({(reportData.summary.activeCarats ?? (reportData.summary.statusBreakdown.available.carats + reportData.summary.statusBreakdown.reserved.carats + reportData.summary.statusBreakdown.jobWork.carats)).toFixed(3)} Cts)
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              (Active vault stock in Available + Hold + Job Work)
+            </div>
           </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Available Stock</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.available.count} Packets
+          {/* Card 2: Valuation Based on Available Stock */}
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderLeft: '4px solid #0284c7', borderRadius: '8px', padding: '16px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>2. Available Stock Valuation</span>
+            <div style={{ fontSize: '20px', fontWeight: 800, color: '#0284c7', marginTop: '4px' }}>
+              ₹{reportData.summary.statusBreakdown.available.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.available.value.toLocaleString()}
-            </span>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
+              {reportData.summary.statusBreakdown.available.count} Packets ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts)
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              (Stock strictly ready for immediate sale)
+            </div>
           </div>
 
+          {/* Card 3: Total Cumulative Valuation (All Stock) */}
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Cumulative Valuation</span>
+            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', marginTop: '4px' }}>
+              ₹{reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
+              {reportData.summary.totalPackets} Total Packets ({reportData.summary.totalCarats.toFixed(3)} Cts)
+            </div>
+            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              (All historical stock including Sold & Returned)
+            </div>
+          </div>
+
+          {/* Card 4: Reserved / Hold */}
           <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
             <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Reserved / Hold</span>
             <div style={{ fontSize: '20px', fontWeight: 700, color: '#6366f1', marginTop: '4px' }}>
@@ -452,6 +626,7 @@ export const StockReportPage: React.FC = () => {
             </span>
           </div>
 
+          {/* Card 5: In Job Work */}
           <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
             <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>In Job Work</span>
             <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-warning)', marginTop: '4px' }}>
@@ -650,6 +825,20 @@ export const StockReportPage: React.FC = () => {
           }}
         >
           Quality-wise Valuation
+        </button>
+        <button
+          onClick={() => setActiveTab('PROFITABILITY')}
+          style={{
+            padding: '8px 16px',
+            background: activeTab === 'PROFITABILITY' ? 'var(--color-primary)' : 'transparent',
+            color: activeTab === 'PROFITABILITY' ? '#ffffff' : 'var(--color-text-secondary)',
+            fontWeight: 600,
+            border: 'none',
+            borderRadius: '4px',
+            cursor: 'pointer'
+          }}
+        >
+          💎 Stock-wise Profitability
         </button>
       </div>
 
@@ -1017,6 +1206,204 @@ export const StockReportPage: React.FC = () => {
               emptyTitle="No Packets Found"
               emptyDescription="No packets match your search and filter criteria."
             />
+          </div>
+        ) : activeTab === 'PROFITABILITY' ? (
+          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
+            <div style={{ marginBottom: '16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div>
+                <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>Stock-wise Profitability & Target Margin Analysis</h3>
+                <p style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                  Realized profits for sold inventory vs. target asking margins for active vault stock
+                </p>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('')}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    border: '1px solid var(--color-border)',
+                    background: statusFilter === '' ? 'var(--color-primary)' : 'transparent',
+                    color: statusFilter === '' ? '#ffffff' : 'var(--color-text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  All Packets
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('SOLD')}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    border: '1px solid var(--color-border)',
+                    background: statusFilter === 'SOLD' ? '#16a34a' : 'transparent',
+                    color: statusFilter === 'SOLD' ? '#ffffff' : 'var(--color-text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Realized Sold Profits (SOLD)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setStatusFilter('AVAILABLE')}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    border: '1px solid var(--color-border)',
+                    background: statusFilter === 'AVAILABLE' ? '#0284c7' : 'transparent',
+                    color: statusFilter === 'AVAILABLE' ? '#ffffff' : 'var(--color-text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  Target Vault Profits (AVAILABLE)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setGroupByConversionLot(!groupByConversionLot)}
+                  style={{
+                    padding: '4px 12px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    borderRadius: '4px',
+                    border: '1px solid var(--color-border)',
+                    background: groupByConversionLot ? '#8b5cf6' : 'transparent',
+                    color: groupByConversionLot ? '#ffffff' : 'var(--color-text-secondary)',
+                    cursor: 'pointer'
+                  }}
+                >
+                  {groupByConversionLot ? '📦 Grouped by Rough Lot ✓' : '📦 Group by Rough Lot'}
+                </button>
+              </div>
+            </div>
+            {groupByConversionLot ? (() => {
+              const packetsList = reportData?.packets || [];
+              const groupedMap = new Map<string, any[]>();
+              for (const p of packetsList) {
+                const groupKey = p.sourcePacketStockId ? `Rough Lot: ${p.sourcePacketStockId}` : 'Direct Purchased Stock';
+                if (!groupedMap.has(groupKey)) groupedMap.set(groupKey, []);
+                groupedMap.get(groupKey)!.push(p);
+              }
+
+              return (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {Array.from(groupedMap.entries()).map(([groupName, groupPackets]) => {
+                    const totalCarats = groupPackets.reduce((sum, p) => sum + Number(p.caratWeight), 0);
+                    const isConversionGroup = groupName.startsWith('Rough Lot:');
+                    
+                    // Input Investment (Option 2)
+                    const samplePkt = groupPackets[0];
+                    const roughCost = isConversionGroup && samplePkt?.sourceRoughCost != null ? Number(samplePkt.sourceRoughCost) : null;
+                    const jobWorkCost = isConversionGroup && samplePkt?.sourceProcessingCost != null ? Number(samplePkt.sourceProcessingCost) : null;
+                    const totalInputInvestment = (roughCost != null && jobWorkCost != null)
+                      ? (roughCost + jobWorkCost)
+                      : groupPackets.reduce((sum, p) => sum + Number(p.totalValue), 0);
+
+                    // Output Revenue / Valuation
+                    const packetValuations = groupPackets.map((p) => {
+                      const rate = p.actualSaleRate != null ? Number(p.actualSaleRate) : (p.targetSaleRate != null ? Number(p.targetSaleRate) : Number(p.costRate));
+                      return Number(p.caratWeight) * rate;
+                    });
+                    const totalOutputValuation = packetValuations.reduce((sum, v) => sum + v, 0);
+
+                    // Lot Profit Math
+                    const groupProfit = totalOutputValuation - totalInputInvestment;
+                    const groupMargin = totalOutputValuation > 0 ? (groupProfit / totalOutputValuation) * 100 : 0;
+                    const isProfit = groupProfit >= 0;
+
+                    // Option 1: Proportionate Cost Allocation for Table Rows
+                    const displayPackets = groupPackets.map((p, idx) => {
+                      if (!isConversionGroup) return p;
+                      const val = packetValuations[idx];
+                      const allocatedCost = totalOutputValuation > 0
+                        ? totalInputInvestment * (val / totalOutputValuation)
+                        : (totalCarats > 0 ? totalInputInvestment * (Number(p.caratWeight) / totalCarats) : Number(p.totalValue));
+                      const allocatedCostRate = Number(p.caratWeight) > 0 ? allocatedCost / Number(p.caratWeight) : Number(p.costRate);
+
+                      return {
+                        ...p,
+                        costRate: allocatedCostRate,
+                        totalValue: allocatedCost,
+                      };
+                    });
+
+                    return (
+                      <div key={groupName} style={{ border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px', background: 'var(--color-row-alt)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px' }}>
+                          <div>
+                            <span style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>{groupName}</span>
+                            <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginLeft: '12px' }}>
+                              ({groupPackets.length} {groupPackets.length === 1 ? 'Packet' : 'Packets'} — {totalCarats.toFixed(3)} Cts)
+                            </span>
+                            {(() => {
+                              const soldInGroup = groupPackets.filter((p) => p.currentStatus === 'SOLD').length;
+                              const unsoldInGroup = groupPackets.filter((p) => p.currentStatus === 'AVAILABLE').length;
+                              return (
+                                <span style={{
+                                  fontSize: '11px',
+                                  fontWeight: 700,
+                                  marginLeft: '10px',
+                                  padding: '2px 8px',
+                                  borderRadius: '4px',
+                                  background: soldInGroup > 0 ? '#dcfce7' : '#e0f2fe',
+                                  color: soldInGroup > 0 ? '#15803d' : '#0369a1',
+                                }}>
+                                  {soldInGroup}/{groupPackets.length} Sold {unsoldInGroup > 0 ? `(${unsoldInGroup} Unsold in Vault)` : ''}
+                                </span>
+                              );
+                            })()}
+                          </div>
+                          <div style={{ display: 'flex', gap: '16px', alignItems: 'center', fontSize: '12px' }}>
+                            {isConversionGroup && roughCost != null && (
+                              <span>Rough Purchase: <strong>₹{roughCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            )}
+                            {isConversionGroup && jobWorkCost != null && (
+                              <span>Job Work Charges: <strong>₹{jobWorkCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            )}
+                            <span>Total Input Cost: <strong>₹{totalInputInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            <span>Output Valuation: <strong>₹{totalOutputValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
+                            <span style={{
+                              padding: '4px 10px',
+                              borderRadius: '4px',
+                              background: isProfit ? '#dcfce7' : '#fee2e2',
+                              color: isProfit ? '#15803d' : '#b91c1c',
+                              fontWeight: 700,
+                              fontSize: '13px'
+                            }}>
+                              Lot Profit: {isProfit ? '+' : ''}₹{groupProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({groupMargin.toFixed(2)}%)
+                            </span>
+                          </div>
+                        </div>
+                        <DataGrid
+                          columns={profitabilityColumns}
+                          data={displayPackets}
+                          keyField="id"
+                          loading={loading}
+                          emptyTitle="No Stock Packets Found"
+                          emptyDescription="No packets match your search and filter criteria."
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })() : (
+              <DataGrid
+                columns={profitabilityColumns}
+                data={reportData?.packets || []}
+                keyField="id"
+                loading={loading}
+                emptyTitle="No Stock Packets Found"
+                emptyDescription="No packets match your search and filter criteria."
+              />
+            )}
           </div>
         ) : (
           <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>

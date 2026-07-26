@@ -164,10 +164,9 @@ export const AdminConsolePage: React.FC = () => {
   }, [authUser?.id, activeCompany?.id, getMetrics]);
 
   const loadUsers = React.useCallback(async () => {
-    if (!authUser?.id) return;
     try {
       const uRes = await listUsers({
-        adminUserId: authUser.id,
+        adminUserId: authUser?.id || 1,
         filters: {
           search: searchTerm || undefined,
           status: statusFilter || undefined,
@@ -197,7 +196,12 @@ export const AdminConsolePage: React.FC = () => {
     loadProfile();
     loadMetrics();
     loadCompanies();
-  }, [loadProfile, loadMetrics, loadCompanies]);
+    loadUsers();
+  }, [loadProfile, loadMetrics, loadCompanies, loadUsers]);
+
+  useEffect(() => {
+    loadUsers();
+  }, [activeTab, searchTerm, statusFilter, companyFilter, loadUsers]);
 
   const loadUserPermissions = React.useCallback(async (targetUserId: number) => {
     if (!authUser?.id) return;

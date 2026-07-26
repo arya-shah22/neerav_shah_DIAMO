@@ -62,6 +62,8 @@ export class StockService {
                 { shape: { contains: filters.search } },
                 { color: { contains: filters.search } },
                 { clarity: { contains: filters.search } },
+                { quality: { qualityName: { contains: filters.search } } },
+                { quality: { itemCode: { contains: filters.search } } },
               ],
             }
           : {}),
@@ -443,6 +445,7 @@ export class StockService {
 
     const costPerCarat = Number(data.costPerCarat) || 0;
     const totalCost = data.totalCost != null ? Number(data.totalCost) : caratWeight * costPerCarat;
+    const targetSaleRate = data.targetSaleRate != null && !isNaN(Number(data.targetSaleRate)) ? Number(data.targetSaleRate) : null;
 
     const registrationDate = data.registrationDate
       ? new Date(data.registrationDate as string)
@@ -476,6 +479,7 @@ export class StockService {
           certificateNumber: emptyToNull(data.certificateNumber),
           costPerCarat,
           totalCost,
+          targetSaleRate,
           currentStatus: targetStatus,
           currentOwnership: StockOwnership.COMPANY,
           currentLocation: toUpperOrNull(data.currentLocation),
@@ -551,6 +555,10 @@ export class StockService {
       data.costPerCarat != null ? Number(data.costPerCarat) : Number(existing.costPerCarat);
     const totalCost =
       data.totalCost != null ? Number(data.totalCost) : caratWeight * costPerCarat;
+    const targetSaleRate =
+      data.targetSaleRate !== undefined
+        ? (data.targetSaleRate != null && !isNaN(Number(data.targetSaleRate)) ? Number(data.targetSaleRate) : null)
+        : existing.targetSaleRate;
 
     const previousStatus = existing.currentStatus;
     const newStatus = (data.currentStatus as StockStatus) || previousStatus;
@@ -591,6 +599,7 @@ export class StockService {
               : existing.certificateNumber,
           costPerCarat,
           totalCost,
+          targetSaleRate,
           currentStatus: newStatus,
           currentLocation:
             data.currentLocation !== undefined

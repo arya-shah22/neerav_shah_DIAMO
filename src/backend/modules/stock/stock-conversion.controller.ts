@@ -49,6 +49,15 @@ export class StockConversionController {
     }
   }
 
+  async handleUpdate(payload: { id: number; companyId: number; data: Record<string, any> }): Promise<IApiResponse> {
+    try {
+      const data = await this.service.update(payload.id, payload.companyId, payload.data);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to update stock conversion') };
+    }
+  }
+
   async handleDelete(payload: { id: number; companyId: number }): Promise<IApiResponse> {
     try {
       const data = await this.service.delete(payload.id, payload.companyId);

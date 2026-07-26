@@ -171,6 +171,19 @@ export const AccountListPage: React.FC = () => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company to manage accounts.</p>;
   }
 
+  const { invoke: seedDefaults } = useIpc('account:seed-defaults');
+
+  const handleSeedDefaults = async () => {
+    if (!companyId) return;
+    const res = await seedDefaults({ companyId });
+    if (res.success) {
+      showToast(`Default accounts loaded successfully`, 'success');
+      await refresh();
+    } else {
+      showToast(res.error || 'Failed to load default accounts', 'error');
+    }
+  };
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -178,9 +191,14 @@ export const AccountListPage: React.FC = () => {
           <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Account Master</h1>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>Ledger accounts for {activeCompany?.companyName}</p>
         </div>
-        <Button variant="primary" onClick={() => navigate(ROUTES.new)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <Plus size={16} /> New Account
-        </Button>
+        <div style={{ display: 'flex', gap: '10px' }}>
+          <Button variant="secondary" onClick={handleSeedDefaults} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Users size={16} /> Load Default Accounts
+          </Button>
+          <Button variant="primary" onClick={() => navigate(ROUTES.new)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Plus size={16} /> New Account
+          </Button>
+        </div>
       </div>
 
       <div style={{ display: 'flex', gap: '12px', maxWidth: '400px' }}>
@@ -191,35 +209,48 @@ export const AccountListPage: React.FC = () => {
         />
       </div>
 
-      {/* Section 1: System Pre-made Accounts */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
-          System Pre-made Accounts
-        </h3>
-        <DataGrid
-          columns={columns}
-          data={systemAccounts}
-          keyField="id"
-          loading={loading}
-          emptyTitle="No System accounts"
-          emptyDescription="Compulsory system accounts will generate automatically upon operations."
-        />
-      </div>
+      {/* Section 1: System Pre-made Accounts (Only rendered if system accounts exist) */}
+      {systemAccounts.length > 0 && (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
+            System Pre-made Accounts
+          </h3>
+          <DataGrid
+            columns={columns}
+            data={systemAccounts}
+            keyField="id"
+            loading={loading}
+          />
+        </div>
+      )}
 
-      {/* Section 2: User Made Accounts */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
-          User-made Accounts
-        </h3>
-        <DataGrid
-          columns={columns}
-          data={userAccounts}
-          keyField="id"
-          loading={loading}
-          emptyTitle="No User accounts"
-          emptyDescription="Create custom party or ledger accounts to see them here."
-        />
-      </div>
+      {/* Section 2: User-made / All Accounts */}
+      {systemAccounts.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
+            User-made Accounts
+          </h3>
+          <DataGrid
+            columns={columns}
+            data={userAccounts}
+            keyField="id"
+            loading={loading}
+            emptyTitle="No User accounts found"
+            emptyDescription="Create custom party or ledger accounts to see them here."
+          />
+        </div>
+      ) : (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+          <DataGrid
+            columns={columns}
+            data={allAccounts}
+            keyField="id"
+            loading={loading}
+            emptyTitle="No Accounts Found"
+            emptyDescription="Click 'Load Default Accounts' above to generate standard ERP accounts or create a new account."
+          />
+        </div>
+      )}
     </div>
   );
 };

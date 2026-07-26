@@ -188,17 +188,38 @@ export class DashboardService {
     let purchaseTodayValue = 0;
     purchasesToday.forEach((p: any) => { purchaseTodayValue += Number(p.netAmount || 0); });
 
-    // Today's Cash & Bank Vouchers
-    const cashBankToday = await this.prisma.cashBankVoucher.findMany({
+    // Cash & Bank Vouchers and Account Balances
+    const allCashBankVouchers = await this.prisma.cashBankVoucher.findMany({
+      where: { companyId, isDeleted: false },
+      select: { transactionType: true, amount: true, voucherDate: true, createdAt: true },
+    });
+
+    const cashBankAccounts = await this.prisma.account.findMany({
       where: {
         companyId,
         isDeleted: false,
-        OR: [
-          { voucherDate: { gte: todayStart, lte: todayEnd } },
-          { createdAt: { gte: todayStart, lte: todayEnd } },
-        ],
       },
-      select: { transactionType: true, amount: true },
+      select: {
+        id: true,
+        accountName: true,
+        openingBalanceAmount: true,
+        openingBalanceType: true,
+        accountGroup: { select: { groupName: true } },
+      },
+    });
+
+    let totalCashOpening = 0;
+    let totalBankOpening = 0;
+
+    cashBankAccounts.forEach((acc: any) => {
+      const amt = Number(acc.openingBalanceAmount || 0);
+      const groupName = (acc.accountGroup?.groupName || '').toLowerCase();
+      const accName = (acc.accountName || '').toLowerCase();
+      if (groupName.includes('cash') || accName.includes('cash')) {
+        totalCashOpening += acc.openingBalanceType === 'CREDIT' ? -amt : amt;
+      } else if (groupName.includes('bank') || accName.includes('bank') || accName.includes('hdfc') || accName.includes('icici') || accName.includes('sbi') || accName.includes('axis') || accName.includes('kotak')) {
+        totalBankOpening += acc.openingBalanceType === 'CREDIT' ? -amt : amt;
+      }
     });
 
     let cashReceiptsToday = 0;
@@ -206,13 +227,41 @@ export class DashboardService {
     let bankReceiptsToday = 0;
     let bankPaymentsToday = 0;
 
-    cashBankToday.forEach((v: any) => {
+    let totalCashReceipts = 0;
+    let totalCashPayments = 0;
+    let totalBankReceipts = 0;
+    let totalBankPayments = 0;
+
+    allCashBankVouchers.forEach((v: any) => {
       const amt = Number(v.amount || 0);
-      if (v.transactionType === 'CASH_RECEIPT') cashReceiptsToday += amt;
-      if (v.transactionType === 'CASH_PAYMENT') cashPaymentsToday += amt;
-      if (v.transactionType === 'BANK_RECEIPT') bankReceiptsToday += amt;
-      if (v.transactionType === 'BANK_PAYMENT') bankPaymentsToday += amt;
+      const vDate = new Date(v.voucherDate || v.createdAt);
+      const isToday = vDate >= todayStart && vDate <= todayEnd;
+
+      if (v.transactionType === 'CASH_RECEIPT') {
+        totalCashReceipts += amt;
+        if (isToday) cashReceiptsToday += amt;
+      }
+      if (v.transactionType === 'CASH_PAYMENT') {
+        totalCashPayments += amt;
+        if (isToday) cashPaymentsToday += amt;
+      }
+      if (v.transactionType === 'BANK_RECEIPT') {
+        totalBankReceipts += amt;
+        if (isToday) bankReceiptsToday += amt;
+      }
+      if (v.transactionType === 'BANK_PAYMENT') {
+        totalBankPayments += amt;
+        if (isToday) bankPaymentsToday += amt;
+      }
     });
+
+    const displayCashReceipts = cashReceiptsToday > 0 || cashPaymentsToday > 0 ? cashReceiptsToday : totalCashReceipts;
+    const displayCashPayments = cashReceiptsToday > 0 || cashPaymentsToday > 0 ? cashPaymentsToday : totalCashPayments;
+    const finalCashNetBalance = totalCashOpening + totalCashReceipts - totalCashPayments;
+
+    const displayBankReceipts = bankReceiptsToday > 0 || bankPaymentsToday > 0 ? bankReceiptsToday : totalBankReceipts;
+    const displayBankPayments = bankReceiptsToday > 0 || bankPaymentsToday > 0 ? bankPaymentsToday : totalBankPayments;
+    const finalBankNetBalance = totalBankOpening + totalBankReceipts - totalBankPayments;
 
     // 3. Stock Telemetry
     const packets = await this.prisma.stockPacket.findMany({
@@ -298,14 +347,14 @@ export class DashboardService {
         billCount: purchasesToday.length,
       },
       todayCash: {
-        receipts: cashReceiptsToday,
-        payments: cashPaymentsToday,
-        netBalance: cashReceiptsToday - cashPaymentsToday,
+        receipts: displayCashReceipts,
+        payments: displayCashPayments,
+        netBalance: finalCashNetBalance,
       },
       todayBank: {
-        receipts: bankReceiptsToday,
-        payments: bankPaymentsToday,
-        netBalance: bankReceiptsToday - bankPaymentsToday,
+        receipts: displayBankReceipts,
+        payments: displayBankPayments,
+        netBalance: finalBankNetBalance,
       },
       businessSummary: {
         customerCount,

@@ -25,6 +25,7 @@ export const invoiceItemSchema = z.object({
     z.number({ required_error: 'Rate is required' }).min(0, 'Rate cannot be negative')
   ),
   discountPct: optionalNumber.default(0),
+  targetSaleRate: optionalNumber,
   stockPacketId: z.preprocess((val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? null : Number(val)), z.number().nullable().optional()),
   stockIdNumber: z.string().optional(),
   isManualStockId: z.boolean().optional().default(false),

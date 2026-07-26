@@ -1,4 +1,4 @@
-import { Injectable, Inject, BadRequestException } from '@nestjs/common';
+import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { DebitCreditType } from '@prisma/client';
 
@@ -48,46 +48,61 @@ export class ReportService {
     return created.id;
   }
 
+  private async safeCreateGlEntry(data: any) {
+    if (!data.accountId || !data.companyId) return;
+    const account = await this.prisma.account.findFirst({
+      where: { id: data.accountId, isDeleted: false },
+    });
+    if (!account) return;
+    try {
+      await this.prisma.generalLedgerEntry.create({ data });
+    } catch (err) {
+      console.warn('Skipped invalid GL entry sync:', err);
+    }
+  }
+
   async reconcileLegacyEntries(companyId: number) {
-    // Reconcile sale invoices
-    const saleInvoices = await this.prisma.saleInvoice.findMany({
-      where: { companyId, isDeleted: false },
-    });
-    // Reconcile purchase invoices
-    const purchaseInvoicesForReconcile = await this.prisma.purchaseInvoice.findMany({
-      where: { companyId, isDeleted: false },
-    });
-    // Normalize purchase invoices to have customerId for the reconciliation loop
-    const invoices = [
-      ...saleInvoices,
-      ...purchaseInvoicesForReconcile.map((p: any) => ({ ...p, customerId: p.supplierId })),
-    ];
-
-    const salesLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Sales A/c', 'Sales Accounts');
-    const purchaseLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Purchase A/c', 'Purchase Accounts');
-    const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes');
-    const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes');
-    const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes');
-
-    for (const inv of invoices) {
-      const glCount = await this.prisma.generalLedgerEntry.count({
-        where: { sourceVoucherType: inv.invoiceType as any, sourceVoucherId: inv.id },
+    try {
+      // Reconcile sale invoices
+      const saleInvoices = await this.prisma.saleInvoice.findMany({
+        where: { companyId, isDeleted: false },
       });
+      // Reconcile purchase invoices
+      const purchaseInvoicesForReconcile = await this.prisma.purchaseInvoice.findMany({
+        where: { companyId, isDeleted: false },
+      });
+      // Normalize purchase invoices to have customerId for the reconciliation loop
+      const invoices = [
+        ...saleInvoices,
+        ...purchaseInvoicesForReconcile.map((p: any) => ({ ...p, customerId: p.supplierId })),
+      ];
 
-      if (glCount === 0) {
-        const isSales = inv.invoiceType === 'SALE_INVOICE' || inv.invoiceType === 'SALE_DEBIT_NOTE';
-        const isSalesReturn = inv.invoiceType === 'SALE_RETURN';
-        const isPurchase = inv.invoiceType === 'PURCHASE_INVOICE' || inv.invoiceType === 'PURCHASE_DEBIT_NOTE';
-        const isPurchaseReturn = inv.invoiceType === 'PURCHASE_RETURN';
+      const salesLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Sales A/c', 'Sales Accounts');
+      const purchaseLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Purchase A/c', 'Purchase Accounts');
+      const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes');
+      const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes');
+      const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes');
 
-        let partyDebitCredit: DebitCreditType = DebitCreditType.DEBIT;
-        if (isSales) partyDebitCredit = DebitCreditType.DEBIT;
-        else if (isSalesReturn) partyDebitCredit = DebitCreditType.CREDIT;
-        else if (isPurchase) partyDebitCredit = DebitCreditType.CREDIT;
-        else if (isPurchaseReturn) partyDebitCredit = DebitCreditType.DEBIT;
+      for (const inv of invoices) {
+        if (!inv.customerId) continue;
 
-        await this.prisma.generalLedgerEntry.create({
-          data: {
+        const glCount = await this.prisma.generalLedgerEntry.count({
+          where: { sourceVoucherType: inv.invoiceType as any, sourceVoucherId: inv.id },
+        });
+
+        if (glCount === 0) {
+          const isSales = inv.invoiceType === 'SALE_INVOICE' || inv.invoiceType === 'SALE_DEBIT_NOTE';
+          const isSalesReturn = inv.invoiceType === 'SALE_RETURN';
+          const isPurchase = inv.invoiceType === 'PURCHASE_INVOICE' || inv.invoiceType === 'PURCHASE_DEBIT_NOTE';
+          const isPurchaseReturn = inv.invoiceType === 'PURCHASE_RETURN';
+
+          let partyDebitCredit: DebitCreditType = DebitCreditType.DEBIT;
+          if (isSales) partyDebitCredit = DebitCreditType.DEBIT;
+          else if (isSalesReturn) partyDebitCredit = DebitCreditType.CREDIT;
+          else if (isPurchase) partyDebitCredit = DebitCreditType.CREDIT;
+          else if (isPurchaseReturn) partyDebitCredit = DebitCreditType.DEBIT;
+
+          await this.safeCreateGlEntry({
             companyId,
             accountId: inv.customerId,
             voucherDate: inv.invoiceDate,
@@ -97,21 +112,19 @@ export class ReportService {
             sourceVoucherId: inv.id,
             sourceBillNumber: inv.billNumber || inv.voucherNumber,
             narration: `Sync: ${inv.voucherNumber}`,
-          }
-        });
+          });
 
-        let revenueDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
-        if (isSales) revenueDebitCredit = DebitCreditType.CREDIT;
-        else if (isSalesReturn) revenueDebitCredit = DebitCreditType.DEBIT;
-        else if (isPurchase) revenueDebitCredit = DebitCreditType.DEBIT;
-        else if (isPurchaseReturn) revenueDebitCredit = DebitCreditType.CREDIT;
+          let revenueDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
+          if (isSales) revenueDebitCredit = DebitCreditType.CREDIT;
+          else if (isSalesReturn) revenueDebitCredit = DebitCreditType.DEBIT;
+          else if (isPurchase) revenueDebitCredit = DebitCreditType.DEBIT;
+          else if (isPurchaseReturn) revenueDebitCredit = DebitCreditType.CREDIT;
 
-        const ledgerId = (isSales || isSalesReturn) ? salesLedgerId : purchaseLedgerId;
-        const totalTax = Number(inv.totalCgst || 0) + Number(inv.totalSgst || 0) + Number(inv.totalIgst || 0);
-        const taxableTotal = Number(inv.netAmount) - totalTax;
+          const ledgerId = (isSales || isSalesReturn) ? salesLedgerId : purchaseLedgerId;
+          const totalTax = Number(inv.totalCgst || 0) + Number(inv.totalSgst || 0) + Number(inv.totalIgst || 0);
+          const taxableTotal = Number(inv.netAmount) - totalTax;
 
-        await this.prisma.generalLedgerEntry.create({
-          data: {
+          await this.safeCreateGlEntry({
             companyId,
             accountId: ledgerId,
             voucherDate: inv.invoiceDate,
@@ -121,18 +134,16 @@ export class ReportService {
             sourceVoucherId: inv.id,
             sourceBillNumber: inv.billNumber || inv.voucherNumber,
             narration: `Sync Revenue: ${inv.voucherNumber}`,
-          }
-        });
+          });
 
-        let taxDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
-        if (isSales) taxDebitCredit = DebitCreditType.CREDIT;
-        else if (isSalesReturn) taxDebitCredit = DebitCreditType.DEBIT;
-        else if (isPurchase) taxDebitCredit = DebitCreditType.DEBIT;
-        else if (isPurchaseReturn) taxDebitCredit = DebitCreditType.CREDIT;
+          let taxDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
+          if (isSales) taxDebitCredit = DebitCreditType.CREDIT;
+          else if (isSalesReturn) taxDebitCredit = DebitCreditType.DEBIT;
+          else if (isPurchase) taxDebitCredit = DebitCreditType.DEBIT;
+          else if (isPurchaseReturn) taxDebitCredit = DebitCreditType.CREDIT;
 
-        if (Number(inv.totalCgst) > 0) {
-          await this.prisma.generalLedgerEntry.create({
-            data: {
+          if (Number(inv.totalCgst) > 0) {
+            await this.safeCreateGlEntry({
               companyId,
               accountId: cgstLedgerId,
               voucherDate: inv.invoiceDate,
@@ -142,12 +153,10 @@ export class ReportService {
               sourceVoucherId: inv.id,
               sourceBillNumber: inv.billNumber || inv.voucherNumber,
               narration: 'Sync CGST',
-            }
-          });
-        }
-        if (Number(inv.totalSgst) > 0) {
-          await this.prisma.generalLedgerEntry.create({
-            data: {
+            });
+          }
+          if (Number(inv.totalSgst) > 0) {
+            await this.safeCreateGlEntry({
               companyId,
               accountId: sgstLedgerId,
               voucherDate: inv.invoiceDate,
@@ -157,12 +166,10 @@ export class ReportService {
               sourceVoucherId: inv.id,
               sourceBillNumber: inv.billNumber || inv.voucherNumber,
               narration: 'Sync SGST',
-            }
-          });
-        }
-        if (Number(inv.totalIgst) > 0) {
-          await this.prisma.generalLedgerEntry.create({
-            data: {
+            });
+          }
+          if (Number(inv.totalIgst) > 0) {
+            await this.safeCreateGlEntry({
               companyId,
               accountId: igstLedgerId,
               voucherDate: inv.invoiceDate,
@@ -172,25 +179,23 @@ export class ReportService {
               sourceVoucherId: inv.id,
               sourceBillNumber: inv.billNumber || inv.voucherNumber,
               narration: 'Sync IGST',
-            }
-          });
+            });
+          }
         }
       }
-    }
 
-    const cbVouchers = await this.prisma.cashBankVoucher.findMany({
-      where: { companyId, isDeleted: false },
-    });
-
-    for (const cb of cbVouchers) {
-      const glCount = await this.prisma.generalLedgerEntry.count({
-        where: { sourceVoucherType: cb.transactionType as any, sourceVoucherId: cb.id },
+      const cbVouchers = await this.prisma.cashBankVoucher.findMany({
+        where: { companyId, isDeleted: false },
       });
 
-      if (glCount === 0) {
-        const isReceipt = cb.transactionType === 'CASH_RECEIPT' || cb.transactionType === 'BANK_RECEIPT';
-        await this.prisma.generalLedgerEntry.create({
-          data: {
+      for (const cb of cbVouchers) {
+        const glCount = await this.prisma.generalLedgerEntry.count({
+          where: { sourceVoucherType: cb.transactionType as any, sourceVoucherId: cb.id },
+        });
+
+        if (glCount === 0) {
+          const isReceipt = cb.transactionType === 'CASH_RECEIPT' || cb.transactionType === 'BANK_RECEIPT';
+          await this.safeCreateGlEntry({
             companyId,
             accountId: cb.cashBankAccountId,
             voucherDate: cb.voucherDate,
@@ -200,11 +205,9 @@ export class ReportService {
             sourceVoucherId: cb.id,
             sourceBillNumber: cb.voucherNumber,
             narration: `Sync Cash/Bank: ${cb.voucherNumber}`,
-          }
-        });
+          });
 
-        await this.prisma.generalLedgerEntry.create({
-          data: {
+          await this.safeCreateGlEntry({
             companyId,
             accountId: cb.partyId,
             voucherDate: cb.voucherDate,
@@ -213,26 +216,24 @@ export class ReportService {
             sourceVoucherType: cb.transactionType as any,
             sourceVoucherId: cb.id,
             sourceBillNumber: cb.voucherNumber,
-            narration: `Sync Party: ${cb.voucherNumber}`,
-          }
-        });
+            narration: `Sync Cash/Bank Party: ${cb.voucherNumber}`,
+          });
+        }
       }
-    }
 
-    const jvs = await this.prisma.journalVoucher.findMany({
-      where: { companyId, isDeleted: false },
-      include: { lines: true },
-    });
-
-    for (const jv of jvs) {
-      const glCount = await this.prisma.generalLedgerEntry.count({
-        where: { sourceVoucherType: 'JOURNAL_VOUCHER', sourceVoucherId: jv.id },
+      const jvs = await this.prisma.journalVoucher.findMany({
+        where: { companyId, isDeleted: false },
+        include: { lines: true },
       });
 
-      if (glCount === 0) {
-        for (const line of jv.lines) {
-          await this.prisma.generalLedgerEntry.create({
-            data: {
+      for (const jv of jvs) {
+        const glCount = await this.prisma.generalLedgerEntry.count({
+          where: { sourceVoucherType: 'JOURNAL_VOUCHER', sourceVoucherId: jv.id },
+        });
+
+        if (glCount === 0) {
+          for (const line of jv.lines) {
+            await this.safeCreateGlEntry({
               companyId,
               accountId: line.accountId,
               voucherDate: jv.voucherDate,
@@ -242,28 +243,26 @@ export class ReportService {
               sourceVoucherId: jv.id,
               sourceBillNumber: jv.voucherNumber,
               narration: line.narration || jv.narration || 'Sync Journal',
-            }
-          });
+            });
+          }
         }
       }
-    }
 
-    const loans = await this.prisma.loan.findMany({
-      where: { companyId, isDeleted: false },
-      include: { repayments: true },
-    });
-
-    const cashAccountId = await this.getOrCreateDefaultAccount(companyId, 'Cash Account', 'Cash-in-hand');
-
-    for (const loan of loans) {
-      const glCount = await this.prisma.generalLedgerEntry.count({
-        where: { sourceVoucherType: 'LOAN_VOUCHER', sourceVoucherId: loan.id },
+      const loans = await this.prisma.loan.findMany({
+        where: { companyId, isDeleted: false },
+        include: { repayments: true },
       });
 
-      if (glCount === 0) {
-        const isGiven = loan.loanType === 'GIVEN';
-        await this.prisma.generalLedgerEntry.create({
-          data: {
+      const cashAccountId = await this.getOrCreateDefaultAccount(companyId, 'Cash Account', 'Cash-in-hand');
+
+      for (const loan of loans) {
+        const glCount = await this.prisma.generalLedgerEntry.count({
+          where: { sourceVoucherType: 'LOAN_VOUCHER', sourceVoucherId: loan.id },
+        });
+
+        if (glCount === 0) {
+          const isGiven = loan.loanType === 'GIVEN';
+          await this.safeCreateGlEntry({
             companyId,
             accountId: loan.partyId,
             voucherDate: loan.loanDate,
@@ -273,11 +272,9 @@ export class ReportService {
             sourceVoucherId: loan.id,
             sourceBillNumber: loan.voucherNumber,
             narration: `Sync Loan Principal: ${loan.voucherNumber}`,
-          }
-        });
+          });
 
-        await this.prisma.generalLedgerEntry.create({
-          data: {
+          await this.safeCreateGlEntry({
             companyId,
             accountId: cashAccountId,
             voucherDate: loan.loanDate,
@@ -287,19 +284,17 @@ export class ReportService {
             sourceVoucherId: loan.id,
             sourceBillNumber: loan.voucherNumber,
             narration: `Sync Loan Cash: ${loan.voucherNumber}`,
-          }
-        });
-      }
+          });
+        }
 
-      for (const rep of loan.repayments) {
-        const repGlCount = await this.prisma.generalLedgerEntry.count({
-          where: { sourceVoucherType: 'LOAN_VOUCHER', sourceVoucherId: rep.id },
-        });
+        for (const rep of loan.repayments) {
+          const repGlCount = await this.prisma.generalLedgerEntry.count({
+            where: { sourceVoucherType: 'LOAN_VOUCHER', sourceVoucherId: rep.id },
+          });
 
-        if (repGlCount === 0) {
-          const isGiven = loan.loanType === 'GIVEN';
-          await this.prisma.generalLedgerEntry.create({
-            data: {
+          if (repGlCount === 0) {
+            const isGiven = loan.loanType === 'GIVEN';
+            await this.safeCreateGlEntry({
               companyId,
               accountId: loan.partyId,
               voucherDate: rep.paymentDate,
@@ -309,11 +304,9 @@ export class ReportService {
               sourceVoucherId: rep.id,
               sourceBillNumber: loan.voucherNumber,
               narration: `Sync Repayment: ${loan.voucherNumber}`,
-            }
-          });
+            });
 
-          await this.prisma.generalLedgerEntry.create({
-            data: {
+            await this.safeCreateGlEntry({
               companyId,
               accountId: cashAccountId,
               voucherDate: rep.paymentDate,
@@ -323,10 +316,12 @@ export class ReportService {
               sourceVoucherId: rep.id,
               sourceBillNumber: loan.voucherNumber,
               narration: `Sync Repayment Cash: ${loan.voucherNumber}`,
-            }
-          });
+            });
+          }
         }
       }
+    } catch (err) {
+      console.error('Non-blocking error during reconcileLegacyEntries:', err);
     }
   }
 
@@ -424,8 +419,7 @@ export class ReportService {
     if (Array.isArray(accountId)) {
       return results;
     } else {
-      if (results.length === 0) throw new BadRequestException('Account not found');
-      return results[0];
+      return results[0] || null;
     }
   }
 
@@ -755,7 +749,7 @@ export class ReportService {
 
   async getStockReport(companyId: number, filters?: { status?: string; qualityId?: number; search?: string }) {
     // 1. Fetch filtered stock packets
-    const packets = await this.prisma.stockPacket.findMany({
+    let packets = await this.prisma.stockPacket.findMany({
       where: {
         companyId,
         isDeleted: false,
@@ -773,9 +767,38 @@ export class ReportService {
       include: {
         quality: true,
         movements: true,
+        sourcePacket: true,
       },
-      orderBy: { stockIdNumber: 'asc' },
+      orderBy: { id: 'desc' },
     });
+
+    // If status filter is applied, include sister conversion output packets so grouped conversion lot view is complete
+    if (filters?.status) {
+      const transformIds = packets.map(p => p.sourceTransformId).filter((id): id is number => id != null);
+      if (transformIds.length > 0) {
+        const sisterPackets = await this.prisma.stockPacket.findMany({
+          where: {
+            companyId,
+            isDeleted: false,
+            sourceTransformId: { in: transformIds },
+          },
+          include: {
+            quality: true,
+            movements: true,
+            sourcePacket: true,
+          },
+          orderBy: { id: 'desc' },
+        });
+
+        const existingIds = new Set(packets.map(p => p.id));
+        for (const sister of sisterPackets) {
+          if (!existingIds.has(sister.id)) {
+            packets.push(sister);
+            existingIds.add(sister.id);
+          }
+        }
+      }
+    }
 
     // 2. Fetch all non-deleted packets for summary calculations
     const allPackets = await this.prisma.stockPacket.findMany({
@@ -1013,11 +1036,65 @@ export class ReportService {
     const turnoverRatio = avgInventoryVal > 0 ? totalCogs / avgInventoryVal : 0;
     const avgHoldingPeriod = soldPacketsCountForAge > 0 ? totalDaysToSell / soldPacketsCountForAge : 0;
 
+    const activeValuation = availableValuation + reservedValuation + jobWorkValuation + transitValuation;
+    const activeCarats = availableCarats + reservedCarats + jobWorkCarats + transitCarats;
+    const activePacketsCount = availableCount + reservedCount + jobWorkCount + transitCount;
+
+    const packetIds = packets.map(p => p.id);
+    const saleItems = packetIds.length > 0 ? await this.prisma.saleInvoiceItem.findMany({
+      where: {
+        stockPacketId: { in: packetIds },
+        saleInvoice: { companyId, isDeleted: false, status: { in: ['SAVED', 'APPROVED'] as any[] } }
+      },
+      select: {
+        stockPacketId: true,
+        rate: true,
+        grossAmount: true,
+        saleInvoice: {
+          select: {
+            billNumber: true,
+            invoiceDate: true,
+            customer: { select: { accountName: true } }
+          }
+        }
+      }
+    }) : [];
+
+    const saleMap = new Map<number, { actualSaleRate: number; actualSaleAmount: number; invoiceNumber: string; customerName: string; saleDate: string }>();
+    for (const item of saleItems) {
+      if (item.stockPacketId) {
+        saleMap.set(item.stockPacketId, {
+          actualSaleRate: Number(item.rate || 0),
+          actualSaleAmount: Number(item.grossAmount || 0),
+          invoiceNumber: item.saleInvoice.billNumber,
+          customerName: item.saleInvoice.customer?.accountName || 'Customer',
+          saleDate: item.saleInvoice.invoiceDate ? item.saleInvoice.invoiceDate.toISOString().slice(0, 10) : '',
+        });
+      }
+    }
+
+    const convIds = packets.map(p => p.sourceTransformId).filter((id): id is number => id != null);
+    const conversions = convIds.length > 0 ? await this.prisma.stockConversion.findMany({
+      where: { id: { in: convIds } },
+      select: { id: true, sourceCost: true, processingCost: true },
+    }) : [];
+
+    const convMap = new Map<number, { sourceCost: number; processingCost: number }>();
+    for (const c of conversions) {
+      convMap.set(c.id, { sourceCost: Number(c.sourceCost), processingCost: Number(c.processingCost) });
+    }
+
     return {
       summary: {
         totalPackets,
         totalCarats,
         totalValuation,
+        activeValuation,
+        activeCarats,
+        activePacketsCount,
+        availableValuation,
+        availableCarats,
+        availableCount,
         statusBreakdown: {
           available: { count: availableCount, carats: availableCarats, value: availableValuation },
           reserved: { count: reservedCount, carats: reservedCarats, value: reservedValuation },
@@ -1044,6 +1121,9 @@ export class ReportService {
           }
         }
 
+        const saleInfo = saleMap.get(p.id) || null;
+        const convInfo = p.sourceTransformId ? convMap.get(p.sourceTransformId) : null;
+
         return {
           id: p.id,
           stockIdNumber: p.stockIdNumber,
@@ -1054,6 +1134,17 @@ export class ReportService {
           caratWeight: carats,
           costRate: Number(p.costPerCarat || 0),
           totalValue: carats * Number(p.costPerCarat || 0),
+          targetSaleRate: p.targetSaleRate != null ? Number(p.targetSaleRate) : null,
+          actualSaleRate: saleInfo ? saleInfo.actualSaleRate : null,
+          actualSaleAmount: saleInfo ? saleInfo.actualSaleAmount : null,
+          saleInvoiceNumber: saleInfo ? saleInfo.invoiceNumber : null,
+          customerName: saleInfo ? saleInfo.customerName : null,
+          saleDate: saleInfo ? saleInfo.saleDate : null,
+          sourcePacketId: p.sourcePacketId,
+          sourceTransformId: p.sourceTransformId,
+          sourcePacketStockId: p.sourcePacket?.stockIdNumber || null,
+          sourceRoughCost: convInfo ? convInfo.sourceCost : null,
+          sourceProcessingCost: convInfo ? convInfo.processingCost : null,
           currentStatus: p.currentStatus,
           location: p.currentLocation || (p.currentStatus === 'JOB_WORK' ? 'Worker Vault' : 'Central Vault'),
           registrationDate: p.registrationDate,

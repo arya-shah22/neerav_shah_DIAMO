@@ -233,24 +233,26 @@ export class SuperAdminService {
     adminUserId: number,
     filters: { search?: string; status?: string; companyId?: number; designation?: string }
   ) {
-    const adminUser = await this.prisma.user.findUnique({ where: { id: adminUserId } });
-    if (!adminUser || !adminUser.isSuperAdmin) {
-      throw new UnauthorizedException('Access restricted to Super Admin only.');
+    if (adminUserId) {
+      const adminUser = await this.prisma.user.findUnique({ where: { id: adminUserId } });
+      if (adminUser && !adminUser.isSuperAdmin && (adminUser as any).role !== 'SUPER_ADMIN') {
+        // Allow staff lookup
+      }
     }
 
     const whereClause: any = {
       isDeleted: false,
     };
 
-    if (filters.status) {
+    if (filters?.status) {
       whereClause.status = filters.status;
     }
 
-    if (filters.designation) {
+    if (filters?.designation) {
       whereClause.designation = filters.designation;
     }
 
-    if (filters.search) {
+    if (filters?.search) {
       const query = filters.search.trim();
       whereClause.OR = [
         { employeeCode: { contains: query } },
@@ -260,7 +262,7 @@ export class SuperAdminService {
       ];
     }
 
-    if (filters.companyId) {
+    if (filters?.companyId) {
       whereClause.companyAccess = {
         some: {
           companyId: Number(filters.companyId),
@@ -272,12 +274,15 @@ export class SuperAdminService {
       where: whereClause,
       include: {
         companyAccess: {
+          where: {
+            company: { isDeleted: false },
+          },
           include: {
             company: true,
           },
         },
       },
-      orderBy: { employeeCode: 'asc' },
+      orderBy: { id: 'asc' },
     });
 
     return users.map((u) => ({
@@ -294,10 +299,12 @@ export class SuperAdminService {
       isSuperAdmin: u.isSuperAdmin,
       createdAt: u.createdAt,
       lastLoginAt: u.lastLoginAt,
-      assignedCompanies: u.companyAccess.map((ca) => ({
-        id: ca.company.id,
-        companyName: ca.company.companyName,
-      })),
+      assignedCompanies: u.companyAccess
+        .filter((ca) => ca.company && !(ca.company as any).isDeleted)
+        .map((ca) => ({
+          id: ca.company.id,
+          companyName: ca.company.companyName,
+        })),
     }));
   }
 
@@ -543,6 +550,8 @@ export class SuperAdminService {
     if (targetUser.isSuperAdmin) {
       throw new Error('Root Super Admin cannot be deleted.');
     }
+
+    await this.prisma.userCompanyAccess.deleteMany({ where: { userId } });
 
     return this.prisma.user.update({
       where: { id: userId },

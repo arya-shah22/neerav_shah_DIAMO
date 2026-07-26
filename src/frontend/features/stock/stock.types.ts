@@ -62,6 +62,7 @@ export interface IStockPacket {
   certificateNumber: string | null;
   costPerCarat: number;
   totalCost: number;
+  targetSaleRate?: number | null;
   currentStatus: StockStatus;
   currentOwnership: StockOwnership;
   currentOwnerId: number | null;
@@ -126,6 +127,7 @@ export interface IStockConversionOutput {
   cut: string | null;
   costPerCarat: number;
   totalCost: number;
+  targetSaleRate?: number | null;
   remarks: string | null;
   outputPacket?: IStockPacket;
   outputQuality?: IStockQualityRef;

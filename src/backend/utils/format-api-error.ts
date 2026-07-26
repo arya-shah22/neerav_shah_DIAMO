@@ -83,7 +83,7 @@ export function formatApiError(error: unknown, fallback: string): string {
   }
 
   if (error instanceof Prisma.PrismaClientValidationError) {
-    return 'Invalid data submitted. Please check all required fields and try again.';
+    return messageFromRawError(error.message, 'Invalid data submitted. Please check all required fields and try again.');
   }
 
   if (error instanceof Error) {

@@ -8,6 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { InvoiceStatus, PaymentStatus, InvoiceType, DebitCreditType, MovementType, StockStatus } from '@prisma/client';
 import { generateStockIdNumber } from '../../utils/stock-id-generator';
 import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { DEFAULT_ACCOUNT_GROUPS } from '../account-group/default-groups';
 
 function cleanUpper(val: unknown): string | null {
   if (val == null) return null;
@@ -36,11 +37,21 @@ export class InvoiceService {
     });
     if (existing) return existing.id;
 
-    const group = await this.prisma.accountGroup.findFirst({
+    let group = await this.prisma.accountGroup.findFirst({
       where: { companyId, groupName, isDeleted: false },
     });
+
     if (!group) {
-      throw new BadRequestException(`Required account group "${groupName}" not found for company ID ${companyId}`);
+      const defGroup = DEFAULT_ACCOUNT_GROUPS.find((g) => g.groupName.toLowerCase() === groupName.toLowerCase());
+      group = await this.prisma.accountGroup.create({
+        data: {
+          companyId,
+          groupName,
+          nature: defGroup?.nature || 'Liabilities',
+          isGlobal: true,
+          sortOrder: defGroup?.sortOrder || 30,
+        },
+      });
     }
 
     const created = await this.prisma.account.create({
@@ -413,6 +424,7 @@ export class InvoiceService {
                   certificateNumber: it.certificateNumber || null,
                   costPerCarat: Number(it.rate),
                   totalCost: Number(gross),
+                  targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
                   caratWeight: 0,
                   pieceCount: 0,
                   currentStatus: StockStatus.AVAILABLE,
@@ -463,6 +475,7 @@ export class InvoiceService {
                   certificateNumber: it.certificateNumber !== undefined ? it.certificateNumber : pkt.certificateNumber,
                   costPerCarat: Number(it.rate),
                   totalCost: Number(gross),
+                  targetSaleRate: it.targetSaleRate !== undefined ? (it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null) : pkt.targetSaleRate,
                 }
               });
             }
@@ -497,6 +510,7 @@ export class InvoiceService {
           carats,
           pieces,
           rate,
+          targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
           lessPct: discountPct + lessPct,
           termsRate: rate,
           grossAmount: gross,
@@ -741,7 +755,7 @@ export class InvoiceService {
                 pieceCount: hasStockOutward
                   ? (skipWeightDecrement ? undefined : { decrement: item.pieces })
                   : { increment: item.pieces },
-                ...(invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_INVOICE' ? {
+                ...(invoiceType === 'PURCHASE_INVOICE' ? {
                   costPerCarat: item.rate,
                   totalCost: item.carats * item.rate,
                 } : {}),
@@ -1344,7 +1358,7 @@ export class InvoiceService {
                 pieceCount: hasStockOutward 
                   ? (skipWeightDecrement ? undefined : { decrement: item.pieces }) 
                   : { increment: item.pieces },
-                ...(invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_INVOICE' ? {
+                ...(invoiceType === 'PURCHASE_INVOICE' ? {
                   costPerCarat: item.rate,
                   totalCost: item.carats * item.rate,
                 } : {}),

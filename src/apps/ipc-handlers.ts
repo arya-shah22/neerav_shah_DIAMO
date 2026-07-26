@@ -358,6 +358,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'account:update', (payload) => accountController.handleUpdate(payload));
   ipcHandle(ipcMain, 'account:update-status', (payload) => accountController.handleUpdateStatus(payload));
   ipcHandle(ipcMain, 'account:delete', (payload) => accountController.handleDelete(payload));
+  ipcHandle(ipcMain, 'account:seed-defaults', (payload) => accountController.handleSeedDefaults(payload));
 
   // ─── Stage 2: Broker ─────────────────────────────────────
   ipcHandle(ipcMain, 'broker:list', (companyId: number) => brokerController.handleList(companyId));
@@ -395,6 +396,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'stock-conversion:get', (payload) => stockConversionController.handleGet(payload));
   ipcHandle(ipcMain, 'stock-conversion:by-packet', (payload) => stockConversionController.handleGetByPacket(payload));
   ipcHandle(ipcMain, 'stock-conversion:create', (payload) => stockConversionController.handleCreate(payload));
+  ipcHandle(ipcMain, 'stock-conversion:update', (payload) => stockConversionController.handleUpdate(payload));
   ipcHandle(ipcMain, 'stock-conversion:delete', (payload) => stockConversionController.handleDelete(payload));
 
   // ─── Stage 4: Invoices ───────────────────────────────────

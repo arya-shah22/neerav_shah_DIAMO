@@ -681,7 +681,9 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                   if (pkt) {
                                     setValue(`items.${index}.carats`, Number(pkt.caratWeight));
                                     setValue(`items.${index}.pieces`, Number(pkt.pieceCount));
-                                    if (pkt.costPerCarat != null) {
+                                    if (isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0) {
+                                      setValue(`items.${index}.rate`, Number((pkt as any).targetSaleRate));
+                                    } else if (pkt.costPerCarat != null && Number(pkt.costPerCarat) > 0) {
                                       setValue(`items.${index}.rate`, Number(pkt.costPerCarat));
                                     }
                                   }
@@ -813,10 +815,11 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                               <Input label="Depth (mm)" type="number" step="0.01" {...register(`items.${index}.depthMm`)} />
                               <Input label="Depth %" type="number" step="0.1" {...register(`items.${index}.totalDepthPct`)} />
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px' }}>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1.2fr 1fr 1fr', gap: '12px' }}>
                               <Input label="Table %" type="number" step="0.1" {...register(`items.${index}.tablePct`)} />
                               <Input label="Certificate Type" placeholder="e.g. GIA" {...register(`items.${index}.certificateType`)} />
                               <Input label="Certificate Number" placeholder="e.g. 12345" {...register(`items.${index}.certificateNumber`)} />
+                              <Input label="Target Rate (₹/ct) [Opt]" type="number" step="0.01" placeholder="Target asking price" {...register(`items.${index}.targetSaleRate`)} />
                               <Input label="Image URL" placeholder="e.g. http://..." {...register(`items.${index}.imageLink`)} />
                               <Input label="Video URL" placeholder="e.g. http://..." {...register(`items.${index}.videoLink`)} />
                             </div>

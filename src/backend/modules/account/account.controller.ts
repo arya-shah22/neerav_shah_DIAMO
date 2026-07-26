@@ -75,4 +75,13 @@ export class AccountController {
       return { success: false, error: formatApiError(error, 'Failed to delete account') };
     }
   }
+
+  async handleSeedDefaults(payload: { companyId: number }): Promise<IApiResponse> {
+    try {
+      const data = await this.service.seedDefaultAccounts(payload.companyId);
+      return { success: true, data };
+    } catch (error) {
+      return { success: false, error: formatApiError(error, 'Failed to seed default accounts') };
+    }
+  }
 }

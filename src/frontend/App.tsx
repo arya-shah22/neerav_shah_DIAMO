@@ -149,6 +149,7 @@ const App: React.FC = () => {
                 <Route path="/inventory/stock/:id" element={<StockDetailPage />} />
                 <Route path="/inventory/stock-conversion" element={<StockConversionListPage />} />
                 <Route path="/inventory/stock-conversion/new" element={<StockConversionFormPage />} />
+                <Route path="/inventory/stock-conversion/edit/:id" element={<StockConversionFormPage editMode />} />
                 <Route path="/inventory/stock-conversion/:id" element={<StockConversionFormPage viewMode />} />
 
                 {/* Stage 4: Invoices (Sale & Purchase Books) */}

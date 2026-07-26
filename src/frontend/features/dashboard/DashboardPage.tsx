@@ -117,11 +117,16 @@ export const DashboardPage: React.FC = () => {
     }
   }, [companyId, activeFinancialYear?.id, user?.id, getTelemetry]);
 
-  // Initial load and 5-minute background auto-refresh
+  // Initial load, window focus listener, and 15-second background auto-refresh for live entries
   useEffect(() => {
     fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 300000); // 5 mins
-    return () => clearInterval(interval);
+    const interval = setInterval(fetchTelemetry, 15000); // 15s auto-refresh
+    const handleFocus = () => fetchTelemetry();
+    window.addEventListener('focus', handleFocus);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('focus', handleFocus);
+    };
   }, [fetchTelemetry]);
 
   const getGreeting = () => {
@@ -131,10 +136,10 @@ export const DashboardPage: React.FC = () => {
     return 'Good Evening';
   };
 
-  const isSalesPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.length === 0 || allowedPages.includes('/transactions/sales');
-  const isPurchasesPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.length === 0 || allowedPages.includes('/transactions/purchases');
-  const isStockPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.length === 0 || allowedPages.includes('/inventory/stock');
-  const isCashBankPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.length === 0 || allowedPages.includes('/vouchers/cash-bank');
+  const isSalesPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.includes('/transactions/sales');
+  const isPurchasesPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.includes('/transactions/purchases');
+  const isStockPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.includes('/inventory/stock');
+  const isCashBankPermitted = user?.isSuperAdmin || user?.role === 'SUPER_ADMIN' || allowedPages.includes('/vouchers/cash-bank');
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px', padding: '24px', width: '100%' }}>
@@ -645,7 +650,109 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 4: Today's Sales */}
+        {/* Card 4: Cash On Hand Money */}
+        <div
+          onClick={() => navigate('/vouchers/cash-bank')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid #16a34a',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0, 0, 0, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Cash On Hand Money
+            </span>
+            <div style={{ background: '#dcfce7', padding: '6px', borderRadius: '8px', color: '#16a34a' }}>
+              <Wallet size={16} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Live Cash Balance
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '2px' }}>
+              {isCashBankPermitted ? formatCurrency(telemetry?.todayCash.netBalance || 0) : '₹***,***'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              Total Receipts: {isCashBankPermitted ? formatCurrency(telemetry?.todayCash.receipts || 0) : '₹***,***'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>Payments: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayCash.payments || 0) : '₹***,***'}</strong></span>
+            <span style={{ color: '#16a34a', fontWeight: 600 }}>Main Cash A/c &rarr;</span>
+          </div>
+        </div>
+
+        {/* Card 5: In Bank Money */}
+        <div
+          onClick={() => navigate('/vouchers/cash-bank')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid #0d9488',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0, 0, 0, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              In Bank Money (Treasury)
+            </span>
+            <div style={{ background: '#ccfbf1', padding: '6px', borderRadius: '8px', color: '#0d9488' }}>
+              <Building size={16} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Live Bank Treasury Balance
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#0d9488', marginTop: '2px' }}>
+              {isCashBankPermitted ? formatCurrency(telemetry?.todayBank.netBalance || 0) : '₹***,***'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              Bank Receipts: {isCashBankPermitted ? formatCurrency(telemetry?.todayBank.receipts || 0) : '₹***,***'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>Bank Payments: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayBank.payments || 0) : '₹***,***'}</strong></span>
+            <span style={{ color: '#0d9488', fontWeight: 600 }}>HDFC / ICICI &rarr;</span>
+          </div>
+        </div>
+
+        {/* Card 6: Today's Sales */}
         <div
           onClick={() => navigate('/transactions/sales')}
           style={{

@@ -46,6 +46,7 @@ export const stockSchema = z
     certificateNumber: z.string().max(50).optional(),
     costPerCarat: z.number().min(0).default(0),
     totalCost: z.number().min(0).default(0),
+    targetSaleRate: optionalNumber,
     statusRemarks: z.string().max(255).optional(),
     imageLink: z
       .string()
