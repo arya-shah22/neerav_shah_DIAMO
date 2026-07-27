@@ -257,6 +257,25 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     loadData();
   }, [companyId, fetchAccounts, fetchQualities, fetchPreviewId, activeFinancialYear, setValue, needReference, referenceType, fetchParentInvoices]);
 
+  useEffect(() => {
+    if (!companyId) return;
+    const handleShortcutSuccess = async () => {
+      const [accRes, qlyRes] = await Promise.all([
+        fetchAccounts({ companyId }),
+        fetchQualities({ companyId }),
+      ]);
+      if (accRes.success && accRes.data) {
+        setParties(accRes.data.filter((a) => !a.isBroker));
+        setBrokers(accRes.data.filter((a) => a.isBroker));
+      }
+      if (qlyRes.success && qlyRes.data) {
+        setQualities(qlyRes.data);
+      }
+    };
+    window.addEventListener('shortcut-master-success', handleShortcutSuccess);
+    return () => window.removeEventListener('shortcut-master-success', handleShortcutSuccess);
+  }, [companyId, fetchAccounts, fetchQualities]);
+
   // Load Preview Voucher Number (only in create mode)
   useEffect(() => {
     if (isEditMode || !companyId || !activeFinancialYear) return;
@@ -537,6 +556,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             placeholder="Select party"
             options={parties.map((p) => ({ value: String(p.id), label: p.accountName }))}
             toValue={Number}
+            shortcutType="account"
+            shortcutGroup={isCustomer ? "Sundry Debtors" : "Sundry Creditors"}
           />
           <FormSelect
             control={control}
@@ -545,6 +566,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
             placeholder="Select broker"
             options={brokers.map((b) => ({ value: String(b.id), label: b.accountName }))}
             toValue={(v) => (v ? Number(v) : null)}
+            shortcutType="account"
+            shortcutGroup="Brokers"
           />
           <Input label="Date *" type="date" {...register('invoiceDate')} />
           <div>
@@ -589,6 +612,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                         name={`items.${index}.qualityId`}
                         options={qualities.map((q) => ({ value: String(q.id), label: q.qualityName }))}
                         toValue={Number}
+                        shortcutType="quality"
                       />
                     </td>
                     <td style={{ padding: '8px', verticalAlign: 'middle' }}>

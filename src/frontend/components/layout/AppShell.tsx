@@ -16,6 +16,9 @@ import { useReportScheduler } from '../../hooks/useReportScheduler';
 import { useSessionTimeout } from '../../hooks/useSessionTimeout';
 import { invokeIpc } from '../../../shared/utils/ipc';
 
+import { useMasterShortcut } from '../../hooks/useMasterShortcut';
+import { ShortcutModalProvider } from '../shortcut/ShortcutModalProvider';
+
 export const AppShell: React.FC = () => {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -26,6 +29,9 @@ export const AppShell: React.FC = () => {
   const [showAutoUpdateModal, setShowAutoUpdateModal] = useState(false);
   const [autoUpdateInfo, setAutoUpdateInfo] = useState<any | null>(null);
   const hasCheckedAutoUpdate = useRef(false);
+
+  // Initialize Ctrl + A master shortcuts
+  useMasterShortcut();
 
   // Run the background automated export scheduler catch-up
   useReportScheduler();
@@ -87,7 +93,7 @@ export const AppShell: React.FC = () => {
             height: auto !important;
             overflow: visible !important;
             display: block !important;
-          }
+            }
           main.content-area {
             padding: 0 !important;
             margin: 0 !important;
@@ -126,6 +132,9 @@ export const AppShell: React.FC = () => {
       </div>
 
       <StatusFooter />
+
+      {/* Floating Modal shortcut overlay */}
+      <ShortcutModalProvider />
 
       {/* Background Auto-Update Modal */}
       {showAutoUpdateModal && autoUpdateInfo && (

@@ -136,6 +136,18 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
     load();
   }, [companyId, fetchPackets, fetchQualities, fetchShapes, queryPacketId, editMode, sourcePacketId]);
 
+  useEffect(() => {
+    if (!companyId) return;
+    const handleShortcutSuccess = async () => {
+      const res = await fetchQualities({ companyId });
+      if (res.success && res.data) {
+        setQualitiesList(res.data);
+      }
+    };
+    window.addEventListener('shortcut-master-success', handleShortcutSuccess);
+    return () => window.removeEventListener('shortcut-master-success', handleShortcutSuccess);
+  }, [companyId, fetchQualities]);
+
   // Load existing conversion for view or edit mode
   useEffect(() => {
     if (!id || !companyId) return;
@@ -584,6 +596,7 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                           value={row.qualityId ? String(row.qualityId) : undefined}
                           onChange={(v) => handleRowChange(idx, 'qualityId', Number(v))}
                           options={qualitiesList.map((q) => ({ value: String(q.id), label: q.qualityName }))}
+                          shortcutType="quality"
                         />
                       </td>
                       <td style={{ padding: '6px', width: '110px' }}>

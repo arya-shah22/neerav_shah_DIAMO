@@ -147,6 +147,24 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
     }
   }, [companyId, id, purpose, activeFinancialYear, fetchAccounts, fetchQualities, fetchStockPackets, fetchPreviewNo]);
 
+  useEffect(() => {
+    if (!companyId) return;
+    const handleShortcutSuccess = async () => {
+      const [accRes, qlyRes] = await Promise.all([
+        fetchAccounts({ companyId }),
+        fetchQualities({ companyId }),
+      ]);
+      if (accRes.success && accRes.data) {
+        setParties(accRes.data);
+      }
+      if (qlyRes.success && qlyRes.data) {
+        setQualities(qlyRes.data);
+      }
+    };
+    window.addEventListener('shortcut-master-success', handleShortcutSuccess);
+    return () => window.removeEventListener('shortcut-master-success', handleShortcutSuccess);
+  }, [companyId, fetchAccounts, fetchQualities]);
+
   // Load existing challan details for edit or view mode
   useEffect(() => {
     if (!id || !companyId) return;
@@ -515,6 +533,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
             options={parties.map(p => ({ value: String(p.id), label: p.accountName }))}
             placeholder="Select Client/Party"
             disabled={viewMode}
+            shortcutType="account"
           />
         </div>
 
@@ -640,6 +659,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
                       options={qualities.map(q => ({ value: String(q.id), label: q.qualityName }))}
                       placeholder="Select Quality"
                       disabled={viewMode || !!row.stockPacketId}
+                      shortcutType="quality"
                     />
                   </td>
 

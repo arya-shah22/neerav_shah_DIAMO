@@ -31,6 +31,8 @@ interface SelectProps {
   maxVisibleItems?: number;
   /** Allow entering custom values not present in the options list */
   creatable?: boolean;
+  shortcutType?: string;
+  shortcutGroup?: string;
 }
 
 interface DropdownPosition {
@@ -55,6 +57,8 @@ export const Select: React.FC<SelectProps> = ({
   loading = false,
   maxVisibleItems = 10,
   creatable = false,
+  shortcutType,
+  shortcutGroup,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchText, setSearchText] = useState('');
@@ -72,12 +76,43 @@ export const Select: React.FC<SelectProps> = ({
   const dropdownRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
+  const selectIdRef = useRef('sel-' + Math.random().toString(36).substring(2, 9));
 
   const listMaxHeight = maxVisibleItems * OPTION_HEIGHT_PX;
 
   useEffect(() => {
     setSelectedValue(normalizedPropValue);
   }, [normalizedPropValue]);
+
+  useEffect(() => {
+    const trigger = triggerRef.current;
+    if (!trigger) return;
+
+    const handleSuccess = (e: Event) => {
+      const { id, selectId } = (e as CustomEvent).detail;
+      if (selectId === selectIdRef.current) {
+        setSelectedValue(String(id));
+        onChange?.(String(id));
+        setSearchText('');
+        setIsOpen(false);
+        // Put focus back to the trigger button
+        setTimeout(() => trigger.focus(), 50);
+      }
+    };
+
+    const handleShortcutTriggered = () => {
+      setIsOpen(false);
+      setSearchText('');
+    };
+
+    window.addEventListener('shortcut-master-success', handleSuccess);
+    window.addEventListener('shortcut-triggered', handleShortcutTriggered);
+
+    return () => {
+      window.removeEventListener('shortcut-master-success', handleSuccess);
+      window.removeEventListener('shortcut-triggered', handleShortcutTriggered);
+    };
+  }, [onChange]);
 
   // Find selected option, or fall back to treating value itself as label if not in list
   const selectedOption =
@@ -208,7 +243,7 @@ export const Select: React.FC<SelectProps> = ({
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-md)',
         boxShadow: 'var(--shadow-lg)',
-        zIndex: 'var(--z-popover)',
+        zIndex: 1000000,
         display: 'flex',
         flexDirection: 'column',
         overflow: 'hidden',
@@ -226,6 +261,11 @@ export const Select: React.FC<SelectProps> = ({
           <input
             ref={inputRef}
             type="text"
+            data-select-id={selectIdRef.current}
+            data-shortcut-type={shortcutType}
+            data-shortcut-group={shortcutGroup}
+            data-selected-value={selectedValue}
+            data-search-text={searchText}
             value={searchText}
             onKeyDown={(evt) => {
               if (evt.key === 'Enter') {
@@ -328,6 +368,10 @@ export const Select: React.FC<SelectProps> = ({
       <button
         ref={triggerRef}
         type="button"
+        data-select-id={selectIdRef.current}
+        data-shortcut-type={shortcutType}
+        data-shortcut-group={shortcutGroup}
+        data-selected-value={selectedValue}
         disabled={disabled}
         aria-expanded={isOpen}
         onClick={() => {

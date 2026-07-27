@@ -49,11 +49,25 @@ const TreeNode: React.FC<{
   </>
 );
 
-export const AccountGroupPage: React.FC = () => {
+export interface AccountGroupProps {
+  modalId?: number;
+  isModalMode?: boolean;
+  initialSearchName?: string;
+  onSuccessCallback?: (id: number, name: string) => void;
+  onCancelCallback?: () => void;
+}
+
+export const AccountGroupPage: React.FC<AccountGroupProps> = ({
+  modalId,
+  isModalMode = false,
+  initialSearchName = '',
+  onSuccessCallback,
+  onCancelCallback,
+}) => {
   const { showToast } = useToast();
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const [selectedId, setSelectedId] = useState<number | null>(null);
-  const [isNew, setIsNew] = useState(false);
+  const [selectedId, setSelectedId] = useState<number | null>(modalId ?? null);
+  const [isNew, setIsNew] = useState(modalId == null);
 
   const { data: tree, invoke: fetchTree } = useIpc<IAccountGroupTreeNode[]>('account-group:tree');
   const { data: groups, invoke: fetchList } = useIpc<IAccountGroup[]>('account-group:list');
@@ -65,7 +79,7 @@ export const AccountGroupPage: React.FC = () => {
 
   const { register, handleSubmit, reset, control, formState: { errors } } = useForm<AccountGroupFormData>({
     resolver: zodResolver(accountGroupSchema),
-    defaultValues: { groupName: '', nature: 'Assets', parentGroupId: null, sortOrder: 0 },
+    defaultValues: { groupName: initialSearchName, nature: 'Assets', parentGroupId: null, sortOrder: 0 },
   });
 
   const refresh = useCallback(async () => {
@@ -82,12 +96,25 @@ export const AccountGroupPage: React.FC = () => {
         if (seedRes.success) {
           await refresh();
         }
-        return;
+      } else {
+        await refresh();
       }
-      await refresh();
+      if (modalId) {
+        // Load the group details if editing in modal mode
+        const res = await fetchGroup({ id: modalId, companyId });
+        if (res.success && res.data) {
+          const g = res.data;
+          reset({
+            groupName: g.groupName,
+            nature: g.nature as AccountGroupFormData['nature'],
+            parentGroupId: g.parentGroupId,
+            sortOrder: g.sortOrder,
+          });
+        }
+      }
     };
     init();
-  }, [companyId, fetchList, seedGroups, refresh]);
+  }, [companyId, fetchList, seedGroups, refresh, modalId, fetchGroup, reset]);
 
   const loadGroup = async (id: number) => {
     if (!companyId) return;
@@ -122,6 +149,9 @@ export const AccountGroupPage: React.FC = () => {
       setIsNew(false);
       if (res.data) setSelectedId(res.data.id);
       await refresh();
+      if (onSuccessCallback && res.data) {
+        onSuccessCallback(res.data.id, res.data.groupName);
+      }
     } else {
       showToast(res.error || 'Save failed', 'error');
     }
@@ -156,6 +186,65 @@ export const AccountGroupPage: React.FC = () => {
   }
 
   const selectedGroup = groups?.find((g) => g.id === selectedId);
+
+  const FormContent = () => (
+    <>
+      {selectedGroup?.isGlobal && (
+        <div style={{ padding: '8px 12px', background: 'var(--color-warning-light)', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '13px' }}>
+          System reserved group — name cannot be changed.
+        </div>
+      )}
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+        <Input label="Group Name" error={errors.groupName?.message} disabled={selectedGroup?.isGlobal && !isNew} {...register('groupName')} />
+        <FormSelect
+          control={control}
+          name="nature"
+          label="Nature *"
+          options={[
+            { value: 'Assets', label: 'Assets' },
+            { value: 'Liabilities', label: 'Liabilities' },
+            { value: 'Income', label: 'Income' },
+            { value: 'Expense', label: 'Expense' },
+          ]}
+          searchable={false}
+          clearable={false}
+        />
+        <FormSelect
+          control={control}
+          name="parentGroupId"
+          label="Parent Group"
+          placeholder="— Root (no parent) —"
+          options={(groups || [])
+            .filter((g) => g.id !== selectedId)
+            .map((g) => ({
+              value: String(g.id),
+              label: g.groupName,
+            }))}
+          toValue={(v) => (v === '' ? null : Number(v))}
+          toString={(v) => (v == null ? '' : String(v))}
+        />
+        <Input label="Sort Order" type="number" error={errors.sortOrder?.message} {...register('sortOrder', { valueAsNumber: true })} />
+      </div>
+    </>
+  );
+
+  if (isModalMode) {
+    return (
+      <form onSubmit={handleSubmit(onSubmit)} style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>
+          {isNew ? 'New Account Group' : selectedGroup ? `Edit: ${selectedGroup.groupName}` : 'Select a group'}
+        </h2>
+        <FormContent />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
+          <Button variant="ghost" type="button" onClick={onCancelCallback}>Cancel</Button>
+          <Button variant="primary" type="submit" loading={creating || updating} disabled={!isNew && !selectedId} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Save size={14} /> Save
+          </Button>
+        </div>
+      </form>
+    );
+  }
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
@@ -196,45 +285,7 @@ export const AccountGroupPage: React.FC = () => {
           <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>
             {isNew ? 'New Account Group' : selectedGroup ? `Edit: ${selectedGroup.groupName}` : 'Select a group'}
           </h2>
-
-          {selectedGroup?.isGlobal && (
-            <div style={{ padding: '8px 12px', background: 'var(--color-warning-light)', borderRadius: 'var(--radius-sm)', marginBottom: '16px', fontSize: '13px' }}>
-              System reserved group — name cannot be changed.
-            </div>
-          )}
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
-            <Input label="Group Name" error={errors.groupName?.message} disabled={selectedGroup?.isGlobal && !isNew} {...register('groupName')} />
-            <FormSelect
-              control={control}
-              name="nature"
-              label="Nature *"
-              options={[
-                { value: 'Assets', label: 'Assets' },
-                { value: 'Liabilities', label: 'Liabilities' },
-                { value: 'Income', label: 'Income' },
-                { value: 'Expense', label: 'Expense' },
-              ]}
-              searchable={false}
-              clearable={false}
-            />
-            <FormSelect
-              control={control}
-              name="parentGroupId"
-              label="Parent Group"
-              placeholder="— Root (no parent) —"
-              options={(groups || [])
-                .filter((g) => g.id !== selectedId)
-                .map((g) => ({
-                  value: String(g.id),
-                  label: g.groupName,
-                }))}
-              toValue={(v) => (v === '' ? null : Number(v))}
-              toString={(v) => (v == null ? '' : String(v))}
-            />
-            <Input label="Sort Order" type="number" error={errors.sortOrder?.message} {...register('sortOrder', { valueAsNumber: true })} />
-          </div>
-
+          <FormContent />
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '24px' }}>
             {selectedId && !selectedGroup?.isGlobal && (
               <Button variant="danger" type="button" onClick={handleDelete} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>

@@ -15,23 +15,38 @@ import type { IHsnCode, IQuality } from './quality.types';
 
 const LIST_ROUTE = '/masters/diamond/qualities';
 
-export const QualityFormPage: React.FC = () => {
-  const { id } = useParams<{ id: string }>();
+export interface QualityFormProps {
+  modalId?: number;
+  isModalMode?: boolean;
+  initialSearchName?: string;
+  onSuccessCallback?: (id: number, name: string) => void;
+  onCancelCallback?: () => void;
+}
+
+export const QualityFormPage: React.FC<QualityFormProps> = ({
+  modalId,
+  isModalMode = false,
+  initialSearchName = '',
+  onSuccessCallback,
+  onCancelCallback,
+}) => {
+  const { id: routeId } = useParams<{ id: string }>();
+  const activeId = modalId ?? (routeId ? Number(routeId) : undefined);
+  const isEdit = !!activeId;
   const navigate = useNavigate();
   const { showToast } = useToast();
   const { companyId, isReady } = useActiveCompany();
-  const isEdit = !!id;
   const [hsnCodes, setHsnCodes] = useState<IHsnCode[]>([]);
 
   const { invoke: fetchQuality } = useIpc<IQuality>('quality:get');
-  const { invoke: createQuality, loading: creating } = useIpc('quality:create');
-  const { invoke: updateQuality, loading: updating } = useIpc('quality:update');
+  const { invoke: createQuality, loading: creating } = useIpc<IQuality>('quality:create');
+  const { invoke: updateQuality, loading: updating } = useIpc<IQuality>('quality:update');
   const { invoke: fetchHsn } = useIpc<IHsnCode[]>('quality:hsn-list');
 
   const { register, handleSubmit, reset, setValue, watch, control, formState: { errors } } = useForm<QualityFormData>({
     resolver: zodResolver(qualitySchema),
     defaultValues: {
-      qualityName: '',
+      qualityName: initialSearchName,
       hsnNumber: '',
       uqc: 'CTS',
       purchaseRate: 0,
@@ -68,9 +83,9 @@ export const QualityFormPage: React.FC = () => {
   }, [selectedHsn, hsnCodes, setValue, isEdit]);
 
   useEffect(() => {
-    if (!companyId || !isEdit || !id) return;
+    if (!companyId || !isEdit || !activeId) return;
     const load = async () => {
-      const res = await fetchQuality({ id: Number(id), companyId });
+      const res = await fetchQuality({ id: Number(activeId), companyId });
       if (res.success && res.data) {
         const q = res.data;
         const latestGst = q.gstHistory?.[0];
@@ -94,16 +109,20 @@ export const QualityFormPage: React.FC = () => {
       }
     };
     load();
-  }, [companyId, id, isEdit, fetchQuality, reset]);
+  }, [companyId, activeId, isEdit, fetchQuality, reset]);
 
   const onSubmit = async (data: QualityFormData) => {
     if (!companyId) return;
     const res = isEdit
-      ? await updateQuality({ id: Number(id), companyId, data })
+      ? await updateQuality({ id: Number(activeId), companyId, data })
       : await createQuality({ companyId, data });
     if (res.success) {
       showToast(isEdit ? 'Quality updated' : 'Quality created', 'success');
-      navigate(LIST_ROUTE);
+      if (onSuccessCallback && res.data) {
+        onSuccessCallback(res.data.id, res.data.qualityName);
+      } else {
+        navigate(LIST_ROUTE);
+      }
     } else {
       showToast(res.error || 'Save failed', 'error');
     }
@@ -113,19 +132,9 @@ export const QualityFormPage: React.FC = () => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
 
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-        <Button variant="ghost" onClick={() => navigate(LIST_ROUTE)}><ArrowLeft size={18} /></Button>
-        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-          {isEdit ? 'Edit Quality' : 'New Quality'}
-        </h1>
-      </div>
-
-      <form
-        onSubmit={handleSubmit(onSubmit)}
-        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
-      >
+  const FormContent = () => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      <div>
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Basic Details</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Quality Name *" error={errors.qualityName?.message} {...register('qualityName')} />
@@ -140,38 +149,28 @@ export const QualityFormPage: React.FC = () => {
             toValue={(v) => v === 'true'}
             searchable={false}
             clearable={false}
+            maxVisibleItems={10}
+            creatable={false}
           />
-          <div>
-            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px', color: 'var(--color-primary)' }}>
-              HSN Code *
-            </label>
-            <input
-              type="text"
-              list="hsn-list"
-              placeholder="Type or select HSN"
-              style={{
-                width: '100%',
-                padding: '10px',
-                borderRadius: 'var(--radius-md)',
-                background: 'var(--color-surface)',
-                border: '1px solid var(--color-border)',
-                color: 'var(--color-primary)',
-              }}
-              {...register('hsnNumber')}
-            />
-            <datalist id="hsn-list">
-              {hsnCodes.map((h) => (
-                <option key={h.hsnCode} value={h.hsnCode}>
-                  {h.hsnCode} — {h.description}
-                </option>
-              ))}
-            </datalist>
-            {errors.hsnNumber && (
-              <span style={{ fontSize: '11px', color: 'var(--color-danger)', marginTop: '4px', display: 'block' }}>
-                {errors.hsnNumber.message}
-              </span>
-            )}
-          </div>
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '24px' }}>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Inventory (Stock Packet)</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+          <FormSelect
+            control={control}
+            name="hsnNumber"
+            label="HSN Code *"
+            placeholder="Type or select HSN"
+            error={errors.hsnNumber?.message}
+            required
+            options={hsnCodes.map((h) => ({
+              value: h.hsnCode,
+              label: `${h.hsnCode} (${h.gstPct}%)`,
+            }))}
+            creatable
+          />
           <FormSelect
             control={control}
             name="uqc"
@@ -190,41 +189,74 @@ export const QualityFormPage: React.FC = () => {
             options={[
               { value: 'ACTIVE', label: 'Active' },
               { value: 'INACTIVE', label: 'Inactive' },
-              { value: 'BLOCKED', label: 'Blocked' },
             ]}
             searchable={false}
             clearable={false}
           />
         </div>
+      </div>
 
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '24px' }}>
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Rates & Taxes</h2>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
-          <Input label="Purchase Rate" type="number" step="0.01" {...register('purchaseRate', { valueAsNumber: true })} />
-          <Input label="Sale Rate" type="number" step="0.01" {...register('saleRate', { valueAsNumber: true })} />
-          <Input label="MRP" type="number" step="0.01" {...register('mrp', { valueAsNumber: true })} />
-          
-          {!watch('isService') && (
-            <>
-              <Input label="Min Level" type="number" step="0.001" {...register('minLevel', { valueAsNumber: true })} />
-              <Input label="Max Level" type="number" step="0.001" {...register('maxLevel', { valueAsNumber: true })} />
-            </>
-          )}
-
-          <Input label="GST %" type="number" step="0.01" {...register('gstPct', { valueAsNumber: true })} disabled={isEdit} />
-          <Input label="Cess %" type="number" step="0.01" {...register('cessPct', { valueAsNumber: true })} disabled={isEdit} />
+          <Input label="Purchase Rate" type="number" step="0.01" error={errors.purchaseRate?.message} {...register('purchaseRate', { valueAsNumber: true })} />
+          <Input label="Sale Rate" type="number" step="0.01" error={errors.saleRate?.message} {...register('saleRate', { valueAsNumber: true })} />
+          <Input label="MRP" type="number" step="0.01" error={errors.mrp?.message} {...register('mrp', { valueAsNumber: true })} />
+          <Input label="Min Level" type="number" step="0.01" error={errors.minLevel?.message} {...register('minLevel', { valueAsNumber: true })} />
+          <Input label="Max Level" type="number" step="0.01" error={errors.maxLevel?.message} {...register('maxLevel', { valueAsNumber: true })} />
+          <Input label="GST %" type="number" step="0.01" error={errors.gstPct?.message} {...register('gstPct', { valueAsNumber: true })} />
+          <Input label="Cess %" type="number" step="0.01" error={errors.cessPct?.message} {...register('cessPct', { valueAsNumber: true })} />
         </div>
+      </div>
 
-        {!isEdit && !watch('isService') && (
-          <>
-            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Opening Balance</h2>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
-              <Input label="Carats" type="number" step="0.001" {...register('openingBalanceCarats', { valueAsNumber: true })} />
-              <Input label="Pieces" type="number" {...register('openingBalancePcs', { valueAsNumber: true })} />
-              <Input label="Rate" type="number" step="0.01" {...register('openingBalanceRate', { valueAsNumber: true })} />
-            </div>
-          </>
-        )}
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '24px' }}>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Opening Balance</h2>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '16px' }}>
+          <Input label="Carats" type="number" step="0.01" error={errors.openingBalanceCarats?.message} {...register('openingBalanceCarats', { valueAsNumber: true })} />
+          <Input label="Pieces" type="number" error={errors.openingBalancePcs?.message} {...register('openingBalancePcs', { valueAsNumber: true })} />
+          <Input label="Rate" type="number" step="0.01" error={errors.openingBalanceRate?.message} {...register('openingBalanceRate', { valueAsNumber: true })} />
+        </div>
+      </div>
+    </div>
+  );
 
+  if (isModalMode) {
+    return (
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        style={{
+          display: 'flex',
+          flexDirection: 'column',
+          height: '100%',
+        }}
+      >
+        <div style={{ flex: 1, overflowY: 'auto', maxHeight: '65vh', paddingRight: '12px' }}>
+          <FormContent />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px', borderTop: '1px solid var(--color-border)', paddingTop: '16px' }}>
+          <Button variant="ghost" type="button" onClick={onCancelCallback}>Cancel</Button>
+          <Button variant="primary" type="submit" disabled={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Save size={16} /> {isEdit ? 'Update Quality' : 'Create Quality'}
+          </Button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <Button variant="ghost" onClick={() => navigate(LIST_ROUTE)}><ArrowLeft size={18} /></Button>
+        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+          {isEdit ? 'Edit Quality' : 'New Quality'}
+        </h1>
+      </div>
+
+      <form
+        onSubmit={handleSubmit(onSubmit)}
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
+      >
+        <FormContent />
         <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '24px' }}>
           <Button variant="primary" type="submit" loading={creating || updating} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Save size={16} /> Save Quality

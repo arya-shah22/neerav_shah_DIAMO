@@ -91,6 +91,18 @@ export const StockFormPage: React.FC = () => {
     loadShapes();
   }, [companyId, fetchQualities, loadShapes]);
 
+  useEffect(() => {
+    if (!companyId) return;
+    const handleShortcutSuccess = async () => {
+      const res = await fetchQualities({ companyId });
+      if (res.success && res.data) {
+        setQualities(res.data.filter((q) => !q.isService));
+      }
+    };
+    window.addEventListener('shortcut-master-success', handleShortcutSuccess);
+    return () => window.removeEventListener('shortcut-master-success', handleShortcutSuccess);
+  }, [companyId, fetchQualities]);
+
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
 
   useEffect(() => {
@@ -274,6 +286,7 @@ export const StockFormPage: React.FC = () => {
                 label: q.qualityName,
               }))}
               toValue={(v) => (v ? Number(v) : 0)}
+              shortcutType="quality"
             />
             <FormSelect
               control={control}

@@ -20,6 +20,8 @@ type FormSelectProps<T extends FieldValues> = {
   creatable?: boolean;
   toValue?: (raw: string) => unknown;
   toString?: (value: unknown) => string;
+  shortcutType?: string;
+  shortcutGroup?: string;
 };
 
 export function FormSelect<T extends FieldValues>({
@@ -37,6 +39,8 @@ export function FormSelect<T extends FieldValues>({
   creatable = false,
   toValue = (v) => v,
   toString,
+  shortcutType,
+  shortcutGroup,
 }: FormSelectProps<T>) {
   const stringify =
     toString && toString !== Object.prototype.toString
@@ -61,6 +65,8 @@ export function FormSelect<T extends FieldValues>({
           clearable={clearable}
           maxVisibleItems={maxVisibleItems}
           creatable={creatable}
+          shortcutType={shortcutType}
+          shortcutGroup={shortcutGroup}
         />
       )}
     />
