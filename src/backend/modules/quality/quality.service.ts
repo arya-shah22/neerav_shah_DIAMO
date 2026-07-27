@@ -13,9 +13,9 @@ export class QualityService {
 
   async list(companyId: number, search?: string) {
     const defaultServices = [
-      { name: 'Rough to 4P', code: 'SRV-R4P', hsn: '9986' },
-      { name: 'Rough to Polish', code: 'SRV-RPL', hsn: '9986' },
-      { name: 'Makeable to Polish', code: 'SRV-MPL', hsn: '9986' }
+      { name: 'Rough to 4P', hsn: '9986' },
+      { name: 'Rough to Polish', hsn: '9986' },
+      { name: 'Makeable to Polish', hsn: '9986' }
     ];
     for (const s of defaultServices) {
       const existing = await this.prisma.quality.findFirst({
@@ -28,7 +28,6 @@ export class QualityService {
               data: {
                 companyId,
                 qualityName: s.name,
-                itemCode: s.code,
                 hsnNumber: s.hsn,
                 uqc: UqcType.CTS,
                 isService: true,
@@ -75,14 +74,13 @@ export class QualityService {
   }
 
   async create(companyId: number, data: Record<string, unknown>) {
-    await this.validateUnique(companyId, data.qualityName as string, data.itemCode as string);
+    await this.validateUnique(companyId, data.qualityName as string);
 
     return this.prisma.$transaction(async (tx) => {
       const quality = await tx.quality.create({
         data: {
           companyId,
           qualityName: data.qualityName as string,
-          itemCode: data.itemCode as string,
           hsnNumber: data.hsnNumber as string,
           uqc: (data.uqc as UqcType) || UqcType.CTS,
           purchaseRate: Number(data.purchaseRate) || 0,
@@ -132,14 +130,10 @@ export class QualityService {
   async update(id: number, companyId: number, data: Record<string, unknown>) {
     const existing = await this.get(id, companyId);
 
-    if (
-      (data.qualityName && data.qualityName !== existing.qualityName) ||
-      (data.itemCode && data.itemCode !== existing.itemCode)
-    ) {
+    if (data.qualityName && data.qualityName !== existing.qualityName) {
       await this.validateUnique(
         companyId,
         (data.qualityName as string) || existing.qualityName,
-        (data.itemCode as string) || existing.itemCode,
         id,
       );
     }
@@ -167,7 +161,6 @@ export class QualityService {
       where: { id },
       data: {
         qualityName: data.qualityName as string,
-        itemCode: data.itemCode as string,
         hsnNumber: data.hsnNumber as string,
         uqc: data.uqc as UqcType,
         purchaseRate: data.purchaseRate != null ? Number(data.purchaseRate) : undefined,
@@ -215,13 +208,12 @@ export class QualityService {
   private async validateUnique(
     companyId: number,
     name: string,
-    code: string,
     excludeId?: number,
   ) {
     const dup = await this.prisma.quality.findFirst({
       where: {
         companyId,
-        OR: [{ qualityName: name }, { itemCode: code }],
+        qualityName: name,
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
     });
@@ -231,9 +223,7 @@ export class QualityService {
         await this.prisma.quality.delete({ where: { id: dup.id } });
         return;
       }
-      throw new BadRequestException(
-        dup.qualityName === name ? 'Quality name already exists' : 'Item code already exists',
-      );
+      throw new BadRequestException('Quality name already exists');
     }
   }
 }

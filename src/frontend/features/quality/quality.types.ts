@@ -25,7 +25,6 @@ export interface IQuality {
   id: number;
   companyId: number;
   qualityName: string;
-  itemCode: string;
   hsnNumber: string;
   uqc: UqcType;
   purchaseRate: number;

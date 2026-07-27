@@ -55,7 +55,6 @@ export const QualityListPage: React.FC = () => {
         </div>
       ),
     },
-    { key: 'itemCode', header: 'ITEM CODE', mono: true },
     {
       key: 'isService',
       header: 'TYPE',

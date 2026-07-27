@@ -43,7 +43,6 @@ interface StockPacketObj {
   quality?: {
     id: number;
     qualityName: string;
-    itemCode: string;
   };
 }
 

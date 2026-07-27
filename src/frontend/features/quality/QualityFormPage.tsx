@@ -32,7 +32,6 @@ export const QualityFormPage: React.FC = () => {
     resolver: zodResolver(qualitySchema),
     defaultValues: {
       qualityName: '',
-      itemCode: '',
       hsnNumber: '',
       uqc: 'CTS',
       purchaseRate: 0,
@@ -77,7 +76,6 @@ export const QualityFormPage: React.FC = () => {
         const latestGst = q.gstHistory?.[0];
         reset({
           qualityName: q.qualityName,
-          itemCode: q.itemCode,
           hsnNumber: q.hsnNumber,
           uqc: q.uqc,
           purchaseRate: Number(q.purchaseRate),
@@ -129,9 +127,8 @@ export const QualityFormPage: React.FC = () => {
         style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}
       >
         <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Basic Details</h2>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Quality Name *" error={errors.qualityName?.message} {...register('qualityName')} />
-          <Input label="Item Code *" error={errors.itemCode?.message} {...register('itemCode')} />
           <FormSelect
             control={control}
             name="isService"

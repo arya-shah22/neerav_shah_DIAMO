@@ -25,7 +25,7 @@ export interface StockListFilters {
 }
 
 const STOCK_INCLUDE = {
-  quality: { select: { id: true, qualityName: true, itemCode: true } },
+  quality: { select: { id: true, qualityName: true } },
   media: {
     where: { mediaType: { in: ['PHOTO', 'VIDEO'] as string[] } },
     orderBy: { sortOrder: 'asc' as const },
@@ -63,7 +63,6 @@ export class StockService {
                 { color: { contains: filters.search } },
                 { clarity: { contains: filters.search } },
                 { quality: { qualityName: { contains: filters.search } } },
-                { quality: { itemCode: { contains: filters.search } } },
               ],
             }
           : {}),
@@ -115,7 +114,7 @@ export class StockService {
             stockIdNumber: true,
             caratWeight: true,
             qualityId: true,
-            quality: { select: { id: true, qualityName: true, itemCode: true } },
+            quality: { select: { id: true, qualityName: true } },
             currentStatus: true,
           },
         },

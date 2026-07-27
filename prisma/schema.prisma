@@ -611,7 +611,6 @@ model Quality {
   id                   Int           @id @default(autoincrement()) @db.UnsignedInt
   companyId            Int           @map("company_id") @db.UnsignedInt
   qualityName          String        @map("quality_name") @db.VarChar(100)
-  itemCode             String        @map("item_code") @db.VarChar(30)
   hsnNumber            String        @map("hsn_number") @db.VarChar(8)
   uqc                  UqcType       @default(CTS)
   purchaseRate         Decimal       @default(0.00) @map("purchase_rate") @db.Decimal(18, 2)
@@ -647,7 +646,6 @@ model Quality {
   conversionOutputQualities   StockConversionOutput[] @relation("ConversionOutputQuality")
 
   @@unique([companyId, qualityName], map: "UQ_qualities_company_name")
-  @@unique([companyId, itemCode], map: "UQ_qualities_company_code")
   @@index([companyId, status, isDeleted], map: "IX_qualities_company_status")
   @@map("qualities")
 }

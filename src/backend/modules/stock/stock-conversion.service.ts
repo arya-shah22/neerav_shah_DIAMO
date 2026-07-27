@@ -9,15 +9,15 @@ import { generateStockIdNumber } from '../../utils/stock-id-generator';
 
 const CONVERSION_INCLUDE = {
   sourcePacket: {
-    include: { quality: { select: { id: true, qualityName: true, itemCode: true } } },
+    include: { quality: { select: { id: true, qualityName: true } } },
   },
-  sourceQuality: { select: { id: true, qualityName: true, itemCode: true } },
+  sourceQuality: { select: { id: true, qualityName: true } },
   outputItems: {
     include: {
       outputPacket: {
-        include: { quality: { select: { id: true, qualityName: true, itemCode: true } } },
+        include: { quality: { select: { id: true, qualityName: true } } },
       },
-      outputQuality: { select: { id: true, qualityName: true, itemCode: true } },
+      outputQuality: { select: { id: true, qualityName: true } },
     },
     orderBy: { rowNumber: 'asc' as const },
   },

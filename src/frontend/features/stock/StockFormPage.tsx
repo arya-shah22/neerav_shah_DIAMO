@@ -271,7 +271,7 @@ export const StockFormPage: React.FC = () => {
               required
               options={qualities.map((q) => ({
                 value: String(q.id),
-                label: `${q.qualityName} (${q.itemCode})`,
+                label: q.qualityName,
               }))}
               toValue={(v) => (v ? Number(v) : 0)}
             />

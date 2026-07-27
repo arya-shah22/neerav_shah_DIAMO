@@ -35,7 +35,6 @@ export type MovementType =
 export interface IStockQualityRef {
   id: number;
   qualityName: string;
-  itemCode: string;
 }
 
 export interface IStockPacket {
