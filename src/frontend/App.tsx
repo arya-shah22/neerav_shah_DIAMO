@@ -67,7 +67,8 @@ const GuestRoutes = () => {
     return <LoadingOverlay visible message="Loading..." />;
   }
 
-  return !isAuthenticated ? <Outlet /> : <Navigate to="/dashboard" replace />;
+  const landingPage = localStorage.getItem('diamo_landing_page') || '/dashboard';
+  return !isAuthenticated ? <Outlet /> : <Navigate to={landingPage} replace />;
 };
 
 // ─── Permission Guard ─────────────────────────────────────────
@@ -107,7 +108,7 @@ const App: React.FC = () => {
             <Route element={<ProtectedRoutes />}>
               <Route element={<AppShell />}>
                <Route element={<PermissionGuardOutlet />}>
-                <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                <Route path="/" element={<Navigate to={localStorage.getItem('diamo_landing_page') || '/dashboard'} replace />} />
                 <Route path="/dashboard" element={<DashboardPage />} />
                 <Route path="/dashboard/analytics" element={<AnalyticsDashboardPage />} />
 

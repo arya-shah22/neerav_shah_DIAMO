@@ -84,7 +84,8 @@ export const LoginPage: React.FC = () => {
       );
       await loadCompanyContext();
       showToast('Logged in successfully', 'success');
-      navigate('/dashboard');
+      const landingPage = localStorage.getItem('diamo_landing_page') || '/dashboard';
+      navigate(landingPage);
     } else {
       showToast(response?.error || 'Invalid credentials or login failed', 'error');
     }
