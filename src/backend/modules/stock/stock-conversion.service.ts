@@ -77,17 +77,17 @@ export class StockConversionService {
 
   /**
    * Generate a sequential conversion number
+   * Bug #10 fix: Use count-based sequence instead of last ID + 1
    */
   private async generateConversionNumber(companyId: number): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const prefix = company?.companyCode || 'CONV';
 
-    const lastConversion = await this.prisma.stockConversion.findFirst({
+    const totalConversions = await this.prisma.stockConversion.count({
       where: { companyId },
-      orderBy: { id: 'desc' },
     });
 
-    const nextNum = lastConversion ? lastConversion.id + 1 : 1;
+    const nextNum = totalConversions + 1;
     return `${prefix}-CONV-${String(nextNum).padStart(6, '0')}`;
   }
 

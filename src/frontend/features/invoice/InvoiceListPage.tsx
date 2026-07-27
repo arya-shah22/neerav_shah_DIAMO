@@ -97,7 +97,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
 
   const handleDelete = async (id: number, voucherNumber: string) => {
     if (!companyId || !confirm(`Permanently delete transaction "${voucherNumber}"? All ledger and stock movements will be reversed.`)) return;
-    const res = await deleteInvoice({ id, companyId });
+    const res = await deleteInvoice({ id, companyId, type });
     if (res.success) {
       showToast('Transaction deleted', 'success');
       await refresh();

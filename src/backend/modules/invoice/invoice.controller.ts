@@ -50,9 +50,9 @@ export class InvoiceController {
     }
   }
 
-  async handleDelete(payload: { id: number; companyId: number }): Promise<IApiResponse> {
+  async handleDelete(payload: { id: number; companyId: number; type?: InvoiceType }): Promise<IApiResponse> {
     try {
-      const data = await this.service.delete(payload.id, payload.companyId);
+      const data = await this.service.delete(payload.id, payload.companyId, payload.type);
       return { success: true, data };
     } catch (error) {
       return { success: false, error: formatApiError(error, 'Failed to delete invoice') };

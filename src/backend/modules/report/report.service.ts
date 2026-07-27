@@ -1048,6 +1048,7 @@ export class ReportService {
       },
       select: {
         stockPacketId: true,
+        carats: true,
         rate: true,
         grossAmount: true,
         saleInvoice: {
@@ -1060,16 +1061,33 @@ export class ReportService {
       }
     }) : [];
 
-    const saleMap = new Map<number, { actualSaleRate: number; actualSaleAmount: number; invoiceNumber: string; customerName: string; saleDate: string }>();
+    const saleMap = new Map<number, { actualSaleRate: number; actualSaleAmount: number; totalCaratsSold: number; invoiceNumber: string; customerName: string; saleDate: string }>();
     for (const item of saleItems) {
       if (item.stockPacketId) {
-        saleMap.set(item.stockPacketId, {
-          actualSaleRate: Number(item.rate || 0),
-          actualSaleAmount: Number(item.grossAmount || 0),
-          invoiceNumber: item.saleInvoice.billNumber,
-          customerName: item.saleInvoice.customer?.accountName || 'Customer',
-          saleDate: item.saleInvoice.invoiceDate ? item.saleInvoice.invoiceDate.toISOString().slice(0, 10) : '',
-        });
+        const existing = saleMap.get(item.stockPacketId);
+        const itemCarats = Number(item.carats || 0);
+        const itemAmount = Number(item.grossAmount || 0);
+        const billNo = item.saleInvoice.billNumber;
+        const custName = item.saleInvoice.customer?.accountName || 'Customer';
+        const sDate = item.saleInvoice.invoiceDate ? item.saleInvoice.invoiceDate.toISOString().slice(0, 10) : '';
+
+        if (existing) {
+          existing.actualSaleAmount += itemAmount;
+          existing.totalCaratsSold += itemCarats;
+          existing.actualSaleRate = existing.totalCaratsSold > 0 ? existing.actualSaleAmount / existing.totalCaratsSold : Number(item.rate || 0);
+          if (!existing.invoiceNumber.includes(billNo)) {
+            existing.invoiceNumber += `, ${billNo}`;
+          }
+        } else {
+          saleMap.set(item.stockPacketId, {
+            actualSaleRate: Number(item.rate || 0),
+            actualSaleAmount: itemAmount,
+            totalCaratsSold: itemCarats,
+            invoiceNumber: billNo,
+            customerName: custName,
+            saleDate: sDate,
+          });
+        }
       }
     }
 
@@ -1114,11 +1132,12 @@ export class ReportService {
       qualityAggregates,
       packets: packets.map(p => {
         let carats = Number(p.caratWeight || 0);
-        if (carats === 0 && (p.currentStatus === 'SOLD' || p.currentStatus === 'RETURNED' || p.currentStatus === 'DAMAGED')) {
-          const outMov = p.movements?.find(m => m.movementType === 'SALES' || m.movementType === 'PURCHASE_RETURN');
-          if (outMov) {
-            carats = Number(outMov.carats || 0);
-          }
+
+        // Sum total sold carats across all sales movements
+        const totalSalesMovCarats = p.movements?.filter(m => m.movementType === 'SALES').reduce((sum, m) => sum + Number(m.carats || 0), 0) || 0;
+
+        if (p.currentStatus === 'SOLD' || (carats === 0 && totalSalesMovCarats > 0)) {
+          carats = totalSalesMovCarats > 0 ? totalSalesMovCarats : Number(p.caratWeight || 0);
         }
 
         const saleInfo = saleMap.get(p.id) || null;

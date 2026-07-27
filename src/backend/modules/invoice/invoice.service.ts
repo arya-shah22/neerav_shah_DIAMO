@@ -91,7 +91,7 @@ export class InvoiceService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    
+
     let typeAbbr = 'INV';
     if (type === 'SALE_INVOICE') typeAbbr = 'SI';
     else if (type === 'SALE_RETURN') typeAbbr = 'SR';
@@ -166,7 +166,7 @@ export class InvoiceService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    
+
     let typeAbbr = 'INV';
     if (type === 'SALE_INVOICE') typeAbbr = 'SI';
     else if (type === 'SALE_RETURN') typeAbbr = 'SR';
@@ -398,7 +398,7 @@ export class InvoiceService {
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
         if (quality && !quality.isService) {
           if (invoiceType === 'PURCHASE_INVOICE') {
-             const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
+            const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
             let pkt = await tx.stockPacket.findFirst({
               where: { companyId, stockIdNumber: stockId, isDeleted: false }
             });
@@ -569,6 +569,9 @@ export class InvoiceService {
               create: parsedItems,
             },
           },
+          include: {
+            items: true,
+          },
         });
         // Normalize for frontend compatibility
         createdInvoice.customerId = createdInvoice.supplierId;
@@ -606,6 +609,9 @@ export class InvoiceService {
             items: {
               create: parsedItems,
             },
+          },
+          include: {
+            items: true,
           },
         });
       }
@@ -717,11 +723,12 @@ export class InvoiceService {
 
       // 3. Stock Movements (Carat Adjustments)
       const hasStockInward = (invoiceType === 'PURCHASE_INVOICE' || invoiceType === 'SALE_RETURN');
-      const hasStockOutward = (invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_RETURN');
       const isFinancialOnly = (invoiceType === 'SALE_DEBIT_NOTE' || invoiceType === 'PURCHASE_DEBIT_NOTE');
 
-      if (!isFinancialOnly) {
-        for (const item of parsedItems) {
+      const itemsToProcess = (createdInvoice.items && createdInvoice.items.length > 0) ? createdInvoice.items : parsedItems;
+
+      if (!isFinancialOnly && itemsToProcess.length > 0) {
+        for (const item of itemsToProcess) {
           if (!item.stockPacketId) continue;
 
           const packet = await tx.stockPacket.findUnique({
@@ -729,43 +736,66 @@ export class InvoiceService {
           });
 
           if (packet) {
+            const isSale = invoiceType === 'SALE_INVOICE';
+            const itemCarats = Number(item.carats);
+            const currentCarats = Number(packet.caratWeight || 0);
+
+            // Bug #11 fix: Validate against overselling
+            if (isSale && itemCarats > currentCarats + 0.0001) {
+              throw new BadRequestException(
+                `Cannot sell ${itemCarats.toFixed(3)} Cts from packet ${packet.stockIdNumber} — only ${currentCarats.toFixed(3)} Cts available`
+              );
+            }
+
+            const remainingCarats = isSale ? Math.max(0, currentCarats - itemCarats) : currentCarats + itemCarats;
+            const newStatus = isSale
+              ? (remainingCarats <= 0.0001 ? StockStatus.SOLD : StockStatus.AVAILABLE)
+              : (invoiceType === 'SALE_RETURN'
+                ? StockStatus.AVAILABLE
+                : (invoiceType === 'PURCHASE_RETURN'
+                  ? StockStatus.RETURNED
+                  : packet.currentStatus));
+
+            // Bug #13 fix: Use consistent pieces value (0 when uncounted, not defaulting to 1)
+            const itemPieces = Number(item.pieces) || 0;
+
+            // Record movement history for audit trail
             await tx.stockMovement.create({
               data: {
                 stockPacketId: packet.id,
                 movementDate: invoiceDate,
                 movementType: hasStockInward ? MovementType.PURCHASE : MovementType.SALES,
                 previousStatus: packet.currentStatus,
-                newStatus: packet.currentStatus,
-                carats: item.carats,
-                pieces: item.pieces,
+                newStatus: newStatus,
+                carats: itemCarats,
+                pieces: itemPieces,
                 sourceVoucherType: invoiceType as any,
                 sourceVoucherId: createdInvoice.id,
-                remarks: `Invoice ref: ${billNumber}`,
+                remarks: isSale
+                  ? (remainingCarats > 0.0001
+                    ? `Sold ${itemCarats.toFixed(3)} Cts out of ${currentCarats.toFixed(3)} Total Cts (${remainingCarats.toFixed(3)} Cts remaining in vault) — Ref: ${billNumber}`
+                    : `Full sale of ${itemCarats.toFixed(3)} Cts — Ref: ${billNumber}`)
+                  : `Invoice ref: ${billNumber}`,
               },
             });
 
-            const skipWeightDecrement = hasStockOutward && Number(packet.pieceCount) === 1;
-
+            // Update single packet carats & status
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
-                caratWeight: hasStockOutward
-                  ? (skipWeightDecrement ? undefined : { decrement: item.carats })
-                  : { increment: item.carats },
-                pieceCount: hasStockOutward
-                  ? (skipWeightDecrement ? undefined : { decrement: item.pieces })
-                  : { increment: item.pieces },
+                caratWeight: hasStockInward
+                  ? { increment: itemCarats }
+                  : remainingCarats,
+                pieceCount: hasStockInward
+                  ? { increment: itemPieces }
+                  : Math.max(0, (packet.pieceCount || 0) - itemPieces),
                 ...(invoiceType === 'PURCHASE_INVOICE' ? {
-                  costPerCarat: item.rate,
-                  totalCost: item.carats * item.rate,
-                } : {}),
-                currentStatus: invoiceType === 'SALE_INVOICE' 
-                  ? StockStatus.SOLD 
-                  : (invoiceType === 'SALE_RETURN' 
-                    ? StockStatus.AVAILABLE 
-                    : (invoiceType === 'PURCHASE_RETURN' 
-                      ? StockStatus.RETURNED 
-                      : undefined)),
+                  costPerCarat: Number(item.rate),
+                  totalCost: itemCarats * Number(item.rate),
+                } : {
+                  totalCost: remainingCarats * Number(packet.costPerCarat || 0),
+                }),
+                currentStatus: newStatus,
               },
             });
           }
@@ -778,22 +808,41 @@ export class InvoiceService {
 
   /**
    * Delete an Invoice (Soft delete with ledger & stock reversal)
+   * Bug #1 fix: Uses stockPacketId instead of qualityId for stock reversal
+   * Bug #5 fix: Uses invoiceType to determine table, avoiding ID collision
    */
-  async delete(id: number, companyId: number) {
-    // Try sale table first
-    let invoice: any = await this.prisma.saleInvoice.findFirst({
-      where: { id, companyId, isDeleted: false },
-      include: { items: true },
-    });
+  async delete(id: number, companyId: number, invoiceTypeHint?: string) {
+    // Determine which table to search based on type hint, or try both
+    let invoice: any = null;
     let isPurchase = false;
 
-    if (!invoice) {
-      // Try purchase table
+    if (invoiceTypeHint && isPurchaseType(invoiceTypeHint as InvoiceType)) {
       invoice = await this.prisma.purchaseInvoice.findFirst({
         where: { id, companyId, isDeleted: false },
         include: { items: true },
       });
       isPurchase = true;
+    } else if (invoiceTypeHint) {
+      invoice = await this.prisma.saleInvoice.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { items: true },
+      });
+    }
+
+    // Fallback: try both tables if no hint or hint didn't match
+    if (!invoice) {
+      invoice = await this.prisma.saleInvoice.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { items: true },
+      });
+      isPurchase = false;
+      if (!invoice) {
+        invoice = await this.prisma.purchaseInvoice.findFirst({
+          where: { id, companyId, isDeleted: false },
+          include: { items: true },
+        });
+        isPurchase = true;
+      }
     }
 
     if (!invoice) throw new BadRequestException('Invoice not found');
@@ -830,23 +879,28 @@ export class InvoiceService {
           const quality = await tx.quality.findUnique({ where: { id: item.qualityId } });
           if (quality?.isService) continue;
 
-          const packet = await tx.stockPacket.findFirst({
-            where: { companyId, qualityId: item.qualityId, isDeleted: false },
+          // Bug #1 fix: Use stockPacketId (exact) instead of qualityId (ambiguous)
+          if (!item.stockPacketId) continue;
+          const packet = await tx.stockPacket.findUnique({
+            where: { id: item.stockPacketId },
           });
 
-          if (packet) {
+          if (packet && !packet.isDeleted) {
+            const currentCarats = Number(packet.caratWeight || 0);
+            const itemCarats = Number(item.carats || 0);
+            const restoredCarats = hasStockOutward
+              ? currentCarats + itemCarats
+              : Math.max(0, currentCarats - itemCarats);
+
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
-                caratWeight: hasStockOutward
-                  ? { increment: item.carats }
-                  : { decrement: item.carats },
+                caratWeight: restoredCarats,
                 pieceCount: hasStockOutward
-                  ? { increment: item.pieces }
-                  : { decrement: item.pieces },
-                currentStatus: (invoice.invoiceType === 'SALE_INVOICE' || invoice.invoiceType === 'PURCHASE_RETURN')
-                  ? StockStatus.AVAILABLE
-                  : undefined,
+                  ? { increment: item.pieces || 0 }
+                  : { decrement: item.pieces || 0 },
+                // Restore to AVAILABLE when reversing a sale/purchase-return
+                currentStatus: hasStockOutward ? StockStatus.AVAILABLE : undefined,
               },
             });
           }
@@ -867,21 +921,44 @@ export class InvoiceService {
 
   /**
    * Update an Invoice — deletes old postings & stock movements, re-creates with new data
+   * Bug #2 fix: Uses stockPacketId instead of qualityId for stock reversal
+   * Bug #3 fix: Checks remaining carats for partial vs full sale status
+   * Bug #4 fix: Removes unreliable skipWeight heuristic, uses explicit carat math
+   * Bug #6 fix: Uses invoiceType to determine correct table, avoiding ID collision
    */
   async update(id: number, companyId: number, data: Record<string, any>) {
-    // Determine which table the existing invoice is in
-    let existing: any = await this.prisma.saleInvoice.findFirst({
-      where: { id, companyId, isDeleted: false },
-      include: { items: true },
-    });
+    // Bug #6 fix: Determine which table using invoiceType from data
+    const hintType = data.invoiceType as string | undefined;
+    let existing: any = null;
     let existingIsPurchase = false;
 
-    if (!existing) {
+    if (hintType && isPurchaseType(hintType as InvoiceType)) {
       existing = await this.prisma.purchaseInvoice.findFirst({
         where: { id, companyId, isDeleted: false },
         include: { items: true },
       });
       existingIsPurchase = true;
+    } else if (hintType) {
+      existing = await this.prisma.saleInvoice.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { items: true },
+      });
+    }
+
+    // Fallback: try both tables
+    if (!existing) {
+      existing = await this.prisma.saleInvoice.findFirst({
+        where: { id, companyId, isDeleted: false },
+        include: { items: true },
+      });
+      existingIsPurchase = false;
+      if (!existing) {
+        existing = await this.prisma.purchaseInvoice.findFirst({
+          where: { id, companyId, isDeleted: false },
+          include: { items: true },
+        });
+        existingIsPurchase = true;
+      }
     }
 
     if (!existing) throw new BadRequestException('Invoice not found');
@@ -965,7 +1042,7 @@ export class InvoiceService {
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
         if (quality && !quality.isService) {
           if (invoiceType === 'PURCHASE_INVOICE') {
-             const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
+            const stockId = it.stockIdNumber?.trim() || (await generateStockIdNumber(tx, companyId));
             let pkt = await tx.stockPacket.findFirst({
               where: { companyId, stockIdNumber: stockId, isDeleted: false }
             });
@@ -1103,7 +1180,7 @@ export class InvoiceService {
       const brokeragePct = Number(data.brokeragePct) || 0;
       const brokerageAmount = (taxableTotal * brokeragePct) / 100;
 
-      // 1. Reverse old stock movements
+      // 1. Reverse old stock movements (Bug #2, #4 fix)
       const oldHasStockOutward = (existing.invoiceType === 'SALE_INVOICE' || existing.invoiceType === 'PURCHASE_RETURN');
       const oldIsFinancialOnly = (existing.invoiceType === 'SALE_DEBIT_NOTE' || existing.invoiceType === 'PURCHASE_DEBIT_NOTE');
 
@@ -1112,24 +1189,27 @@ export class InvoiceService {
           const quality = await tx.quality.findUnique({ where: { id: item.qualityId } });
           if (quality?.isService) continue;
 
-          const packet = await tx.stockPacket.findFirst({
-            where: { companyId, qualityId: item.qualityId, isDeleted: false },
+          // Bug #2 fix: Use stockPacketId (exact) instead of qualityId (ambiguous)
+          if (!item.stockPacketId) continue;
+          const packet = await tx.stockPacket.findUnique({
+            where: { id: item.stockPacketId },
           });
-          if (packet) {
-            const skipWeightIncrement = oldHasStockOutward && Number(packet.pieceCount) === 1;
+          if (packet && !packet.isDeleted) {
+            // Bug #4 fix: Use explicit carat math instead of unreliable skipWeight heuristic
+            const currentCarats = Number(packet.caratWeight || 0);
+            const itemCarats = Number(item.carats || 0);
+            const restoredCarats = oldHasStockOutward
+              ? currentCarats + itemCarats
+              : Math.max(0, currentCarats - itemCarats);
 
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
-                caratWeight: oldHasStockOutward 
-                  ? (skipWeightIncrement ? undefined : { increment: item.carats }) 
-                  : { decrement: item.carats },
-                pieceCount: oldHasStockOutward 
-                  ? (skipWeightIncrement ? undefined : { increment: item.pieces }) 
-                  : { decrement: item.pieces },
-                currentStatus: (existing.invoiceType === 'SALE_INVOICE' || existing.invoiceType === 'PURCHASE_RETURN')
-                  ? StockStatus.AVAILABLE
-                  : undefined,
+                caratWeight: restoredCarats,
+                pieceCount: oldHasStockOutward
+                  ? { increment: item.pieces || 0 }
+                  : { decrement: item.pieces || 0 },
+                currentStatus: oldHasStockOutward ? StockStatus.AVAILABLE : undefined,
               },
             });
           }
@@ -1323,6 +1403,7 @@ export class InvoiceService {
       const hasStockOutward = (invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_RETURN');
       const isFinancialOnly = (invoiceType === 'SALE_DEBIT_NOTE' || invoiceType === 'PURCHASE_DEBIT_NOTE');
 
+      // Bug #3, #4, #14 fixes: Proper partial sale status, explicit carat math, clean totalCost
       if (!isFinancialOnly) {
         for (const item of parsedItems) {
           if (!item.stockPacketId) continue;
@@ -1332,43 +1413,57 @@ export class InvoiceService {
           });
 
           if (packet) {
+            const isSale = invoiceType === 'SALE_INVOICE';
+            const currentCarats = Number(packet.caratWeight || 0);
+            const itemCarats = Number(item.carats || 0);
+            const remainingCarats = isSale
+              ? Math.max(0, currentCarats - itemCarats)
+              : currentCarats + itemCarats;
+
+            // Bug #3 fix: Check remaining carats for partial vs full sale
+            const newStatus = isSale
+              ? (remainingCarats <= 0.0001 ? StockStatus.SOLD : StockStatus.AVAILABLE)
+              : (invoiceType === 'SALE_RETURN'
+                ? StockStatus.AVAILABLE
+                : (invoiceType === 'PURCHASE_RETURN'
+                  ? StockStatus.RETURNED
+                  : packet.currentStatus));
+
             await tx.stockMovement.create({
               data: {
                 stockPacketId: packet.id,
                 movementDate: invoiceDate,
                 movementType: hasStockInward ? MovementType.PURCHASE : MovementType.SALES,
                 previousStatus: packet.currentStatus,
-                newStatus: packet.currentStatus,
-                carats: item.carats,
-                pieces: item.pieces,
+                newStatus: newStatus,
+                carats: itemCarats,
+                pieces: item.pieces || 0,
                 sourceVoucherType: invoiceType as any,
                 sourceVoucherId: id,
-                remarks: `Updated Invoice ref: ${billNumber}`,
+                remarks: isSale
+                  ? (remainingCarats > 0.0001
+                    ? `Sold ${itemCarats.toFixed(3)} Cts out of ${currentCarats.toFixed(3)} Total Cts (${remainingCarats.toFixed(3)} Cts remaining) — Updated ref: ${billNumber}`
+                    : `Full sale of ${itemCarats.toFixed(3)} Cts — Updated ref: ${billNumber}`)
+                  : `Updated Invoice ref: ${billNumber}`,
               },
             });
 
-            const skipWeightDecrement = hasStockOutward && Number(packet.pieceCount) === 1;
-
+            // Bug #4 fix: Explicit carat math instead of skipWeight heuristic
+            // Bug #14 fix: Single totalCost assignment
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
-                caratWeight: hasStockOutward 
-                  ? (skipWeightDecrement ? undefined : { decrement: item.carats }) 
-                  : { increment: item.carats },
-                pieceCount: hasStockOutward 
-                  ? (skipWeightDecrement ? undefined : { decrement: item.pieces }) 
-                  : { increment: item.pieces },
+                caratWeight: hasStockOutward ? remainingCarats : remainingCarats,
+                pieceCount: hasStockOutward
+                  ? Math.max(0, (packet.pieceCount || 0) - (item.pieces || 0))
+                  : (packet.pieceCount || 0) + (item.pieces || 0),
                 ...(invoiceType === 'PURCHASE_INVOICE' ? {
                   costPerCarat: item.rate,
-                  totalCost: item.carats * item.rate,
-                } : {}),
-                currentStatus: invoiceType === 'SALE_INVOICE' 
-                  ? StockStatus.SOLD 
-                  : (invoiceType === 'SALE_RETURN' 
-                    ? StockStatus.AVAILABLE 
-                    : (invoiceType === 'PURCHASE_RETURN' 
-                      ? StockStatus.RETURNED 
-                      : undefined)),
+                  totalCost: itemCarats * item.rate,
+                } : {
+                  totalCost: remainingCarats * Number(packet.costPerCarat || 0),
+                }),
+                currentStatus: newStatus,
               },
             });
           }

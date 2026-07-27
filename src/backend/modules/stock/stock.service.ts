@@ -81,7 +81,7 @@ export class StockService {
       where: {
         companyId,
         isDeleted: false,
-        currentStatus: { in: [StockStatus.AVAILABLE, StockStatus.HOLD] },
+        currentStatus: { in: [StockStatus.AVAILABLE, StockStatus.HOLD, StockStatus.JOB_WORK] },
         OR: [
           { stockIdNumber: { contains: trimmed } },
           { certificateNumber: { contains: trimmed } },

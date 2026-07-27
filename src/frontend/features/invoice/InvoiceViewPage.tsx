@@ -52,8 +52,8 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
 
   const refresh = useCallback(async () => {
     if (!companyId || !id) return;
-    await fetchInvoice({ id: Number(id), companyId });
-  }, [companyId, id, fetchInvoice]);
+    await fetchInvoice({ id: Number(id), companyId, type });
+  }, [companyId, id, type, fetchInvoice]);
 
   useEffect(() => { refresh(); }, [refresh]);
 

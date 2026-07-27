@@ -246,32 +246,42 @@ export const StockDetailPage: React.FC = () => {
               <p style={{ color: 'var(--color-text-secondary)', fontSize: 'var(--text-label)' }}>No movements recorded.</p>
             ) : (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {timeline.map((m) => (
-                  <div
-                    key={m.id}
-                    style={{
-                      padding: '12px',
-                      borderRadius: 'var(--radius-md)',
-                      background: 'var(--color-row-alt)',
-                      borderLeft: '3px solid var(--color-accent)',
-                    }}
-                  >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <span style={{ fontWeight: 600, fontSize: 'var(--text-label)' }}>
-                        {m.movementType.replace(/_/g, ' ')}
-                      </span>
-                      <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)' }}>
-                        {new Date(m.movementDate).toLocaleDateString('en-IN')}
-                      </span>
+                {timeline.map((m) => {
+                  const isSales = m.movementType === 'SALES';
+                  return (
+                    <div
+                      key={m.id}
+                      style={{
+                        padding: '12px 16px',
+                        borderRadius: 'var(--radius-md)',
+                        background: 'var(--color-row-alt)',
+                        borderLeft: `4px solid ${isSales ? '#0284c7' : 'var(--color-accent)'}`,
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ fontWeight: 700, fontSize: 'var(--text-label)', color: isSales ? '#0369a1' : 'var(--color-primary)' }}>
+                            {m.movementType.replace(/_/g, ' ')}
+                          </span>
+                          <span style={{ fontSize: '11px', fontWeight: 700, padding: '2px 8px', borderRadius: '4px', background: isSales ? '#e0f2fe' : '#dcfce7', color: isSales ? '#0369a1' : '#15803d' }}>
+                            {Number(m.carats).toFixed(3)} Cts
+                          </span>
+                        </div>
+                        <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                          {new Date(m.movementDate).toLocaleDateString('en-IN')}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                        {STOCK_STATUS_LABELS[m.previousStatus]} → {isSales && m.previousStatus === 'AVAILABLE' && m.newStatus === 'AVAILABLE' ? 'Partial Sale (Vault)' : STOCK_STATUS_LABELS[m.newStatus]}
+                      </div>
+                      {m.remarks && (
+                        <div style={{ fontSize: 'var(--text-small)', marginTop: '6px', color: 'var(--color-text-primary)', background: 'var(--color-surface)', padding: '6px 10px', borderRadius: '4px', border: '1px solid var(--color-border)' }}>
+                          {m.remarks}
+                        </div>
+                      )}
                     </div>
-                    <div style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)' }}>
-                      {STOCK_STATUS_LABELS[m.previousStatus]} → {STOCK_STATUS_LABELS[m.newStatus]}
-                    </div>
-                    {m.remarks && (
-                      <div style={{ fontSize: 'var(--text-small)', marginTop: '4px' }}>{m.remarks}</div>
-                    )}
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>

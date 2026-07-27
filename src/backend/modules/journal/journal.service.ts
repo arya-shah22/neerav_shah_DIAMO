@@ -13,13 +13,12 @@ export class JournalService {
   private readonly prisma!: PrismaService;
 
   /**
-   * List recent journal vouchers
+   * List all journal vouchers (Bug #12 fix: removed take:20 limit)
    */
   async list(companyId: number) {
     return this.prisma.journalVoucher.findMany({
       where: { companyId, isDeleted: false },
       orderBy: { voucherDate: 'desc' },
-      take: 20, // Keep it focused on recent entries
       include: {
         lines: {
           include: { account: true }

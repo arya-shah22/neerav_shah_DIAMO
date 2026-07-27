@@ -16,12 +16,12 @@ export class CashBankService {
    * Ensure default Cash Account and Bank Account exist for a company
    */
   async ensureDefaultAccounts(companyId: number): Promise<void> {
-    // 1. Ensure Cash Account exists
+    // Bug #9/#16 fix: Use exact accountName match instead of contains
     const cashExist = await this.prisma.account.findFirst({
       where: {
         companyId,
         isDeleted: false,
-        accountName: { contains: 'cash' }
+        accountName: 'Cash Account'
       }
     });
 
@@ -45,12 +45,12 @@ export class CashBankService {
       });
     }
 
-    // 2. Ensure Bank Account exists
+    // Bug #9/#16 fix: Use exact accountName match instead of contains
     const bankExist = await this.prisma.account.findFirst({
       where: {
         companyId,
         isDeleted: false,
-        accountName: { contains: 'bank' }
+        accountName: 'Bank Account'
       }
     });
 
@@ -115,7 +115,6 @@ export class CashBankService {
         { voucherDate: 'desc' },
         { id: 'desc' }
       ],
-      take: 20,
       include: {
         party: true,
         cashBankAccount: true

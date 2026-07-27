@@ -273,7 +273,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   useEffect(() => {
     if (!isEditMode || !companyId || editLoaded) return;
     const loadInvoice = async () => {
-      const res = await fetchInvoice({ id: Number(editId), companyId });
+      const res = await fetchInvoice({ id: Number(editId), companyId, type });
       if (res.success && res.data) {
         const inv = res.data;
         setValue('financialYearId', inv.financialYearId);

@@ -800,7 +800,7 @@ async function main() {
     });
 
     await runTest('TC-230', 'Auto stock ID preview', async () => {
-      const res = await stock().handlePreviewId(companyAId);
+      const res = await stock().handlePreviewId({ companyId: companyAId });
       assertSuccess(res, 'preview stock id');
       const id = res.data as string;
       assert(/^DM-\d{4}-\d{6}$/.test(id), `expected DM-YYYY-XXXXXX format, got ${id}`);
