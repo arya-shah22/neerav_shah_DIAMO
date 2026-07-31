@@ -208,17 +208,32 @@ export class DashboardService {
       },
     });
 
-    let totalCashOpening = 0;
-    let totalBankOpening = 0;
+    const glSums = await this.prisma.generalLedgerEntry.groupBy({
+      by: ['accountId', 'debitCreditType'],
+      where: { companyId },
+      _sum: { amount: true }
+    });
+
+    let finalCashNetBalance = 0;
+    let finalBankNetBalance = 0;
 
     cashBankAccounts.forEach((acc: any) => {
-      const amt = Number(acc.openingBalanceAmount || 0);
+      const opening = Number(acc.openingBalanceAmount || 0);
+      const isOpeningDebit = acc.openingBalanceType === 'DEBIT';
+
+      const accountGL = glSums.filter((e: any) => e.accountId === acc.id);
+      const debitSum = Number(accountGL.find((e: any) => e.debitCreditType === 'DEBIT')?._sum?.amount || 0);
+      const creditSum = Number(accountGL.find((e: any) => e.debitCreditType === 'CREDIT')?._sum?.amount || 0);
+
+      const balance = isOpeningDebit ? (opening + debitSum - creditSum) : (-opening + debitSum - creditSum);
+
       const groupName = (acc.accountGroup?.groupName || '').toLowerCase();
       const accName = (acc.accountName || '').toLowerCase();
+
       if (groupName.includes('cash') || accName.includes('cash')) {
-        totalCashOpening += acc.openingBalanceType === 'CREDIT' ? -amt : amt;
+        finalCashNetBalance += balance;
       } else if (groupName.includes('bank') || accName.includes('bank') || accName.includes('hdfc') || accName.includes('icici') || accName.includes('sbi') || accName.includes('axis') || accName.includes('kotak')) {
-        totalBankOpening += acc.openingBalanceType === 'CREDIT' ? -amt : amt;
+        finalBankNetBalance += balance;
       }
     });
 
@@ -257,11 +272,8 @@ export class DashboardService {
 
     const displayCashReceipts = cashReceiptsToday > 0 || cashPaymentsToday > 0 ? cashReceiptsToday : totalCashReceipts;
     const displayCashPayments = cashReceiptsToday > 0 || cashPaymentsToday > 0 ? cashPaymentsToday : totalCashPayments;
-    const finalCashNetBalance = totalCashOpening + totalCashReceipts - totalCashPayments;
-
     const displayBankReceipts = bankReceiptsToday > 0 || bankPaymentsToday > 0 ? bankReceiptsToday : totalBankReceipts;
     const displayBankPayments = bankReceiptsToday > 0 || bankPaymentsToday > 0 ? bankPaymentsToday : totalBankPayments;
-    const finalBankNetBalance = totalBankOpening + totalBankReceipts - totalBankPayments;
 
     // 3. Stock Telemetry
     const packets = await this.prisma.stockPacket.findMany({

@@ -69,7 +69,7 @@ export class InvoiceService {
   /**
    * Previews the next sequential voucher number without incrementing the DB sequence
    */
-  async previewVoucherNumber(companyId: number, financialYearId: number, type: InvoiceType): Promise<string> {
+  async previewVoucherNumber(companyId: number, financialYearId: number, type: InvoiceType, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -106,15 +106,16 @@ export class InvoiceService {
       suffix: '',
       digitLength: 6,
       includeYear: true,
+      includeMonth: false,
     };
 
-    return formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company.companyCode);
+    return formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company.companyCode, date);
   }
 
   /**
    * Generates a running sequence number and voucher string for invoice types
    */
-  async generateVoucherNumber(companyId: number, financialYearId: number, type: InvoiceType): Promise<string> {
+  async generateVoucherNumber(companyId: number, financialYearId: number, type: InvoiceType, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -135,6 +136,7 @@ export class InvoiceService {
           method: 'AUTOMATIC',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -175,7 +177,7 @@ export class InvoiceService {
     else if (type === 'PURCHASE_RETURN') typeAbbr = 'PR';
     else if (type === 'PURCHASE_DEBIT_NOTE') typeAbbr = 'PDN';
 
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeAbbr, company.companyCode);
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeAbbr, company.companyCode, date);
   }
 
   // ─── Helper: Enrich items with stock packet data ──────────────────────────
@@ -326,7 +328,7 @@ export class InvoiceService {
     const party = await this.prisma.account.findUnique({ where: { id: partyId } });
     if (!company || !party) throw new BadRequestException('Company or Party account not found');
 
-    const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId, invoiceType);
+    const voucherNumber = await this.generateVoucherNumber(companyId, financialYearId, invoiceType, invoiceDate);
     const billNumber = data.isManualBillNumber && data.billNumber ? data.billNumber : voucherNumber;
 
     const addPct = Number(data.addPct) || 0;

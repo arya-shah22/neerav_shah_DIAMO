@@ -64,6 +64,7 @@ export const SettingsPage: React.FC = () => {
   const [vSuffix, setVSuffix] = useState('');
   const [vDigitLength, setVDigitLength] = useState(6);
   const [vIncludeYear, setVIncludeYear] = useState(true);
+  const [vIncludeMonth, setVIncludeMonth] = useState(false);
 
   // Load All configurations
   const loadConfigurations = React.useCallback(() => {
@@ -95,12 +96,14 @@ export const SettingsPage: React.FC = () => {
       setVSuffix(config.suffix || '');
       setVDigitLength(config.digitLength || 6);
       setVIncludeYear(config.includeYear !== false);
+      setVIncludeMonth(config.includeMonth === true);
     } else {
       setVPrefix(vDef?.defaultPrefix || '');
       setVSeparator('-');
       setVSuffix('');
       setVDigitLength(6);
       setVIncludeYear(true);
+      setVIncludeMonth(false);
     }
   }, [selectedVType, voucherConfigs]);
 
@@ -109,19 +112,38 @@ export const SettingsPage: React.FC = () => {
     const padded = '1'.padStart(vDigitLength, '0');
     const prefixStr = vPrefix || selectedVType.split('_')[0];
     const suffixStr = vSuffix ? `${vSeparator}${vSuffix}` : '';
+    const monthStr = new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
 
     if (selectedVType === 'STOCK_ENTRY') {
       const year = new Date().getFullYear();
-      if (vIncludeYear) {
-        return `${prefixStr}${vSeparator}${year}${vSeparator}${padded}${suffixStr}`;
+      let datePart = '';
+      if (vIncludeMonth && vIncludeYear) {
+        datePart = `${monthStr}${year}`;
+      } else if (vIncludeMonth) {
+        datePart = monthStr;
+      } else if (vIncludeYear) {
+        datePart = String(year);
+      }
+
+      if (datePart) {
+        return `${prefixStr}${vSeparator}${datePart}${vSeparator}${padded}${suffixStr}`;
       }
       return `${prefixStr}${vSeparator}${padded}${suffixStr}`;
     }
 
     const yearLabel = (activeFinancialYear as any)?.label || (activeFinancialYear ? `${new Date(activeFinancialYear.fromDate).getFullYear().toString().slice(-2)}${new Date(activeFinancialYear.toDate).getFullYear().toString().slice(-2)}` : '2627');
     const yearSuffix = yearLabel.slice(-4); // e.g. 2627
-    if (vIncludeYear) {
-      return `${prefixStr}${vSeparator}${yearSuffix}${vSeparator}${padded}${suffixStr}`;
+    let datePart = '';
+    if (vIncludeMonth && vIncludeYear) {
+      datePart = `${monthStr}${yearSuffix}`;
+    } else if (vIncludeMonth) {
+      datePart = monthStr;
+    } else if (vIncludeYear) {
+      datePart = yearSuffix;
+    }
+
+    if (datePart) {
+      return `${prefixStr}${vSeparator}${datePart}${vSeparator}${padded}${suffixStr}`;
     }
     return `${prefixStr}${vSeparator}${padded}${suffixStr}`;
   };
@@ -142,6 +164,7 @@ export const SettingsPage: React.FC = () => {
         suffix: vSuffix.toUpperCase().trim(),
         digitLength: vDigitLength,
         includeYear: vIncludeYear,
+        includeMonth: vIncludeMonth,
       },
     });
      if (res.success) {
@@ -812,6 +835,18 @@ export const SettingsPage: React.FC = () => {
               />
               <label htmlFor="includeYearCheck" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
                 Include Year in ID (Automatic)
+              </label>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <input
+                id="includeMonthCheck"
+                type="checkbox"
+                checked={vIncludeMonth}
+                onChange={(e) => setVIncludeMonth(e.target.checked)}
+                style={{ width: '16px', height: '16px' }}
+              />
+              <label htmlFor="includeMonthCheck" style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>
+                Include Month in ID (Automatic)
               </label>
             </div>
           </div>

@@ -67,21 +67,27 @@ export class LoanService {
    * Helper to retrieve cash account balance
    */
   async getOnHandMoney(companyId: number): Promise<number> {
-    const cashAcc = await this.prisma.account.findFirst({
+    const cashAccs = await this.prisma.account.findMany({
       where: {
         companyId,
         isDeleted: false,
-        accountName: { contains: 'cash' }
+        OR: [
+          { accountName: { contains: 'cash' } },
+          { accountGroup: { groupName: { contains: 'cash' } } }
+        ]
       }
     });
-    if (!cashAcc) return 0;
-    return this.cashBankService.getRunningBalance(companyId, cashAcc.id);
+    let sum = 0;
+    for (const acc of cashAccs) {
+      sum += await this.cashBankService.getRunningBalance(companyId, acc.id);
+    }
+    return sum;
   }
 
   /**
    * Helper to generate voucher numbers for Loan
    */
-  private async generateVoucherNumber(companyId: number, financialYearId: number): Promise<string> {
+  private async generateVoucherNumber(companyId: number, financialYearId: number, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -102,6 +108,7 @@ export class LoanService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -131,10 +138,10 @@ export class LoanService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'LN', company.companyCode);
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'LN', company.companyCode, date);
   }
 
-  async previewVoucherNumber(companyId: number, financialYearId: number): Promise<string> {
+  async previewVoucherNumber(companyId: number, financialYearId: number, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -155,6 +162,7 @@ export class LoanService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -169,7 +177,7 @@ export class LoanService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(nextNum, config, yearSuffix, 'LN', company.companyCode);
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'LN', company.companyCode, date);
   }
 
   /**
@@ -316,7 +324,7 @@ export class LoanService {
     const isManual = data.isManualBillNumber === true;
     const voucherNumber = isManual && data.billNumber
       ? String(data.billNumber)
-      : await this.generateVoucherNumber(companyId, financialYearId);
+      : await this.generateVoucherNumber(companyId, financialYearId, loanDate);
 
     // Calculate due date
     const dueDate = new Date(loanDate);

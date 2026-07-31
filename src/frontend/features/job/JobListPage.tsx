@@ -98,13 +98,6 @@ export const JobListPage: React.FC<JobListPageProps> = ({ jobType }) => {
       ),
     },
     {
-      key: 'voucherNumber',
-      header: 'VOUCHER NUMBER',
-      render: (row) => (
-        <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{row.voucherNumber}</span>
-      ),
-    },
-    {
       key: 'billNumber',
       header: 'BILL NO',
       render: (row) => row.billNumber || '—',

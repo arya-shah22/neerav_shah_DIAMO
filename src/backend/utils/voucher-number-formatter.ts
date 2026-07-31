@@ -6,6 +6,7 @@ export interface VoucherNumberConfigData {
   suffix?: string | null;
   digitLength?: number;
   includeYear?: boolean;
+  includeMonth?: boolean;
 }
 
 export function formatVoucherNumber(
@@ -14,6 +15,7 @@ export function formatVoucherNumber(
   yearSuffix: string,
   typeAbbr: string,
   _companyCode: string,
+  docDate: Date = new Date(),
 ): string {
   const prefix = config.prefix !== undefined && config.prefix !== null && config.prefix !== '' ? config.prefix : typeAbbr;
   const separator = config.separator || '-';
@@ -21,8 +23,19 @@ export function formatVoucherNumber(
   const digitLength = config.digitLength || 6;
   const seqStr = String(sequenceNum).padStart(digitLength, '0');
   
-  if (config.includeYear !== false) {
-    return `${prefix}${separator}${yearSuffix}${separator}${seqStr}${suffix}`;
+  const monthAbbr = docDate.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+
+  let datePart = '';
+  if (config.includeMonth && config.includeYear !== false) {
+    datePart = `${monthAbbr}${yearSuffix}`;
+  } else if (config.includeMonth) {
+    datePart = monthAbbr;
+  } else if (config.includeYear !== false) {
+    datePart = yearSuffix;
+  }
+
+  if (datePart) {
+    return `${prefix}${separator}${datePart}${separator}${seqStr}${suffix}`;
   }
   return `${prefix}${separator}${seqStr}${suffix}`;
 }
@@ -50,6 +63,7 @@ export async function getOrInitializeVoucherConfig(
         suffix: '',
         digitLength: 6,
         includeYear: true,
+        includeMonth: false,
         resetAnnually: true,
       },
     });

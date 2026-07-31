@@ -92,7 +92,7 @@ export class JobService {
   /**
    * Generates a sequential voucher number for job vouchers
    */
-  private async generateVoucherNumber(companyId: number, financialYearId: number, type: JobType): Promise<string> {
+  private async generateVoucherNumber(companyId: number, financialYearId: number, type: JobType, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -115,6 +115,7 @@ export class JobService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -146,10 +147,10 @@ export class JobService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     const typeCode = type === JobType.JOB_INCOME ? 'JI' : 'JE';
 
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeCode, company.companyCode);
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeCode, company.companyCode, date);
   }
 
-  async previewVoucherNumber(companyId: number, financialYearId: number, type: JobType): Promise<string> {
+  async previewVoucherNumber(companyId: number, financialYearId: number, type: JobType, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -172,6 +173,7 @@ export class JobService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -189,7 +191,7 @@ export class JobService {
 
     const typeCode = type === JobType.JOB_INCOME ? 'JI' : 'JE';
 
-    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode, date);
   }
 
   /**
@@ -209,7 +211,7 @@ export class JobService {
     const isManual = data.isManualBillNumber === true;
     const voucherNumber = isManual && data.billNumber
       ? String(data.billNumber)
-      : await this.generateVoucherNumber(companyId, financialYearId, jobType);
+      : await this.generateVoucherNumber(companyId, financialYearId, jobType, voucherDate);
     const billNumber = billNumberInput || voucherNumber;
 
     // Accounts for double entry GL postings

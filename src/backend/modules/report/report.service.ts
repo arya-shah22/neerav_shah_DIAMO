@@ -253,8 +253,6 @@ export class ReportService {
         include: { repayments: true },
       });
 
-      const cashAccountId = await this.getOrCreateDefaultAccount(companyId, 'Cash Account', 'Cash-in-hand');
-
       for (const loan of loans) {
         const glCount = await this.prisma.generalLedgerEntry.count({
           where: { sourceVoucherType: 'LOAN_VOUCHER', sourceVoucherId: loan.id },
@@ -276,7 +274,7 @@ export class ReportService {
 
           await this.safeCreateGlEntry({
             companyId,
-            accountId: cashAccountId,
+            accountId: loan.cashBankAccountId,
             voucherDate: loan.loanDate,
             debitCreditType: isGiven ? DebitCreditType.CREDIT : DebitCreditType.DEBIT,
             amount: loan.principalAmount,
@@ -308,7 +306,7 @@ export class ReportService {
 
             await this.safeCreateGlEntry({
               companyId,
-              accountId: cashAccountId,
+              accountId: rep.cashBankAccountId,
               voucherDate: rep.paymentDate,
               debitCreditType: isGiven ? DebitCreditType.DEBIT : DebitCreditType.CREDIT,
               amount: rep.amount,

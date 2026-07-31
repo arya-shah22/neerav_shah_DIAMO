@@ -1473,6 +1473,7 @@ model VoucherNumberConfig {
   suffix          String?         @db.VarChar(20)
   digitLength     Int             @default(6) @map("digit_length") @db.UnsignedInt
   includeYear     Boolean         @default(true) @map("include_year")
+  includeMonth    Boolean         @default(false) @map("include_month")
   resetAnnually   Boolean         @default(true) @map("reset_annually")
 
   // Audit

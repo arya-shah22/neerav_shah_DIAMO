@@ -2,9 +2,9 @@
 // DIAMO ERP — Stock List Page (Stage 3)
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Gem, Eye } from 'lucide-react';
+import { Plus, Edit2, Trash2, Gem, Eye, ChevronUp, ChevronDown, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
@@ -38,6 +38,22 @@ export const StockListPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StockStatus | ''>('');
   const [categoryFilter, setCategoryFilter] = useState<StockCategory | ''>('');
+  
+  // Advanced Filter States
+  const [selectedShapes, setSelectedShapes] = useState<string[]>([]);
+  const [minCarat, setMinCarat] = useState<string>('');
+  const [maxCarat, setMaxCarat] = useState<string>('');
+  const [selectedColors, setSelectedColors] = useState<string[]>([]);
+  const [selectedClarities, setSelectedClarities] = useState<string[]>([]);
+  const [certType, setCertType] = useState<string>('');
+  const [certNumber, setCertNumber] = useState<string>('');
+  const [costSort, setCostSort] = useState<string>('');
+  const [rateSort, setRateSort] = useState<string>('');
+  const [startDate, setStartDate] = useState<string>('');
+  const [endDate, setEndDate] = useState<string>('');
+  const [qualityFilter, setQualityFilter] = useState<string>('');
+  const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
+
   const [statusModal, setStatusModal] = useState<{
     packet: IStockPacket;
     step: StatusModalStep;
@@ -215,8 +231,8 @@ export const StockListPage: React.FC = () => {
   };
 
   const downloadStockCsv = () => {
-    if (!stock || stock.length === 0) {
-      showToast('No stock packets to download', 'info');
+    if (!processedStock || processedStock.length === 0) {
+      showToast('No matching stock packets to download', 'info');
       return;
     }
 
@@ -244,7 +260,7 @@ export const StockListPage: React.FC = () => {
       'Registration Date'
     ];
 
-    const rows = stock.map((pkt) => [
+    const rows = processedStock.map((pkt) => [
       pkt.stockIdNumber,
       pkt.quality?.qualityName || '',
       pkt.shape || '',
@@ -344,6 +360,161 @@ export const StockListPage: React.FC = () => {
       showToast(res.error || 'Status update failed', 'error');
     }
   };
+
+  // Dynamic extraction of unique values from fetched stock to populate filters
+  const shapeOptions = useMemo(() => {
+    if (!stock) return [];
+    const set = new Set<string>();
+    stock.forEach((s) => {
+      if (s.shape) set.add(s.shape.trim());
+    });
+    return Array.from(set).sort().map(shape => ({ value: shape, label: shape }));
+  }, [stock]);
+
+  const colorOptions = useMemo(() => {
+    if (!stock) return [];
+    const set = new Set<string>();
+    stock.forEach((s) => {
+      if (s.color) set.add(s.color.trim());
+    });
+    return Array.from(set).sort().map(color => ({ value: color, label: color }));
+  }, [stock]);
+
+  const clarityOptions = useMemo(() => {
+    if (!stock) return [];
+    const set = new Set<string>();
+    stock.forEach((s) => {
+      if (s.clarity) set.add(s.clarity.trim());
+    });
+    return Array.from(set).sort().map(clarity => ({ value: clarity, label: clarity }));
+  }, [stock]);
+
+  // Client-side Filtered and Sorted Stock
+  const processedStock = useMemo(() => {
+    if (!stock) return [];
+
+    let result = [...stock];
+
+    // 1. Search term filter (Stock ID, cert, shape, color, quality)
+    if (search.trim()) {
+      const q = search.toLowerCase().trim();
+      result = result.filter(
+        (s) =>
+          s.stockIdNumber.toLowerCase().includes(q) ||
+          (s.certificateNumber && s.certificateNumber.toLowerCase().includes(q)) ||
+          (s.shape && s.shape.toLowerCase().includes(q)) ||
+          (s.color && s.color.toLowerCase().includes(q)) ||
+          (s.clarity && s.clarity.toLowerCase().includes(q)) ||
+          (s.quality?.qualityName && s.quality.qualityName.toLowerCase().includes(q))
+      );
+    }
+
+    // 2. Shapes multi-select filter
+    if (selectedShapes.length > 0) {
+      result = result.filter((s) => s.shape && selectedShapes.includes(s.shape.trim()));
+    }
+
+    // 3. Carats range filter
+    if (minCarat.trim() !== '') {
+      const min = parseFloat(minCarat);
+      if (!isNaN(min)) {
+        result = result.filter((s) => Number(s.caratWeight) >= min);
+      }
+    }
+    if (maxCarat.trim() !== '') {
+      const max = parseFloat(maxCarat);
+      if (!isNaN(max)) {
+        result = result.filter((s) => Number(s.caratWeight) <= max);
+      }
+    }
+
+    // 4. Colors multi-select filter
+    if (selectedColors.length > 0) {
+      result = result.filter((s) => s.color && selectedColors.includes(s.color.trim()));
+    }
+
+    // 5. Clarities multi-select filter
+    if (selectedClarities.length > 0) {
+      result = result.filter((s) => s.clarity && selectedClarities.includes(s.clarity.trim()));
+    }
+
+    // 6. Certificate type filter
+    if (certType) {
+      if (certType === 'GIA') {
+        result = result.filter((s) => s.certificateType?.toUpperCase() === 'GIA');
+      } else if (certType === 'IGI') {
+        result = result.filter((s) => s.certificateType?.toUpperCase() === 'IGI');
+      } else if (certType === 'OTHER') {
+        result = result.filter(
+          (s) =>
+            s.certificateType &&
+            s.certificateType.toUpperCase() !== 'GIA' &&
+            s.certificateType.toUpperCase() !== 'IGI'
+        );
+      }
+    }
+
+    // 7. Certificate number search
+    if (certNumber.trim()) {
+      const q = certNumber.toLowerCase().trim();
+      result = result.filter((s) => s.certificateNumber && s.certificateNumber.toLowerCase().includes(q));
+    }
+
+    // 8. Status filter
+    if (statusFilter) {
+      result = result.filter((s) => s.currentStatus === statusFilter);
+    }
+
+    // 9. Category filter
+    if (categoryFilter) {
+      result = result.filter((s) => s.category === categoryFilter);
+    }
+
+    // 10. Date range filter
+    if (startDate) {
+      const start = new Date(startDate + 'T00:00:00');
+      result = result.filter((s) => new Date(s.registrationDate) >= start);
+    }
+    if (endDate) {
+      const end = new Date(endDate + 'T23:59:59');
+      result = result.filter((s) => new Date(s.registrationDate) <= end);
+    }
+
+    // 11. Quality filter
+    if (qualityFilter) {
+      result = result.filter((s) => s.qualityId === Number(qualityFilter));
+    }
+
+    // Apply Cost / Rate sorting
+    if (costSort === 'low-to-high') {
+      result.sort((a, b) => Number(a.costPerCarat) - Number(b.costPerCarat));
+    } else if (costSort === 'high-to-low') {
+      result.sort((a, b) => Number(b.costPerCarat) - Number(a.costPerCarat));
+    } else if (rateSort === 'low-to-high') {
+      result.sort((a, b) => Number(a.targetSaleRate || 0) - Number(b.targetSaleRate || 0));
+    } else if (rateSort === 'high-to-low') {
+      result.sort((a, b) => Number(b.targetSaleRate || 0) - Number(a.targetSaleRate || 0));
+    }
+
+    return result;
+  }, [
+    stock,
+    search,
+    selectedShapes,
+    minCarat,
+    maxCarat,
+    selectedColors,
+    selectedClarities,
+    certType,
+    certNumber,
+    statusFilter,
+    categoryFilter,
+    startDate,
+    endDate,
+    costSort,
+    rateSort,
+    qualityFilter,
+  ]);
 
   const columns: Column<IStockPacket>[] = [
     {
@@ -473,14 +644,177 @@ export const StockListPage: React.FC = () => {
     );
   }
 
+  // Helper component for checkable badge filters
+  const renderBadgeFilter = (
+    label: string,
+    options: { value: string; label: string }[],
+    selectedValues: string[],
+    setSelectedValues: React.Dispatch<React.SetStateAction<string[]>>
+  ) => {
+    const toggleValue = (val: string) => {
+      setSelectedValues(prev =>
+        prev.includes(val) ? prev.filter(v => v !== val) : [...prev, val]
+      );
+    };
+
+    const clearAll = () => setSelectedValues([]);
+
+    return (
+      <div style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        backgroundColor: 'var(--color-surface)',
+        border: '1px solid var(--color-border)',
+        borderRadius: 'var(--radius-md)',
+        padding: '12px',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+      }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-primary-light)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+            {label}
+          </label>
+          {selectedValues.length > 0 && (
+            <button
+              type="button"
+              onClick={clearAll}
+              style={{
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--color-danger)',
+                fontSize: '11px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                padding: 0,
+              }}
+            >
+              Clear ({selectedValues.length})
+            </button>
+          )}
+        </div>
+        <div style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          gap: '6px',
+          maxHeight: '120px',
+          overflowY: 'auto',
+          padding: '2px',
+          scrollbarWidth: 'thin',
+          scrollbarColor: '#cbd5e1 transparent',
+        }}>
+          {options.length === 0 ? (
+            <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)', fontStyle: 'italic' }}>None available</span>
+          ) : (
+            options.map((opt) => {
+              const isSelected = selectedValues.includes(opt.value);
+              return (
+                <button
+                  key={opt.value}
+                  type="button"
+                  onClick={() => toggleValue(opt.value)}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: 'var(--radius-sm)',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    border: isSelected ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+                    backgroundColor: isSelected ? 'var(--color-accent-light)' : 'var(--color-bg)',
+                    color: isSelected ? 'var(--color-accent-hover)' : 'var(--color-text-secondary)',
+                    transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                  }}
+                >
+                  <span
+                    style={{
+                      width: '6px',
+                      height: '6px',
+                      borderRadius: '50%',
+                      backgroundColor: isSelected ? 'var(--color-accent)' : '#94a3b8',
+                      transition: 'all 0.2s ease',
+                    }}
+                  />
+                  {opt.label}
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const handleResetFilters = () => {
+    setSearch('');
+    setStatusFilter('');
+    setCategoryFilter('');
+    setSelectedShapes([]);
+    setMinCarat('');
+    setMaxCarat('');
+    setSelectedColors([]);
+    setSelectedClarities([]);
+    setCertType('');
+    setCertNumber('');
+    setCostSort('');
+    setRateSort('');
+    setStartDate('');
+    setEndDate('');
+    setQualityFilter('');
+  };
+
+  if (!isReady) {
+    return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company to manage inventory.</p>;
+  }
+
+  if (qualities.length === 0) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
+        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Diamond Inventory</h1>
+        <p style={{ color: 'var(--color-text-secondary)' }}>
+          Create at least one quality master before registering stock packets.
+        </p>
+        <Button variant="primary" onClick={() => navigate('/masters/diamond/qualities/new')}>
+          Add Quality
+        </Button>
+      </div>
+    );
+  }
+
+  const activeFiltersCount = [
+    search.trim() !== '',
+    statusFilter !== '',
+    categoryFilter !== '',
+    selectedShapes.length > 0,
+    minCarat !== '',
+    maxCarat !== '',
+    selectedColors.length > 0,
+    selectedClarities.length > 0,
+    certType !== '',
+    certNumber.trim() !== '',
+    costSort !== '',
+    rateSort !== '',
+    startDate !== '',
+    endDate !== '',
+    qualityFilter !== '',
+  ].filter(Boolean).length;
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
+      {/* Header Panel */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
             <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Diamond Inventory</h1>
             <Badge variant="primary" style={{ fontSize: '13px', padding: '3px 10px', fontWeight: 600 }}>
-              {stock ? stock.length : 0} {stock?.length === 1 ? 'Packet' : 'Packets'}
+              {stock ? (
+                processedStock.length === stock.length ? (
+                  `${stock.length} Packets`
+                ) : (
+                  `Filtered: ${processedStock.length} of ${stock.length} Packets`
+                )
+              ) : '0 Packets'}
             </Badge>
           </div>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
@@ -500,41 +834,273 @@ export const StockListPage: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'flex-end' }}>
-        <div style={{ flex: '1 1 240px', maxWidth: '320px' }}>
-          <Input placeholder="Search stock ID, cert, shape, color..." value={search} onChange={(e) => setSearch(e.target.value)} />
+      {/* Filter and Search Bar controls */}
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '16px' }}>
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ flex: '1 1 280px' }}>
+            <Input
+              placeholder="Search stock ID, cert, shape, color..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <Button
+              variant="secondary"
+              onClick={() => setIsFilterExpanded(!isFilterExpanded)}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}
+            >
+              <SlidersHorizontal size={15} />
+              <span>Advanced Filters</span>
+              {activeFiltersCount > 0 && (
+                <span
+                  style={{
+                    backgroundColor: 'var(--color-primary)',
+                    color: 'white',
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    width: '18px',
+                    height: '18px',
+                    borderRadius: '50%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {activeFiltersCount}
+                </span>
+              )}
+              {isFilterExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+            </Button>
+
+            {activeFiltersCount > 0 && (
+              <Button
+                variant="ghost"
+                onClick={handleResetFilters}
+                style={{ display: 'flex', alignItems: 'center', gap: '4px', color: 'var(--color-danger)' }}
+              >
+                <RefreshCw size={14} />
+                <span>Reset</span>
+              </Button>
+            )}
+          </div>
         </div>
-        <div style={{ minWidth: '180px' }}>
-          <Select
-            label="Status"
-            value={statusFilter}
-            onChange={(v) => setStatusFilter(v as StockStatus | '')}
-            options={statusFilterOptions}
-            searchable={false}
-            clearable={false}
-            placeholder="All statuses"
-          />
-        </div>
-        <div style={{ minWidth: '180px' }}>
-          <Select
-            label="Category"
-            value={categoryFilter}
-            onChange={(v) => setCategoryFilter(v as StockCategory | '')}
-            options={categoryFilterOptions}
-            searchable={false}
-            clearable={false}
-            placeholder="All categories"
-          />
-        </div>
+
+        {/* Collapsible Advanced Filters panel */}
+        {isFilterExpanded && (
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))',
+            gap: '20px',
+            borderTop: '1px solid var(--color-border)',
+            paddingTop: '20px',
+            marginTop: '8px'
+          }}>
+            {/* Section 1: Characteristics */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backgroundColor: 'var(--color-bg)',
+              padding: '16px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--color-border)'
+            }}>
+              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-primary-light)', margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                1. Diamond Characteristics
+              </h3>
+              {renderBadgeFilter('Shape', shapeOptions, selectedShapes, setSelectedShapes)}
+              {renderBadgeFilter('Color', colorOptions, selectedColors, setSelectedColors)}
+              {renderBadgeFilter('Clarity', clarityOptions, selectedClarities, setSelectedClarities)}
+              
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+              }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-primary-light)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                  Carats (Range)
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Input
+                    type="number"
+                    placeholder="Min"
+                    value={minCarat}
+                    onChange={(e) => setMinCarat(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)', fontWeight: 500 }}>to</span>
+                  <Input
+                    type="number"
+                    placeholder="Max"
+                    value={maxCarat}
+                    onChange={(e) => setMaxCarat(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 2: Certification & Dates */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backgroundColor: 'var(--color-bg)',
+              padding: '16px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--color-border)'
+            }}>
+              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-primary-light)', margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                2. Certification & Dates
+              </h3>
+              <div style={{ backgroundColor: 'var(--color-surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                <Select
+                  label="Certificate Type"
+                  value={certType}
+                  onChange={setCertType}
+                  options={[
+                    { value: '', label: 'All Certificates' },
+                    { value: 'GIA', label: 'GIA' },
+                    { value: 'IGI', label: 'IGI' },
+                    { value: 'OTHER', label: 'Other' },
+                  ]}
+                  searchable={false}
+                  clearable={false}
+                />
+                <Input
+                  label="Certificate Number"
+                  placeholder="Search Cert #"
+                  value={certNumber}
+                  onChange={(e) => setCertNumber(e.target.value)}
+                />
+              </div>
+              <div style={{
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '8px',
+                backgroundColor: 'var(--color-surface)',
+                border: '1px solid var(--color-border)',
+                borderRadius: 'var(--radius-md)',
+                padding: '12px',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.02)'
+              }}>
+                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-primary-light)', textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #f1f5f9', paddingBottom: '6px' }}>
+                  Registration Date Range
+                </label>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <Input
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                  <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-muted)', fontWeight: 500 }}>to</span>
+                  <Input
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    style={{ flex: 1 }}
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Section 3: Status & Sorting */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backgroundColor: 'var(--color-bg)',
+              padding: '16px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px dashed var(--color-border)'
+            }}>
+              <h3 style={{ fontSize: '11px', fontWeight: 800, color: 'var(--color-primary-light)', margin: '0 0 4px 0', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                3. Status & Sorting
+              </h3>
+              <div style={{ backgroundColor: 'var(--color-surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                <Select
+                  label="Quality"
+                  value={qualityFilter}
+                  onChange={setQualityFilter}
+                  options={[
+                    { value: '', label: 'All Qualities' },
+                    ...qualities.map((q) => ({ value: String(q.id), label: q.qualityName })),
+                  ]}
+                  searchable={true}
+                  clearable={false}
+                  placeholder="All qualities"
+                />
+                <Select
+                  label="Status"
+                  value={statusFilter}
+                  onChange={(v) => setStatusFilter(v as StockStatus | '')}
+                  options={statusFilterOptions}
+                  searchable={false}
+                  clearable={false}
+                  placeholder="All statuses"
+                />
+                <Select
+                  label="Category"
+                  value={categoryFilter}
+                  onChange={(v) => setCategoryFilter(v as StockCategory | '')}
+                  options={categoryFilterOptions}
+                  searchable={false}
+                  clearable={false}
+                  placeholder="All categories"
+                />
+              </div>
+              <div style={{ backgroundColor: 'var(--color-surface)', padding: '12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', flexDirection: 'column', gap: '12px', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+                <Select
+                  label="Cost Sorting (₹/CT)"
+                  value={costSort}
+                  onChange={(v) => {
+                    setCostSort(v);
+                    if (v) setRateSort(''); // Reset target rate sort if sorting by cost
+                  }}
+                  options={[
+                    { value: '', label: 'Default Order' },
+                    { value: 'low-to-high', label: 'Low to High' },
+                    { value: 'high-to-low', label: 'High to Low' },
+                  ]}
+                  searchable={false}
+                  clearable={false}
+                />
+                <Select
+                  label="Target Rate Sorting (₹/CT)"
+                  value={rateSort}
+                  onChange={(v) => {
+                    setRateSort(v);
+                    if (v) setCostSort(''); // Reset cost sort if sorting by rate
+                  }}
+                  options={[
+                    { value: '', label: 'Default Order' },
+                    { value: 'low-to-high', label: 'Low to High' },
+                    { value: 'high-to-low', label: 'High to Low' },
+                  ]}
+                  searchable={false}
+                  clearable={false}
+                />
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <DataGrid
         columns={columns}
-        data={stock || []}
+        data={processedStock}
         keyField="id"
         loading={loading}
         emptyTitle="No stock packets found"
-        emptyDescription="Register your first diamond stock packet to get started."
+        emptyDescription="Adjust your filters or register a new stock packet."
       />
 
       <Modal

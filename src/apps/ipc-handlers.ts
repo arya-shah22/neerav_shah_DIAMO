@@ -441,13 +441,13 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'cashbank:delete', (payload) => cashBankController.handleDelete(payload));
 
   // ─── Loan Management ──────────────────────────────────────
-  ipcHandle(ipcMain, 'loan:list', (payload: number) => loanController.handleList(payload));
+  ipcHandle(ipcMain, 'loan:list', (payload) => loanController.handleList(payload));
   ipcHandle(ipcMain, 'loan:preview-number', (payload) => loanController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'loan:create', (payload) => loanController.handleCreate(payload));
   ipcHandle(ipcMain, 'loan:repay', (payload) => loanController.handleRepay(payload));
   ipcHandle(ipcMain, 'loan:delete', (payload) => loanController.handleDelete(payload));
-  ipcHandle(ipcMain, 'loan:onhand', (payload: number) => loanController.handleGetOnHandMoney(payload));
-  ipcHandle(ipcMain, 'loan:pdf', (payload: number) => loanController.handleGeneratePdf(payload));
+  ipcHandle(ipcMain, 'loan:onhand', (payload) => loanController.handleGetOnHandMoney(payload));
+  ipcHandle(ipcMain, 'loan:pdf', (payload) => loanController.handleGeneratePdf(payload));
 
   // ─── Phase 11: Enterprise Reports ────────────────────────
   ipcHandle(ipcMain, 'report:ledger', (payload) => reportController.handleGetLedger(payload));

@@ -30,7 +30,7 @@ export class JournalService {
   /**
    * Helper to generate voucher numbers for JV
    */
-  private async generateVoucherNumber(companyId: number, financialYearId: number): Promise<string> {
+  private async generateVoucherNumber(companyId: number, financialYearId: number, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -51,6 +51,7 @@ export class JournalService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -80,10 +81,10 @@ export class JournalService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'JV', company.companyCode);
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'JV', company.companyCode, date);
   }
 
-  async previewVoucherNumber(companyId: number, financialYearId: number): Promise<string> {
+  async previewVoucherNumber(companyId: number, financialYearId: number, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -104,6 +105,7 @@ export class JournalService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -118,7 +120,7 @@ export class JournalService {
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(nextNum, config, yearSuffix, 'JV', company.companyCode);
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'JV', company.companyCode, date);
   }
 
   /**
@@ -224,7 +226,7 @@ export class JournalService {
     const isManual = data.isManualBillNumber === true;
     const voucherNumber = isManual && data.billNumber
       ? String(data.billNumber)
-      : await this.generateVoucherNumber(companyId, financialYearId);
+      : await this.generateVoucherNumber(companyId, financialYearId, voucherDate);
 
     return this.prisma.$transaction(async (tx) => {
       // Create Voucher Header & Lines

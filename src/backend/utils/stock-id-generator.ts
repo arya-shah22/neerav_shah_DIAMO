@@ -13,6 +13,7 @@ const SEQUENCE_LENGTH = 6;
 export interface StockIdConfig {
   prefix?: string;
   includeYear?: boolean;
+  includeMonth?: boolean;
   sequenceLength?: number;
   separator?: string;
 }
@@ -21,13 +22,26 @@ export function formatStockIdNumber(
   sequence: number,
   config: StockIdConfig = {},
   year = new Date().getFullYear(),
+  date = new Date(),
 ): string {
   const prefix = config.prefix ?? DEFAULT_PREFIX;
   const seqLen = config.sequenceLength ?? SEQUENCE_LENGTH;
   const separator = config.separator ?? '-';
   const padded = String(sequence).padStart(seqLen, '0');
-  if (config.includeYear !== false) {
-    return `${prefix}${separator}${year}${separator}${padded}`;
+  
+  const monthAbbr = date.toLocaleString('en-US', { month: 'short' }).toUpperCase();
+
+  let datePart = '';
+  if (config.includeMonth && config.includeYear !== false) {
+    datePart = `${monthAbbr}${year}`;
+  } else if (config.includeMonth) {
+    datePart = monthAbbr;
+  } else if (config.includeYear !== false) {
+    datePart = String(year);
+  }
+
+  if (datePart) {
+    return `${prefix}${separator}${datePart}${separator}${padded}`;
   }
   return `${prefix}${separator}${padded}`;
 }
@@ -59,6 +73,7 @@ export async function generateStockIdNumber(
       activeConfig = {
         prefix: dbConfig.prefix ?? undefined,
         includeYear: dbConfig.includeYear,
+        includeMonth: dbConfig.includeMonth,
         sequenceLength: dbConfig.digitLength,
         separator: dbConfig.separator,
       };
@@ -67,7 +82,18 @@ export async function generateStockIdNumber(
 
   const prefix = activeConfig.prefix ?? DEFAULT_PREFIX;
   const separator = activeConfig.separator ?? '-';
-  const pattern = activeConfig.includeYear !== false ? `${prefix}${separator}${year}${separator}` : `${prefix}${separator}`;
+  const monthAbbr = new Date().toLocaleString('en-US', { month: 'short' }).toUpperCase();
+
+  let datePart = '';
+  if (activeConfig.includeMonth && activeConfig.includeYear !== false) {
+    datePart = `${monthAbbr}${year}`;
+  } else if (activeConfig.includeMonth) {
+    datePart = monthAbbr;
+  } else if (activeConfig.includeYear !== false) {
+    datePart = String(year);
+  }
+
+  const pattern = datePart ? `${prefix}${separator}${datePart}${separator}` : `${prefix}${separator}`;
 
   // Concurrency-safe Sequence Generation: Query max sequence with row-level lock or raw SQL FOR UPDATE
   let nextSequence = 1;

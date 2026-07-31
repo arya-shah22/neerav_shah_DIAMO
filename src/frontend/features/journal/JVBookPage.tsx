@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Trash2, Printer } from 'lucide-react';
+import { Trash2, Printer, Wallet } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, Select, useToast } from '../../components/ui';
@@ -36,6 +36,11 @@ export const JVBookPage: React.FC = () => {
   const { data: journals, loading, invoke: refreshJournals } = useIpc<any[]>('journal:list');
   const { invoke: deleteJournal } = useIpc('journal:delete');
   const { invoke: fetchPreviewNo } = useIpc<string>('journal:preview-number');
+  const { invoke: getBalance } = useIpc<number>('cashbank:balance');
+
+  // Cash and Bank balance states
+  const [cashBalance, setCashBalance] = useState<number>(0);
+  const [bankBalance, setBankBalance] = useState<number>(0);
 
   // Form states
   const [billNumber, setBillNumber] = useState('');
@@ -69,9 +74,40 @@ export const JVBookPage: React.FC = () => {
     await refreshJournals({ companyId });
     const accs = await fetchAccounts({ companyId });
     if (accs.success) {
-      setAccountsList(accs.data || []);
+      const list = accs.data || [];
+      setAccountsList(list);
+
+      // Fetch cash balance
+      const cashAccs = list.filter(a => {
+        const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
+        const name = a.accountName.toLowerCase();
+        return groupName.includes('cash') || name.includes('cash');
+      });
+      let cashSum = 0;
+      for (const cAcc of cashAccs) {
+        const res = await getBalance({ companyId, cashBankAccountId: cAcc.id });
+        if (res.success) {
+          cashSum += Number(res.data) || 0;
+        }
+      }
+      setCashBalance(cashSum);
+
+      // Fetch bank balance
+      const bankAccs = list.filter(a => {
+        const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
+        const name = a.accountName.toLowerCase();
+        return groupName.includes('bank') || name.includes('bank') || name.includes('hdfc') || name.includes('icici') || name.includes('sbi') || name.includes('axis') || name.includes('kotak');
+      });
+      let bankSum = 0;
+      for (const bAcc of bankAccs) {
+        const res = await getBalance({ companyId, cashBankAccountId: bAcc.id });
+        if (res.success) {
+          bankSum += Number(res.data) || 0;
+        }
+      }
+      setBankBalance(bankSum);
     }
-  }, [companyId, refreshJournals, fetchAccounts]);
+  }, [companyId, refreshJournals, fetchAccounts, getBalance]);
 
   useEffect(() => {
     refreshData();
@@ -283,12 +319,12 @@ export const JVBookPage: React.FC = () => {
     {
       key: 'drAccount',
       header: 'DR. ACCOUNT',
-      render: (row) => row.lines.find((l: any) => l.debitCreditType === 'DEBIT')?.account?.accountName || '—'
+      render: (row) => row.lines?.find((l: any) => l.debitCreditType === 'DEBIT')?.account?.accountName || '—'
     },
     {
       key: 'crAccount',
       header: 'CR. ACCOUNT',
-      render: (row) => row.lines.find((l: any) => l.debitCreditType === 'CREDIT')?.account?.accountName || '—'
+      render: (row) => row.lines?.find((l: any) => l.debitCreditType === 'CREDIT')?.account?.accountName || '—'
     },
     {
       key: 'totalDebit',
@@ -374,14 +410,63 @@ export const JVBookPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-      {/* Header Title */}
-      <div>
-        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-          Journal Voucher (JV) Book
-        </h1>
-        <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-          Record balanced adjustments and tax allocations between ledger accounts.
-        </p>
+      {/* Header Title with Balances */}
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
+        <div>
+          <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
+            Journal Voucher (JV) Book
+          </h1>
+          <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+            Record balanced adjustments and tax allocations between ledger accounts.
+          </p>
+        </div>
+
+        {/* Cash and Bank Balances displayed side-by-side */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          {/* On-Hand Money (Cash) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <Wallet size={20} color="var(--color-primary)" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                On-Hand (Cash)
+              </div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                ₹ {cashBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+
+          {/* In Bank Balance */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <Wallet size={20} color="var(--color-success)" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                In Bank
+              </div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-success)' }}>
+                ₹ {bankBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* Entry Form Grid */}

@@ -108,7 +108,7 @@ export class ChallanService {
     return challan;
   }
 
-  async previewVoucherNumber(companyId: number, financialYearId: number, purpose: ChallanPurpose): Promise<string> {
+  async previewVoucherNumber(companyId: number, financialYearId: number, purpose: ChallanPurpose, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
     if (!company || !fy) throw new BadRequestException('Company or Financial Year not found');
@@ -141,9 +141,10 @@ export class ChallanService {
       suffix: '',
       digitLength: 6,
       includeYear: true,
+      includeMonth: false,
     };
 
-    return formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company.companyCode);
+    return formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company.companyCode, date);
   }
 
   async create(companyId: number, financialYearId: number, data: Record<string, any>, userId?: number) {
@@ -211,9 +212,11 @@ export class ChallanService {
         suffix: '',
         digitLength: 6,
         includeYear: true,
+        includeMonth: false,
       };
 
-      const voucherNumber = formatVoucherNumber(sequence.currentNumber, activeConfig, yearSuffix, typeAbbr, company?.companyCode || '');
+      const docDate = new Date(data.challanDate || new Date());
+      const voucherNumber = formatVoucherNumber(sequence.currentNumber, activeConfig, yearSuffix, typeAbbr, company?.companyCode || '', docDate);
 
       // 2. Validate items and lock packets
       const itemsList = Array.isArray(data.items) ? data.items : [];

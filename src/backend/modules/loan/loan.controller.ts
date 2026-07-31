@@ -11,8 +11,9 @@ export class LoanController {
   @Inject(LoanService)
   private readonly loanService!: LoanService;
 
-  async handleList(companyId: number): Promise<IApiResponse> {
+  async handleList(payload: any): Promise<IApiResponse> {
     try {
+      const companyId = Number(payload?.companyId ?? payload);
       const data = await this.loanService.list(companyId);
       return { success: true, data };
     } catch (e: any) {
@@ -49,8 +50,9 @@ export class LoanController {
     }
   }
 
-  async handleGetOnHandMoney(companyId: number): Promise<IApiResponse> {
+  async handleGetOnHandMoney(payload: any): Promise<IApiResponse> {
     try {
+      const companyId = Number(payload?.companyId ?? payload);
       const data = await this.loanService.getOnHandMoney(companyId);
       return { success: true, data };
     } catch (e: any) {
@@ -58,8 +60,9 @@ export class LoanController {
     }
   }
 
-  async handleGeneratePdf(companyId: number): Promise<IApiResponse> {
+  async handleGeneratePdf(payload: any): Promise<IApiResponse> {
     try {
+      const companyId = Number(payload?.companyId ?? payload);
       const buffer = await this.loanService.generateStatementPdf(companyId);
       const pdfBase64 = buffer.toString('base64');
       return { success: true, data: { pdfBase64 } };

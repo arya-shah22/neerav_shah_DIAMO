@@ -163,25 +163,33 @@ export const CashBankPage: React.FC = () => {
     const fetchBalances = async () => {
       if (!companyId) return;
       
-      const cashAcc = accountsList.find(a => a.accountName.toLowerCase().includes('cash'));
-      if (cashAcc) {
-        const res = await getBalance({ companyId, cashBankAccountId: cashAcc.id });
+      const cashAccs = accountsList.filter(a => {
+        const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
+        const name = a.accountName.toLowerCase();
+        return groupName.includes('cash') || name.includes('cash');
+      });
+      let cashSum = 0;
+      for (const cAcc of cashAccs) {
+        const res = await getBalance({ companyId, cashBankAccountId: cAcc.id });
         if (res.success) {
-          setCashBalance(Number(res.data) || 0);
+          cashSum += Number(res.data) || 0;
         }
-      } else {
-        setCashBalance(0);
       }
+      setCashBalance(cashSum);
 
-      const bankAcc = accountsList.find(a => a.accountName.toLowerCase().includes('bank'));
-      if (bankAcc) {
-        const res = await getBalance({ companyId, cashBankAccountId: bankAcc.id });
+      const bankAccs = accountsList.filter(a => {
+        const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
+        const name = a.accountName.toLowerCase();
+        return groupName.includes('bank') || name.includes('bank') || name.includes('hdfc') || name.includes('icici') || name.includes('sbi') || name.includes('axis') || name.includes('kotak');
+      });
+      let bankSum = 0;
+      for (const bAcc of bankAccs) {
+        const res = await getBalance({ companyId, cashBankAccountId: bAcc.id });
         if (res.success) {
-          setBankBalance(Number(res.data) || 0);
+          bankSum += Number(res.data) || 0;
         }
-      } else {
-        setBankBalance(0);
       }
+      setBankBalance(bankSum);
     };
     fetchBalances();
   }, [companyId, accountsList, getBalance, vouchers]);

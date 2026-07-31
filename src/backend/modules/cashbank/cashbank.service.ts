@@ -310,7 +310,7 @@ export class CashBankService {
   /**
    * Helper to generate sequential voucher numbers
    */
-  private async generateVoucherNumber(companyId: number, financialYearId: number, type: CashBankType): Promise<string> {
+  private async generateVoucherNumber(companyId: number, financialYearId: number, type: CashBankType, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -334,6 +334,7 @@ export class CashBankService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -365,10 +366,10 @@ export class CashBankService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     const typeCode = type === CashBankType.CASH_PAYMENT ? 'CP' : type === CashBankType.CASH_RECEIPT ? 'CR' : type === CashBankType.BANK_PAYMENT ? 'BP' : 'BR';
 
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeCode, company.companyCode);
+    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeCode, company.companyCode, date);
   }
 
-  async previewVoucherNumber(companyId: number, financialYearId: number, transactionType: CashBankType): Promise<string> {
+  async previewVoucherNumber(companyId: number, financialYearId: number, transactionType: CashBankType, date: Date = new Date()): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
 
@@ -392,6 +393,7 @@ export class CashBankService {
           separator: '-',
           digitLength: 6,
           includeYear: true,
+          includeMonth: false,
           resetAnnually: true,
         },
       });
@@ -408,7 +410,7 @@ export class CashBankService {
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     const typeCode = transactionType === 'CASH_PAYMENT' ? 'CP' : transactionType === 'CASH_RECEIPT' ? 'CR' : transactionType === 'BANK_PAYMENT' ? 'BP' : 'BR';
 
-    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode);
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode, date);
   }
 
   /**
@@ -439,7 +441,7 @@ export class CashBankService {
     const isManual = data.isManualBillNumber === true;
     const voucherNumber = isManual && data.billNumber
       ? String(data.billNumber)
-      : await this.generateVoucherNumber(companyId, financialYearId, transactionType);
+      : await this.generateVoucherNumber(companyId, financialYearId, transactionType, voucherDate);
 
     // Map CashBankType to corresponding VoucherType for GL Entries
     let vType: VoucherType;

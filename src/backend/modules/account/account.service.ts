@@ -55,13 +55,14 @@ export class AccountService {
     });
   }
 
-  async search(companyId: number, query: string, limit = 20) {
+  async search(companyId: number, query?: string, limit = 200) {
+    const cleanQuery = query ? query.trim() : '';
     return this.prisma.account.findMany({
       where: {
         companyId,
         isDeleted: false,
         status: AccountStatus.ACTIVE,
-        accountName: { contains: query },
+        ...(cleanQuery ? { accountName: { contains: cleanQuery } } : {}),
       },
       take: limit,
       orderBy: { accountName: 'asc' },
@@ -72,6 +73,12 @@ export class AccountService {
         isBroker: true,
         gstinNumber: true,
         status: true,
+        accountGroup: {
+          select: {
+            id: true,
+            groupName: true,
+          },
+        },
       },
     });
   }

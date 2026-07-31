@@ -8,7 +8,7 @@ import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { useCompanyStore } from '../../state/company-store';
 import { Button, Input, Select, useToast } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
-import { Trash2, Briefcase, FileText, IndianRupee, Printer } from 'lucide-react';
+import { Trash2, Briefcase, FileText, Printer, Wallet } from 'lucide-react';
 import { IAccount } from '../account/account.types';
 import { PrintTemplate } from '../../components/ui/PrintTemplate';
 
@@ -77,9 +77,9 @@ export const LoanPage: React.FC = () => {
   // Load dependency data
   const loadData = useCallback(async () => {
     if (!companyId) return;
-    refreshLoans(companyId);
+    refreshLoans({ companyId });
 
-    const cashRes = await getOnHandMoney(companyId);
+    const cashRes = await getOnHandMoney({ companyId });
     if (cashRes.success) {
       setOnHandCash(cashRes.data || 0);
     }
@@ -266,7 +266,7 @@ export const LoanPage: React.FC = () => {
   // Export Statement PDF
   const handleExportPdf = async () => {
     if (!companyId) return;
-    const res = await generatePdf(companyId);
+    const res = await generatePdf({ companyId });
     if (res.success && res.data?.pdfBase64) {
       const linkSource = `data:application/pdf;base64,${res.data.pdfBase64}`;
       const downloadLink = document.createElement("a");
@@ -387,36 +387,48 @@ export const LoanPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          {/* On-Hand Money (Cash) */}
           <div style={{
-            background: 'var(--color-surface-hover)',
-            border: '1px solid var(--color-border)',
-            padding: '6px 14px',
-            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
           }}>
-            <IndianRupee size={15} style={{ color: 'var(--color-success)' }} />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>On-Hand Cash:</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-success)' }}>
-              ₹ {onHandCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </span>
+            <Wallet size={20} color="var(--color-primary)" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                On-Hand (Cash)
+              </div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                ₹ {onHandCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
           </div>
 
+          {/* In Bank Balance */}
           <div style={{
-            background: 'var(--color-surface-hover)',
-            border: '1px solid var(--color-border)',
-            padding: '6px 14px',
-            borderRadius: '8px',
             display: 'flex',
             alignItems: 'center',
-            gap: '8px'
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
           }}>
-            <IndianRupee size={15} style={{ color: 'var(--color-primary)' }} />
-            <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Bank Money:</span>
-            <span style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-primary)' }}>
-              ₹ {bankMoney.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </span>
+            <Wallet size={20} color="var(--color-success)" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                In Bank
+              </div>
+              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-success)' }}>
+                ₹ {bankMoney.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
           </div>
 
           <Button variant="secondary" onClick={handleExportPdf} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
