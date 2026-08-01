@@ -2,7 +2,7 @@
 // DIAMO ERP — Journal Voucher (JV Book) Page (Stage 7 / Phase 8)
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { Trash2, Printer, Wallet } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -187,8 +187,15 @@ export const JVBookPage: React.FC = () => {
   const [selectedBillId, setSelectedBillId] = useState<number | null>(null);
   const { invoke: fetchPendingBills } = useIpc<any[]>('journal:pending-bills');
 
+  // Party & Adjustment account states for Bill Adjustment mode
+  const [partyAccId, setPartyAccId] = useState<number | null>(null);
+  const [adjAccountId, setAdjAccountId] = useState<number | null>(null);
+
+  // Grid Tab state: STANDARD or ADJUSTMENT
+  const [gridTab, setGridTab] = useState<'STANDARD' | 'ADJUSTMENT'>('STANDARD');
+
   // Load pending bills when party account changes (checking both Cr and Dr accounts)
-  const partyAccountId = crAccountId || drAccountId;
+  const partyAccountId = isBillAdjustment ? partyAccId : (crAccountId || drAccountId);
 
   useEffect(() => {
     if (!companyId || !partyAccountId || !isBillAdjustment) {
@@ -220,11 +227,35 @@ export const JVBookPage: React.FC = () => {
     e.preventDefault();
     if (!companyId) return;
 
-    if (!drAccountId || !crAccountId) {
-      showToast('Please select both Debit and Credit accounts', 'error');
-      return;
+    let finalDr = drAccountId;
+    let finalCr = crAccountId;
+
+    if (isBillAdjustment) {
+      if (!partyAccId || !selectedBillId || !adjAccountId) {
+        showToast('Please select Party, Pending Bill and Adjustment Account', 'error');
+        return;
+      }
+      const targetBill = pendingBills.find(b => b.id === selectedBillId);
+      if (!targetBill) {
+        showToast('Invalid pending bill selected', 'error');
+        return;
+      }
+
+      if (targetBill.sourceVoucherType === 'SALE_INVOICE') {
+        finalDr = adjAccountId;
+        finalCr = partyAccId;
+      } else {
+        finalDr = partyAccId;
+        finalCr = adjAccountId;
+      }
+    } else {
+      if (!drAccountId || !crAccountId) {
+        showToast('Please select both Debit and Credit accounts', 'error');
+        return;
+      }
     }
-    if (drAccountId === crAccountId) {
+
+    if (finalDr === finalCr) {
       showToast('Debit and Credit accounts cannot be the same', 'error');
       return;
     }
@@ -236,8 +267,8 @@ export const JVBookPage: React.FC = () => {
     const payload = {
       financialYearId: activeFinancialYear?.id,
       voucherDate,
-      drAccountId,
-      crAccountId,
+      drAccountId: finalDr,
+      crAccountId: finalCr,
       amount,
       isManualBillNumber,
       billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
@@ -257,6 +288,8 @@ export const JVBookPage: React.FC = () => {
       // Reset form states
       setDrAccountId(null);
       setCrAccountId(null);
+      setPartyAccId(null);
+      setAdjAccountId(null);
       setIsBillAdjustment(false);
       setSelectedBillId(null);
       setPendingBills([]);
@@ -408,6 +441,20 @@ export const JVBookPage: React.FC = () => {
     }
   ];
 
+  const filteredJournals = useMemo(() => {
+    if (!journals) return [];
+    return journals.filter(j => {
+      try {
+        if (!j.narration) return gridTab === 'STANDARD';
+        const parsed = JSON.parse(j.narration);
+        const hasBill = !!parsed.outstandingBillId;
+        return gridTab === 'ADJUSTMENT' ? hasBill : !hasBill;
+      } catch {
+        return gridTab === 'STANDARD';
+      }
+    });
+  }, [journals, gridTab]);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       {/* Header Title with Balances */}
@@ -542,11 +589,11 @@ export const JVBookPage: React.FC = () => {
               {/* Party Selection in Bill Adjustment Mode */}
               <Select
                 label="Party Name *"
-                value={crAccountId ? String(crAccountId) : (drAccountId ? String(drAccountId) : '')}
+                value={partyAccId ? String(partyAccId) : ''}
                 onChange={(val) => {
                   const pId = Number(val) || null;
-                  setCrAccountId(pId);
-                  setDrAccountId(null);
+                  setPartyAccId(pId);
+                  setSelectedBillId(null);
                 }}
                 options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
                 placeholder="Select Party Name"
@@ -557,12 +604,21 @@ export const JVBookPage: React.FC = () => {
                 label="Select Pending Bill *"
                 value={selectedBillId ? String(selectedBillId) : ''}
                 onChange={handleSelectBill}
-                disabled={!partyAccountId}
+                disabled={!partyAccId}
                 options={pendingBills.map((b) => ({
                   value: String(b.id),
                   label: `${b.billNumber} (${new Date(b.billDate).toLocaleDateString('en-IN')}) — Unpaid: ₹${Number(b.outstandingAmount).toLocaleString('en-IN')}`
                 }))}
-                placeholder={!partyAccountId ? "Select Party first..." : (pendingBills.length === 0 ? "No pending bills found" : "Choose bill to adjust...")}
+                placeholder={!partyAccId ? "Select Party first..." : (pendingBills.length === 0 ? "No pending bills found" : "Choose bill to adjust...")}
+              />
+
+              {/* Adjustment/Discount/Write-off Account */}
+              <Select
+                label="Adjustment Account (Dr/Cr) *"
+                value={adjAccountId ? String(adjAccountId) : ''}
+                onChange={(val) => setAdjAccountId(Number(val) || null)}
+                options={accountsList.filter(a => a.id !== partyAccId).map(a => ({ value: String(a.id), label: a.accountName }))}
+                placeholder="Select adjustment account"
               />
             </>
           ) : (
@@ -724,15 +780,60 @@ export const JVBookPage: React.FC = () => {
       </form>
 
       {/* Recent Entries Grid */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>Recent Journal Vouchers</h3>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '12px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px', borderBottom: '1px solid var(--color-border)', paddingBottom: '10px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>
+            {gridTab === 'STANDARD' ? 'Recent Journal Vouchers' : 'Recent Bill Adjustments (Kasar)'}
+          </h3>
+          
+          {/* Toggle/Tabs */}
+          <div style={{ display: 'flex', gap: '4px', background: 'var(--color-row-alt)', padding: '4px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+            <button
+              type="button"
+              onClick={() => setGridTab('STANDARD')}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: gridTab === 'STANDARD' ? 'var(--color-surface)' : 'transparent',
+                color: gridTab === 'STANDARD' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                boxShadow: gridTab === 'STANDARD' ? 'var(--shadow-sm)' : 'none',
+                transition: 'all var(--transition-fast)'
+              }}
+            >
+              Standard JVs
+            </button>
+            <button
+              type="button"
+              onClick={() => setGridTab('ADJUSTMENT')}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: 'none',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                background: gridTab === 'ADJUSTMENT' ? 'var(--color-surface)' : 'transparent',
+                color: gridTab === 'ADJUSTMENT' ? 'var(--color-primary)' : 'var(--color-text-secondary)',
+                boxShadow: gridTab === 'ADJUSTMENT' ? 'var(--shadow-sm)' : 'none',
+                transition: 'all var(--transition-fast)'
+              }}
+            >
+              Bill Adjustments
+            </button>
+          </div>
+        </div>
+
         <DataGrid
           columns={columns}
-          data={journals || []}
+          data={filteredJournals}
           keyField="id"
           loading={loading}
-          emptyTitle="No recent JV entries found"
-          emptyDescription="Create a Journal Voucher entry to post adjustments."
+          emptyTitle={gridTab === 'STANDARD' ? "No recent JV entries found" : "No recent bill adjustments found"}
+          emptyDescription={gridTab === 'STANDARD' ? "Create a Journal Voucher entry to post adjustments." : "Adjust a pending bill to create a Kasar settlement voucher."}
         />
       </div>
 

@@ -229,6 +229,16 @@ export class JournalService {
       : await this.generateVoucherNumber(companyId, financialYearId, voucherDate);
 
     return this.prisma.$transaction(async (tx) => {
+      let realOutstandingBillId: number | null = null;
+      if (outstandingBillId) {
+        const billExists = await tx.outstandingBill.findUnique({
+          where: { id: outstandingBillId }
+        });
+        if (billExists) {
+          realOutstandingBillId = outstandingBillId;
+        }
+      }
+
       // Create Voucher Header & Lines
       const voucher = await tx.journalVoucher.create({
         data: {
@@ -256,7 +266,7 @@ export class JournalService {
                 debitCreditType: DebitCreditType.CREDIT,
                 amount,
                 narration: 'JV Credit Entry',
-                outstandingBillId: outstandingBillId || undefined,
+                outstandingBillId: realOutstandingBillId || undefined,
               }
             ]
           }
@@ -325,7 +335,7 @@ export class JournalService {
               where: { id: bill.sourceVoucherId },
               data: {
                 outstandingAmount: nextOutstanding,
-                status: newStatus as any
+                paymentStatus: newStatus as any
               }
             });
           } else if (bill.sourceVoucherType === VoucherType.PURCHASE_INVOICE) {
@@ -333,7 +343,7 @@ export class JournalService {
               where: { id: bill.sourceVoucherId },
               data: {
                 outstandingAmount: nextOutstanding,
-                status: newStatus as any
+                paymentStatus: newStatus as any
               }
             });
           }
@@ -350,7 +360,7 @@ export class JournalService {
               where: { id: outstandingBillId },
               data: {
                 outstandingAmount: nextOutstanding,
-                status: newStatus as any
+                paymentStatus: newStatus as any
               }
             });
           } else {
@@ -365,7 +375,7 @@ export class JournalService {
                 where: { id: outstandingBillId },
                 data: {
                   outstandingAmount: nextOutstanding,
-                  status: newStatus as any
+                  paymentStatus: newStatus as any
                 }
               });
             }
