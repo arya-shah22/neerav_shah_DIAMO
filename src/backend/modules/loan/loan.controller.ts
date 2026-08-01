@@ -41,6 +41,16 @@ export class LoanController {
     }
   }
 
+  async handleWriteOff(payload: { companyId: number; [key: string]: any }): Promise<IApiResponse> {
+    try {
+      const { companyId, ...data } = payload;
+      const result = await this.loanService.writeOff(companyId, data);
+      return { success: true, data: result };
+    } catch (e: any) {
+      return { success: false, error: e.message || 'Failed to record write-off' };
+    }
+  }
+
   async handleDelete(payload: { id: number; companyId: number }): Promise<IApiResponse> {
     try {
       const result = await this.loanService.delete(payload.id, payload.companyId);

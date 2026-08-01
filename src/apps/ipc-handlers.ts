@@ -445,6 +445,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'loan:preview-number', (payload) => loanController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'loan:create', (payload) => loanController.handleCreate(payload));
   ipcHandle(ipcMain, 'loan:repay', (payload) => loanController.handleRepay(payload));
+  ipcHandle(ipcMain, 'loan:write-off', (payload) => loanController.handleWriteOff(payload));
   ipcHandle(ipcMain, 'loan:delete', (payload) => loanController.handleDelete(payload));
   ipcHandle(ipcMain, 'loan:onhand', (payload) => loanController.handleGetOnHandMoney(payload));
   ipcHandle(ipcMain, 'loan:pdf', (payload) => loanController.handleGeneratePdf(payload));

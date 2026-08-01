@@ -63,6 +63,37 @@ export const CashBankPage: React.FC = () => {
   // Dynamic remarks array
   const [remarks, setRemarks] = useState<string[]>(['']);
 
+  const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
+  const [showMonthFilter, setShowMonthFilter] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+
+  useEffect(() => {
+    if (!companyId || !activeFinancialYear?.id) return;
+    getAllConfigs({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const config = res.data.find((c: any) => c.voucherType === transactionType);
+        if (config?.includeMonth) {
+          setShowMonthFilter(true);
+        } else {
+          setShowMonthFilter(false);
+        }
+      }
+    });
+  }, [companyId, activeFinancialYear?.id, transactionType, getAllConfigs]);
+
+  const filteredVouchers = React.useMemo(() => {
+    if (!vouchers) return [];
+    return vouchers.filter((v) => {
+      if (showMonthFilter && selectedMonth !== 'ALL') {
+        const dateObj = new Date(v.voucherDate);
+        if (!isNaN(dateObj.getTime())) {
+          if (String(dateObj.getMonth()) !== selectedMonth) return false;
+        }
+      }
+      return true;
+    });
+  }, [vouchers, showMonthFilter, selectedMonth]);
+
   // Dropdown lists
   const [accountsList, setAccountsList] = useState<IAccount[]>([]);
   const [unpaidBills, setUnpaidBills] = useState<any[]>([]);
@@ -573,6 +604,7 @@ export const CashBankPage: React.FC = () => {
             }}
             options={partyOptions}
             placeholder="Select party account"
+            shortcutType="account"
           />
 
           <Select
@@ -845,10 +877,46 @@ export const CashBankPage: React.FC = () => {
 
       {/* Recent Entries Grid */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>Recent Transactions</h3>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>Recent Transactions</h3>
+          {showMonthFilter && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Filter by Month:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-background)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <option value="ALL">All Months</option>
+                <option value="0">Jan</option>
+                <option value="1">Feb</option>
+                <option value="2">Mar</option>
+                <option value="3">Apr</option>
+                <option value="4">May</option>
+                <option value="5">Jun</option>
+                <option value="6">Jul</option>
+                <option value="7">Aug</option>
+                <option value="8">Sep</option>
+                <option value="9">Oct</option>
+                <option value="10">Nov</option>
+                <option value="11">Dec</option>
+              </select>
+            </div>
+          )}
+        </div>
         <DataGrid
           columns={columns}
-          data={vouchers || []}
+          data={filteredVouchers}
           keyField="id"
           loading={loading}
           emptyTitle="No recent transactions found"

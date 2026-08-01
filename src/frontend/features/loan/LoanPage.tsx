@@ -36,6 +36,7 @@ export const LoanPage: React.FC = () => {
   const { data: loans, loading, invoke: refreshLoans } = useIpc<any[]>('loan:list');
   const { invoke: createLoan } = useIpc('loan:create');
   const { invoke: repayLoan } = useIpc('loan:repay');
+  const { invoke: writeOffLoan } = useIpc('loan:write-off');
   const { invoke: deleteLoan } = useIpc('loan:delete');
   const { invoke: getOnHandMoney } = useIpc<number>('loan:onhand');
   const { invoke: generatePdf } = useIpc<{ pdfBase64: string }>('loan:pdf');
@@ -50,6 +51,37 @@ export const LoanPage: React.FC = () => {
   const [cashBankAccounts, setCashBankAccounts] = useState<IAccount[]>([]);
   const [onHandCash, setOnHandCash] = useState<number>(0);
   const [bankMoney, setBankMoney] = useState<number>(0);
+
+  const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
+  const [showMonthFilter, setShowMonthFilter] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+
+  useEffect(() => {
+    if (!companyId || !activeFinancialYear?.id) return;
+    getAllConfigs({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const config = res.data.find((c: any) => c.voucherType === 'LOAN_VOUCHER');
+        if (config?.includeMonth) {
+          setShowMonthFilter(true);
+        } else {
+          setShowMonthFilter(false);
+        }
+      }
+    });
+  }, [companyId, activeFinancialYear?.id, getAllConfigs]);
+
+  const filteredLoans = useMemo(() => {
+    if (!loans) return [];
+    return loans.filter((l) => {
+      if (showMonthFilter && selectedMonth !== 'ALL') {
+        const dateObj = new Date(l.loanDate || l.createdAt);
+        if (!isNaN(dateObj.getTime())) {
+          if (String(dateObj.getMonth()) !== selectedMonth) return false;
+        }
+      }
+      return true;
+    });
+  }, [loans, showMonthFilter, selectedMonth]);
 
   // Form states (Create Loan)
   const [partyId, setPartyId] = useState<string>('');
@@ -69,6 +101,13 @@ export const LoanPage: React.FC = () => {
   const [repayCashBankAccountId, setRepayCashBankAccountId] = useState<string>('');
   const [repayDate, setRepayDate] = useState<string>(new Date().toISOString().split('T')[0]);
   const [repayNarration, setRepayNarration] = useState<string>('');
+
+  // Write-Off Modal states
+  const [writeOffModalOpen, setWriteOffModalOpen] = useState<boolean>(false);
+  const [writeOffAmount, setWriteOffAmount] = useState<number>(0);
+  const [writeOffAccountId, setWriteOffAccountId] = useState<string>('');
+  const [writeOffDate, setWriteOffDate] = useState<string>(new Date().toISOString().split('T')[0]);
+  const [writeOffNarration, setWriteOffNarration] = useState<string>('');
 
   // Real-time calculation states
   const [previewInterest, setPreviewInterest] = useState<number>(0);
@@ -251,6 +290,35 @@ export const LoanPage: React.FC = () => {
     }
   };
 
+  // Record Write-Off / Bad Debt
+  const handleWriteOff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedLoan || writeOffAmount <= 0 || !writeOffAccountId) {
+      showToast('Please enter write-off details', 'warning');
+      return;
+    }
+
+    const res = await writeOffLoan({
+      companyId,
+      loanId: selectedLoan.id,
+      amount: writeOffAmount,
+      writeOffAccountId: Number(writeOffAccountId),
+      writeOffDate: writeOffDate,
+      narration: writeOffNarration
+    });
+
+    if (res.success) {
+      showToast('Write-off recorded successfully', 'success');
+      setSelectedLoan(null);
+      setWriteOffModalOpen(false);
+      setWriteOffAmount(0);
+      setWriteOffNarration('');
+      loadData();
+    } else {
+      showToast(res.error || 'Failed to record write-off', 'error');
+    }
+  };
+
   // Delete Loan
   const handleDeleteLoan = async (id: number) => {
     if (!confirm('Are you sure you want to delete this loan? This will reverse all ledger entries.')) return;
@@ -313,7 +381,7 @@ export const LoanPage: React.FC = () => {
         {row.status}
       </span>
     )},
-    { key: 'actions', header: 'Actions', width: '150px', render: (row) => (
+    { key: 'actions', header: 'Actions', width: '220px', render: (row) => (
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         <button
           onClick={() => handlePrintClick(row)}
@@ -333,12 +401,21 @@ export const LoanPage: React.FC = () => {
           <Printer size={16} />
         </button>
         {row.status !== 'CLOSED' && (
-          <Button size="sm" variant="secondary" onClick={() => {
-            setSelectedLoan(row);
-            setRepayCashBankAccountId(String(row.cashBankAccountId));
-          }}>
-            Repay
-          </Button>
+          <>
+            <Button size="sm" variant="secondary" onClick={() => {
+              setSelectedLoan(row);
+              setRepayCashBankAccountId(String(row.cashBankAccountId));
+            }}>
+              Repay
+            </Button>
+            <Button size="sm" variant="ghost" onClick={() => {
+              setSelectedLoan(row);
+              setWriteOffAmount(Number(row.balanceRemaining));
+              setWriteOffModalOpen(true);
+            }} style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+              Write-off
+            </Button>
+          </>
         )}
         <button
           onClick={() => handleDeleteLoan(row.id)}
@@ -491,6 +568,7 @@ export const LoanPage: React.FC = () => {
                 value={partyId}
                 onChange={(val) => setPartyId(val)}
                 placeholder="Select account"
+                shortcutType="account"
                 required
               />
 
@@ -500,6 +578,7 @@ export const LoanPage: React.FC = () => {
                 value={cashBankAccountId}
                 onChange={(val) => setCashBankAccountId(val)}
                 placeholder="Select asset account"
+                shortcutType="account"
                 required
               />
 
@@ -647,10 +726,46 @@ export const LoanPage: React.FC = () => {
           flexDirection: 'column',
           gap: '16px'
         }}>
-          <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Loans Ledger</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h2 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--color-text)' }}>Loans Ledger</h2>
+            {showMonthFilter && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Filter by Month:</span>
+                <select
+                  value={selectedMonth}
+                  onChange={(e) => setSelectedMonth(e.target.value)}
+                  style={{
+                    padding: '6px 12px',
+                    borderRadius: '6px',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-background)',
+                    color: 'var(--color-text-primary)',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    outline: 'none',
+                  }}
+                >
+                  <option value="ALL">All Months</option>
+                  <option value="0">Jan</option>
+                  <option value="1">Feb</option>
+                  <option value="2">Mar</option>
+                  <option value="3">Apr</option>
+                  <option value="4">May</option>
+                  <option value="5">Jun</option>
+                  <option value="6">Jul</option>
+                  <option value="7">Aug</option>
+                  <option value="8">Sep</option>
+                  <option value="9">Oct</option>
+                  <option value="10">Nov</option>
+                  <option value="11">Dec</option>
+                </select>
+              </div>
+            )}
+          </div>
           <DataGrid
             columns={columns}
-            data={loans || []}
+            data={filteredLoans}
             keyField="id"
             loading={loading}
             emptyTitle="No Loan Entries"
@@ -766,6 +881,7 @@ export const LoanPage: React.FC = () => {
                       value={repayCashBankAccountId}
                       onChange={(val) => setRepayCashBankAccountId(val)}
                       placeholder="Select Cash or Bank account"
+                      shortcutType="account"
                       required
                     />
 
@@ -811,6 +927,105 @@ export const LoanPage: React.FC = () => {
                 </>
               );
             })()}
+          </div>
+        </div>
+      )}
+
+      {/* Write-off Modal */}
+      {selectedLoan && writeOffModalOpen && (
+        <div style={{
+          position: 'fixed',
+          inset: 0,
+          background: 'rgba(0, 0, 0, 0.4)',
+          backdropFilter: 'blur(3px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 'var(--z-modal)'
+        }}>
+          <div style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderRadius: '10px',
+            padding: '24px',
+            width: '400px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '16px',
+            boxShadow: 'var(--shadow-lg)'
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: 0, color: 'var(--color-danger)' }}>Record Write-Off / Bad Debt</h3>
+              <button
+                onClick={() => {
+                  setSelectedLoan(null);
+                  setWriteOffModalOpen(false);
+                }}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  color: 'var(--color-text-secondary)',
+                  cursor: 'pointer'
+                }}
+              >
+                Cancel
+              </button>
+            </div>
+
+            <form onSubmit={handleWriteOff} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <Select
+                label="Expense/Income Write-Off Account *"
+                value={writeOffAccountId}
+                onChange={(val) => setWriteOffAccountId(val)}
+                options={[
+                  { value: '', label: 'Select Destination Account' },
+                  ...parties
+                    .filter(a => a.id !== selectedLoan.partyId)
+                    .map((p) => ({ value: String(p.id), label: p.accountName }))
+                ]}
+                shortcutType="account"
+                required
+              />
+
+              <Input
+                type="date"
+                label="Write-Off Date *"
+                value={writeOffDate}
+                onChange={(e) => setWriteOffDate(e.target.value)}
+                required
+              />
+
+              <Input
+                type="number"
+                step="any"
+                label="Write-Off Amount *"
+                value={writeOffAmount || ''}
+                onChange={(e) => setWriteOffAmount(Number(e.target.value))}
+                required
+              />
+
+              <Input
+                type="text"
+                label="Remarks"
+                placeholder="Bad debt write-off narration"
+                value={writeOffNarration}
+                onChange={(e) => setWriteOffNarration(e.target.value)}
+              />
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '4px' }}>
+                <Button type="submit" style={{ background: 'var(--color-danger)', borderColor: 'var(--color-danger)' }}>
+                  Confirm Write-Off
+                </Button>
+                <Button type="button" variant="secondary" onClick={() => {
+                  setSelectedLoan(null);
+                  setWriteOffModalOpen(false);
+                }}>
+                  Close
+                </Button>
+              </div>
+            </form>
           </div>
         </div>
       )}

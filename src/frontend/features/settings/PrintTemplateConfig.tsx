@@ -490,14 +490,14 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
           options={[{ value: 'left', label: 'Left' }, { value: 'center', label: 'Center' }]} />
 
         {/* Party & Shipment */}
-        <SectionHeader icon="👤" title={selectedDocType === 'LOAN_VOUCHER' ? "Party Details" : "Party & Shipment"} />
-        <ToggleRow label={selectedDocType === 'LOAN_VOUCHER' ? "Show Party Details Box" : "Show Billing Address"} checked={config.party.showBillingAddress} onChange={(v) => updateConfig('party', 'showBillingAddress', v)} />
-        {selectedDocType !== 'LOAN_VOUCHER' && (
+        <SectionHeader icon="👤" title={selectedDocType === 'LOAN_VOUCHER' || ['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT', 'JOURNAL_VOUCHER'].includes(selectedDocType) ? "Party Details" : "Party & Shipment"} />
+        <ToggleRow label={selectedDocType === 'LOAN_VOUCHER' || ['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT', 'JOURNAL_VOUCHER'].includes(selectedDocType) ? "Show Party Details Box" : "Show Billing Address"} checked={config.party.showBillingAddress} onChange={(v) => updateConfig('party', 'showBillingAddress', v)} />
+        {selectedDocType !== 'LOAN_VOUCHER' && !['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT', 'JOURNAL_VOUCHER'].includes(selectedDocType) && (
           <ToggleRow label="Show Shipping Address" checked={config.party.showShippingAddress} onChange={(v) => updateConfig('party', 'showShippingAddress', v)} />
         )}
         <ToggleRow label="Show Party GSTIN" checked={config.party.showPartyGstin} onChange={(v) => updateConfig('party', 'showPartyGstin', v)} />
         <ToggleRow label="Show Party Contact" checked={config.party.showPartyContact} onChange={(v) => updateConfig('party', 'showPartyContact', v)} />
-        {selectedDocType !== 'LOAN_VOUCHER' && (
+        {selectedDocType !== 'LOAN_VOUCHER' && !['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT', 'JOURNAL_VOUCHER'].includes(selectedDocType) && (
           <ToggleRow label="Show Transport Details" checked={config.party.showTransportDetails} onChange={(v) => updateConfig('party', 'showTransportDetails', v)} />
         )}
 
@@ -507,6 +507,13 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
             <SectionHeader icon="📋" title="Loan Voucher Details" />
             <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', margin: '4px 0 8px', lineHeight: 1.4 }}>
               ℹ️ <strong>Loan Voucher Mode:</strong> Principal Amount, Interest Rate, Duration, Estimated Interest, and Balance are automatically formatted into the voucher table. Item inventory columns are hidden for this template type.
+            </div>
+          </>
+        ) : ['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT', 'JOURNAL_VOUCHER'].includes(selectedDocType) ? (
+          <>
+            <SectionHeader icon="📋" title="Voucher Details" />
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', background: '#f8fafc', padding: '10px 12px', borderRadius: '6px', border: '1px solid var(--color-border)', margin: '4px 0 8px', lineHeight: 1.4 }}>
+              ℹ️ <strong>{selectedDocType === 'JOURNAL_VOUCHER' ? 'Journal' : 'Cash/Bank'} Voucher Mode:</strong> {selectedDocType === 'JOURNAL_VOUCHER' ? 'Debit/Credit posting lines, ledger accounts, amounts, tax adjustments, and narration are formatted automatically.' : 'Transaction details, Party name, Net Amount, reference bills, and narrations are formatted automatically.'} Item inventory columns are hidden for this template type.
             </div>
           </>
         ) : (
@@ -977,6 +984,78 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
                         </tbody>
                       </table>
                     </div>
+                  ) : ['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT'].includes(selectedDocType) ? (
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.78em' : '0.92em', margin: '4px 0' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #000' }}>
+                            <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'left', fontWeight: 700 }}>Transaction Details</th>
+                            <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700 }}>Value / Info</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Transaction Type</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', textTransform: 'uppercase', fontWeight: 700 }}>
+                              {selectedDocType.replace('_', ' ')}
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Party / Account Name</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700 }}>Ajay Shah</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Amount</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700, color: 'var(--color-primary)' }}>
+                              ₹1,150.00
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Reference Bill Number</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                              SALE-2627-000015
+                            </td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Remarks / Narration</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontStyle: 'italic', color: '#475569' }}>
+                              Applied Notes adjustment: ₹600 (Credit Note Offset)
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : selectedDocType === 'JOURNAL_VOUCHER' ? (
+                    <div style={{ flex: 1, overflow: 'hidden' }}>
+                      <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.78em' : '0.95em', margin: '4px 0' }}>
+                        <thead>
+                          <tr style={{ background: '#f8fafc', borderBottom: '2px solid #000' }}>
+                            <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'left', fontWeight: 700 }}>Particulars (Account Name)</th>
+                            <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700, width: '120px' }}>Debit (₹)</th>
+                            <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700, width: '120px' }}>Credit (₹)</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 500, paddingLeft: '8px' }}>
+                              Office Rent Expense <span style={{ float: 'right', fontSize: '0.85em', color: '#64748b', marginRight: '8px' }}>Dr</span>
+                            </td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700 }}>₹25,000.00</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right' }}>—</td>
+                          </tr>
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 500, paddingLeft: '24px' }}>
+                              To HDFC Bank Account <span style={{ float: 'right', fontSize: '0.85em', color: '#64748b', marginRight: '8px' }}>Cr</span>
+                            </td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right' }}>—</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700 }}>₹25,000.00</td>
+                          </tr>
+                        </tbody>
+                      </table>
+                      <div style={{ fontSize: '0.80em', color: '#475569', background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', marginTop: '8px' }}>
+                        <div><strong>Remarks:</strong> July Month Office Rent Paid | <strong>Adjustments:</strong> SGST: 9%, CGST: 9%</div>
+                      </div>
+                    </div>
                   ) : (
                     <div style={{ flex: 1, overflow: 'hidden' }}>
                       <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.72em' : '0.85em' }}>
@@ -1023,6 +1102,16 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
                       <>
                         <span style={{ fontSize: '0.85em', color: '#475569', fontWeight: 500 }}>Rupees one lakh Only</span>
                         <span>NET AMOUNT: ₹1,00,000.00</span>
+                      </>
+                    ) : ['CASH_PAYMENT', 'CASH_RECEIPT', 'BANK_PAYMENT', 'BANK_RECEIPT'].includes(selectedDocType) ? (
+                      <>
+                        <span style={{ fontSize: '0.85em', color: '#475569', fontWeight: 500 }}>Rupees one thousand one hundred fifty Only</span>
+                        <span>NET AMOUNT: ₹1,150.00</span>
+                      </>
+                    ) : selectedDocType === 'JOURNAL_VOUCHER' ? (
+                      <>
+                        <span style={{ fontSize: '0.85em', color: '#475569', fontWeight: 500 }}>Rupees twenty five thousand Only</span>
+                        <span>NET AMOUNT: ₹25,000.00</span>
                       </>
                     ) : (
                       <>

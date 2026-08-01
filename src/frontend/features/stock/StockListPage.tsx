@@ -9,6 +9,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Badge, Input, Select, Modal, useToast } from '../../components/ui';
+import { useCompanyStore } from '../../state/company-store';
 import { IQuality } from '../quality/quality.types';
 import {
   IStockPacket,
@@ -53,6 +54,25 @@ export const StockListPage: React.FC = () => {
   const [endDate, setEndDate] = useState<string>('');
   const [qualityFilter, setQualityFilter] = useState<string>('');
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
+
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+  const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
+  const [showMonthFilter, setShowMonthFilter] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+
+  useEffect(() => {
+    if (!companyId || !activeFinancialYear?.id) return;
+    getAllConfigs({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const config = res.data.find((c: any) => c.voucherType === 'STOCK_ENTRY');
+        if (config?.includeMonth) {
+          setShowMonthFilter(true);
+        } else {
+          setShowMonthFilter(false);
+        }
+      }
+    });
+  }, [companyId, activeFinancialYear?.id, getAllConfigs]);
 
   const [statusModal, setStatusModal] = useState<{
     packet: IStockPacket;
@@ -485,6 +505,17 @@ export const StockListPage: React.FC = () => {
       result = result.filter((s) => s.qualityId === Number(qualityFilter));
     }
 
+    // 12. Month filter
+    if (showMonthFilter && selectedMonth !== 'ALL') {
+      result = result.filter((s) => {
+        const dateObj = new Date(s.registrationDate);
+        if (!isNaN(dateObj.getTime())) {
+          return String(dateObj.getMonth()) === selectedMonth;
+        }
+        return true;
+      });
+    }
+
     // Apply Cost / Rate sorting
     if (costSort === 'low-to-high') {
       result.sort((a, b) => Number(a.costPerCarat) - Number(b.costPerCarat));
@@ -514,6 +545,8 @@ export const StockListPage: React.FC = () => {
     costSort,
     rateSort,
     qualityFilter,
+    showMonthFilter,
+    selectedMonth,
   ]);
 
   const columns: Column<IStockPacket>[] = [
@@ -1009,6 +1042,41 @@ export const StockListPage: React.FC = () => {
                     style={{ flex: 1 }}
                   />
                 </div>
+                {showMonthFilter && (
+                  <div style={{ marginTop: '8px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-primary-light)', textTransform: 'uppercase' }}>Month:</span>
+                    <select
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(e.target.value)}
+                      style={{
+                        flex: 1,
+                        padding: '6px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--color-border)',
+                        background: 'var(--color-background)',
+                        color: 'var(--color-text-primary)',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        outline: 'none',
+                      }}
+                    >
+                      <option value="ALL">All Months</option>
+                      <option value="0">Jan</option>
+                      <option value="1">Feb</option>
+                      <option value="2">Mar</option>
+                      <option value="3">Apr</option>
+                      <option value="4">May</option>
+                      <option value="5">Jun</option>
+                      <option value="6">Jul</option>
+                      <option value="7">Aug</option>
+                      <option value="8">Sep</option>
+                      <option value="9">Oct</option>
+                      <option value="10">Nov</option>
+                      <option value="11">Dec</option>
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 

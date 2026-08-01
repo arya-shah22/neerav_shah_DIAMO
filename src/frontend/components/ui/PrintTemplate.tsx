@@ -464,6 +464,112 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                       </tbody>
                     </table>
                   </div>
+                ) : type === 'VOUCHER' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.78em' : '0.95em' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #000' }}>
+                          <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'left', fontWeight: 700 }}>Transaction Details</th>
+                          <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700 }}>Value / Info</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Transaction Type</td>
+                          <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', textTransform: 'uppercase', fontWeight: 700 }}>
+                            {data.transactionType?.replace('_', ' ') || 'CASH/BANK VOUCHER'}
+                          </td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Party / Account Name</td>
+                          <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700 }}>
+                            {party?.accountName || 'Cash Account'}
+                          </td>
+                        </tr>
+                        <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                          <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Amount</td>
+                          <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700, color: 'var(--color-primary)' }}>
+                            ₹{Number(data.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                          </td>
+                        </tr>
+                        {data.referenceBillNo && (
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Reference Bill Number</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontFamily: 'monospace' }}>
+                              {data.referenceBillNo}
+                            </td>
+                          </tr>
+                        )}
+                        {(data.narration || data.remarks) && (
+                          <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 600 }}>Remarks / Narration</td>
+                            <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontStyle: 'italic', color: '#475569' }}>
+                              {data.narration || data.remarks}
+                            </td>
+                          </tr>
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : type === 'JOURNAL' ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.78em' : '0.95em' }}>
+                      <thead>
+                        <tr style={{ background: '#f8fafc', borderBottom: '2px solid #000' }}>
+                          <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'left', fontWeight: 700 }}>Particulars (Account Name)</th>
+                          <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700, width: '120px' }}>Debit (₹)</th>
+                          <th style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: 700, width: '120px' }}>Credit (₹)</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {(data.lines || []).map((line: any, idx: number) => {
+                          const isDr = line.debitCreditType === 'DEBIT';
+                          return (
+                            <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                              <td style={{ padding: isCompact ? '4px 6px' : '8px', fontWeight: 500, paddingLeft: isDr ? '8px' : '24px' }}>
+                                {isDr ? line.account?.accountName : `To ${line.account?.accountName || 'Account'}`}
+                                {!isDr && <span style={{ float: 'right', fontSize: '0.85em', color: '#64748b', marginRight: '8px' }}>Cr</span>}
+                                {isDr && <span style={{ float: 'right', fontSize: '0.85em', color: '#64748b', marginRight: '8px' }}>Dr</span>}
+                              </td>
+                              <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: isDr ? 700 : 400 }}>
+                                {isDr ? `₹${Number(line.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                              </td>
+                              <td style={{ padding: isCompact ? '4px 6px' : '8px', textAlign: 'right', fontWeight: !isDr ? 700 : 400 }}>
+                                {!isDr ? `₹${Number(line.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                    {(() => {
+                      try {
+                        if (!data.narration) return null;
+                        const parsed = JSON.parse(data.narration);
+                        const remarks = [parsed.remark1, parsed.remark2, parsed.remark3].filter(Boolean).join(' | ');
+                        const taxes = [];
+                        if (parsed.sgst) taxes.push(`SGST: ${parsed.sgst}`);
+                        if (parsed.cgst) taxes.push(`CGST: ${parsed.cgst}`);
+                        if (parsed.igst) taxes.push(`IGST: ${parsed.igst}`);
+                        if (parsed.tds) taxes.push(`TDS: ${parsed.tds}`);
+                        
+                        if (!remarks && taxes.length === 0) return null;
+                        
+                        return (
+                          <div style={{ fontSize: '0.8em', color: '#475569', background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', marginTop: '8px' }}>
+                            {remarks && <div><strong>Remarks:</strong> {remarks}</div>}
+                            {taxes.length > 0 && <div style={{ marginTop: '2px' }}><strong>Adjustments:</strong> {taxes.join(', ')}</div>}
+                          </div>
+                        );
+                      } catch {
+                        return (
+                          <div style={{ fontSize: '0.8em', color: '#475569', background: '#f8fafc', padding: '6px 8px', borderRadius: '4px', border: '1px solid #e2e8f0', marginTop: '8px' }}>
+                            <strong>Narration:</strong> {data.narration}
+                          </div>
+                        );
+                      }
+                    })()}
+                  </div>
                 ) : (
                   <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.72em' : '0.9em' }}>
                     <thead>
@@ -483,8 +589,8 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                       {(data.items || []).map((item: any, idx: number) => (
                         <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                           {cfg.itemTable.showSrNoColumn && <td style={{ padding: isCompact ? '2px' : '6px' }}>{idx + 1}</td>}
-                          <td style={{ padding: isCompact ? '2px' : '6px', fontWeight: 600 }}>
-                            {item.qualityName || item.itemName || 'Item'}
+                           <td style={{ padding: isCompact ? '2px' : '6px', fontWeight: 600 }}>
+                            {item.quality?.qualityName || item.qualityName || item.itemName || 'Item'}
                             {cfg.itemTable.showPacketIdColumn && (item.stockPacket?.stockIdNumber || item.packetNo) && (
                               <div style={{ fontSize: '0.75em', color: '#475569', fontWeight: 400, marginTop: '1px', fontFamily: 'monospace' }}>
                                 Pkt: {item.stockPacket?.stockIdNumber || item.packetNo}

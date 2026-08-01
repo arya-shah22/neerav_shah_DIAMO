@@ -355,38 +355,8 @@ export class LoanService {
         }
       });
 
-      // Post Double-Entry Ledger Posting for Inception
+      // 3. Create entry in Cash/Bank Book
       const isGiven = loanType === LoanType.GIVEN;
-
-      // 1. Post to Cash/Bank account
-      await tx.generalLedgerEntry.create({
-        data: {
-          companyId,
-          accountId: cashBankAccountId,
-          voucherDate: loanDate,
-          debitCreditType: isGiven ? DebitCreditType.CREDIT : DebitCreditType.DEBIT,
-          amount: principalAmount,
-          sourceVoucherType: VoucherType.LOAN_VOUCHER,
-          sourceVoucherId: loan.id,
-          sourceBillNumber: voucherNumber,
-          narration: `Loan ${loanType} inception posting: ${voucherNumber}`,
-        }
-      });
-
-      // 2. Post to Party account
-      await tx.generalLedgerEntry.create({
-        data: {
-          companyId,
-          accountId: partyId,
-          voucherDate: loanDate,
-          debitCreditType: isGiven ? DebitCreditType.DEBIT : DebitCreditType.CREDIT,
-          amount: principalAmount,
-          sourceVoucherType: VoucherType.LOAN_VOUCHER,
-          sourceVoucherId: loan.id,
-          sourceBillNumber: voucherNumber,
-          narration: `Loan ${loanType} party posting: ${voucherNumber}`,
-        }
-      });
 
       // 3. Create entry in Cash/Bank Book
       const isBank = await this.isBankAccount(cashBankAccountId);
@@ -493,36 +463,7 @@ export class LoanService {
         }
       });
 
-      // Post General Ledger Entries for Repayment
-      // 1. Post to Cash/Bank Account
-      await tx.generalLedgerEntry.create({
-        data: {
-          companyId,
-          accountId: cashBankAccountId,
-          voucherDate: paymentDate,
-          debitCreditType: isGiven ? DebitCreditType.DEBIT : DebitCreditType.CREDIT,
-          amount,
-          sourceVoucherType: VoucherType.LOAN_VOUCHER,
-          sourceVoucherId: loanId,
-          sourceBillNumber: loan.voucherNumber,
-          narration: `Repayment against Loan ${loan.voucherNumber}: ${narration}`,
-        }
-      });
 
-      // 2. Post to Party Account
-      await tx.generalLedgerEntry.create({
-        data: {
-          companyId,
-          accountId: loan.partyId,
-          voucherDate: paymentDate,
-          debitCreditType: isGiven ? DebitCreditType.CREDIT : DebitCreditType.DEBIT,
-          amount,
-          sourceVoucherType: VoucherType.LOAN_VOUCHER,
-          sourceVoucherId: loanId,
-          sourceBillNumber: loan.voucherNumber,
-          narration: `Repayment against Loan ${loan.voucherNumber}: ${narration}`,
-        }
-      });
 
       // 3. Create entry in Cash/Bank Book
       const isBank = await this.isBankAccount(cashBankAccountId);
@@ -559,6 +500,114 @@ export class LoanService {
       return repayment;
     });
   }
+
+  /**
+   * Record bad debt write-off / default settlement against a loan
+   */
+  async writeOff(companyId: number, data: Record<string, any>) {
+    const loanId = Number(data.loanId);
+    const amount = Number(data.amount) || 0;
+    const writeOffAccountId = Number(data.writeOffAccountId);
+    const writeOffDate = new Date(data.writeOffDate);
+    const narration = data.narration || '';
+
+    if (!loanId || !writeOffAccountId || amount <= 0) {
+      throw new BadRequestException('Valid Loan, Write-Off Account and positive amount are required');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const loan = await tx.loan.findFirst({
+        where: { id: loanId, companyId, isDeleted: false }
+      });
+      if (!loan) throw new BadRequestException('Loan not found');
+
+      // Calculate elapsed time for pro-rata interest up to writeOffDate
+      const startDate = new Date(loan.loanDate);
+      const endDate = new Date(writeOffDate);
+      const diffTime = Math.max(0, endDate.getTime() - startDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const elapsedMonths = Math.max(0.1, (diffDays / 365) * 12);
+
+      // Recalculate interest up to writeOffDate
+      const { totalInterest: newInterest, totalRepayable: newRepayable } = this.calculateInterest(
+        Number(loan.principalAmount),
+        Number(loan.interestRate),
+        loan.interestType,
+        loan.compoundingFrequency,
+        elapsedMonths
+      );
+
+      const nextRepaid = Number(loan.amountRepaid) + amount;
+      const nextBalance = Math.max(0, newRepayable - nextRepaid);
+      
+      let nextStatus: LoanStatus = LoanStatus.PARTIAL;
+      if (nextBalance <= 0.01) {
+        nextStatus = LoanStatus.CLOSED;
+      }
+
+      const isGiven = loan.loanType === LoanType.GIVEN;
+
+      // The amount to post to General Ledger should only be the remaining principal,
+      // because interest is not pre-posted to the general ledger during the loan.
+      const glWriteOffAmount = Math.min(amount, Math.max(0, Number(loan.principalAmount) - Number(loan.amountRepaid)));
+
+      // Create repayment record using writeOffAccountId for the cashBankAccountId field
+      const repayment = await tx.loanRepayment.create({
+        data: {
+          loanId,
+          paymentDate: writeOffDate,
+          amount,
+          cashBankAccountId: writeOffAccountId,
+          narration: `[WRITE-OFF] ${narration}`
+        }
+      });
+
+      await tx.loan.update({
+        where: { id: loanId },
+        data: {
+          totalInterest: newInterest,
+          totalRepayable: newRepayable,
+          amountRepaid: nextRepaid,
+          balanceRemaining: nextBalance,
+          status: nextStatus
+        }
+      });
+
+      // Post General Ledger Entries for Write-Off
+      // 1. Post to Write-Off Account
+      await tx.generalLedgerEntry.create({
+        data: {
+          companyId,
+          accountId: writeOffAccountId,
+          voucherDate: writeOffDate,
+          debitCreditType: isGiven ? DebitCreditType.DEBIT : DebitCreditType.CREDIT,
+          amount: glWriteOffAmount,
+          sourceVoucherType: VoucherType.LOAN_VOUCHER,
+          sourceVoucherId: loanId,
+          sourceBillNumber: loan.voucherNumber,
+          narration: `Write-Off against Loan ${loan.voucherNumber}: ${narration}`,
+        }
+      });
+
+      // 2. Post to Party Account
+      await tx.generalLedgerEntry.create({
+        data: {
+          companyId,
+          accountId: loan.partyId,
+          voucherDate: writeOffDate,
+          debitCreditType: isGiven ? DebitCreditType.CREDIT : DebitCreditType.DEBIT,
+          amount: glWriteOffAmount,
+          sourceVoucherType: VoucherType.LOAN_VOUCHER,
+          sourceVoucherId: loanId,
+          sourceBillNumber: loan.voucherNumber,
+          narration: `Write-Off against Loan ${loan.voucherNumber}: ${narration}`,
+        }
+      });
+
+      return repayment;
+    });
+  }
+
 
   /**
    * Delete loan and reverse GL/CashBank entries

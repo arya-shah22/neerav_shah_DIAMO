@@ -7,6 +7,7 @@ import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Badge, useToast } from '../../components/ui';
 import { IInvoice, InvoiceType } from './invoice.types';
 import { PrintTemplate } from '../../components/ui/PrintTemplate';
+import { useCompanyStore } from '../../state/company-store';
 
 interface ListPageProps {
   type: InvoiceType;
@@ -142,7 +143,26 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     return new Date(row.dueDate).getTime() < now;
   };
 
-  // Filter invoices based on URL parameter & selected Quality
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
+  const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
+  const [showMonthFilter, setShowMonthFilter] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+
+  useEffect(() => {
+    if (!companyId || !activeFinancialYear?.id) return;
+    getAllConfigs({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const config = res.data.find((c: any) => c.voucherType === type);
+        if (config?.includeMonth) {
+          setShowMonthFilter(true);
+        } else {
+          setShowMonthFilter(false);
+        }
+      }
+    });
+  }, [companyId, activeFinancialYear?.id, type, getAllConfigs]);
+
+  // Filter invoices based on URL parameter, selected Quality & selected Month
   const filteredInvoices = useMemo(() => {
     return (rawInvoices || []).filter((inv) => {
       // 1. Payment status filter
@@ -158,9 +178,17 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         if (!hasQuality) return false;
       }
 
+      // 3. Month filter
+      if (showMonthFilter && selectedMonth !== 'ALL') {
+        const dateObj = new Date(inv.invoiceDate);
+        if (!isNaN(dateObj.getTime())) {
+          if (String(dateObj.getMonth()) !== selectedMonth) return false;
+        }
+      }
+
       return true;
     });
-  }, [rawInvoices, filterParam, selectedQuality]);
+  }, [rawInvoices, filterParam, selectedQuality, showMonthFilter, selectedMonth]);
 
   // Compute Quality-specific summary breakdown for the filtered/selected quality
   const qualitySummary = useMemo(() => {
@@ -470,6 +498,45 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
             ))}
           </select>
         </div>
+
+        {/* Dynamic Month Filter Dropdown */}
+        {showMonthFilter && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+              <Filter size={14} color="var(--color-accent)" />
+              <span>Filter by Month:</span>
+            </div>
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(e.target.value)}
+              style={{
+                padding: '6px 12px',
+                borderRadius: '6px',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-background)',
+                color: 'var(--color-text-primary)',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                outline: 'none',
+              }}
+            >
+              <option value="ALL">All Months</option>
+              <option value="0">Jan</option>
+              <option value="1">Feb</option>
+              <option value="2">Mar</option>
+              <option value="3">Apr</option>
+              <option value="4">May</option>
+              <option value="5">Jun</option>
+              <option value="6">Jul</option>
+              <option value="7">Aug</option>
+              <option value="8">Sep</option>
+              <option value="9">Oct</option>
+              <option value="10">Nov</option>
+              <option value="11">Dec</option>
+            </select>
+          </div>
+        )}
       </div>
 
       {/* Quality Performance Analytics Banner */}

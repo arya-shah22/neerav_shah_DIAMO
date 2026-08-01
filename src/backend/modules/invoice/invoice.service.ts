@@ -78,7 +78,7 @@ export class InvoiceService {
     }
 
     const config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: type as any },
+      where: { companyId, financialYearId, voucherType: type as any },
     });
 
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
@@ -124,7 +124,7 @@ export class InvoiceService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: type as any },
+      where: { companyId, financialYearId, voucherType: type as any },
     });
 
     if (!config) {

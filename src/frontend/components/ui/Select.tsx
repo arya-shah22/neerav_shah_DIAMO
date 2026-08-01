@@ -3,7 +3,7 @@
 // Phase 17.1 §9: Searchable dropdown with inline filter
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import { createPortal } from 'react-dom';
 import { ChevronDown, X, Search } from 'lucide-react';
 
@@ -80,6 +80,8 @@ export const Select: React.FC<SelectProps> = ({
 
   const listMaxHeight = maxVisibleItems * OPTION_HEIGHT_PX;
 
+  const [tempOption, setTempOption] = useState<{ value: string; label: string } | null>(null);
+
   useEffect(() => {
     setSelectedValue(normalizedPropValue);
   }, [normalizedPropValue]);
@@ -89,8 +91,11 @@ export const Select: React.FC<SelectProps> = ({
     if (!trigger) return;
 
     const handleSuccess = (e: Event) => {
-      const { id, selectId } = (e as CustomEvent).detail;
+      const { id, name, selectId } = (e as CustomEvent).detail;
       if (selectId === selectIdRef.current) {
+        if (id && name) {
+          setTempOption({ value: String(id), label: name });
+        }
         setSelectedValue(String(id));
         onChange?.(String(id));
         setSearchText('');
@@ -114,14 +119,21 @@ export const Select: React.FC<SelectProps> = ({
     };
   }, [onChange]);
 
+  const combinedOptions = useMemo(() => {
+    if (tempOption && !options.some((o: SelectOption) => String(o.value) === tempOption.value)) {
+      return [...options, tempOption];
+    }
+    return options;
+  }, [options, tempOption]);
+
   // Find selected option, or fall back to treating value itself as label if not in list
   const selectedOption =
-    options.find((o) => String(o.value) === selectedValue) ||
+    combinedOptions.find((o: SelectOption) => String(o.value) === selectedValue) ||
     (selectedValue ? { value: selectedValue, label: selectedValue } : null);
 
   const filteredOptions = searchText
-    ? options.filter((o) => o.label.toLowerCase().includes(searchText.toLowerCase()))
-    : options;
+    ? combinedOptions.filter((o: SelectOption) => o.label.toLowerCase().includes(searchText.toLowerCase()))
+    : combinedOptions;
 
   // Capitalize search text: "gujarat" -> "Gujarat"
   const capitalizedSearchText = searchText
@@ -135,7 +147,7 @@ export const Select: React.FC<SelectProps> = ({
   const showCreatableOption =
     creatable &&
     searchText.trim().length > 0 &&
-    !options.some((o) => o.label.toLowerCase() === searchText.trim().toLowerCase());
+    !combinedOptions.some((o: SelectOption) => o.label.toLowerCase() === searchText.trim().toLowerCase());
 
   const filteredOptionsWithCreatable = [...filteredOptions];
   if (showCreatableOption) {

@@ -181,9 +181,9 @@ export class StockService {
     }
   }
 
-  async getAllVoucherConfigs(companyId: number, _financialYearId: number) {
+  async getAllVoucherConfigs(companyId: number, financialYearId: number) {
     const configs = await this.prisma.voucherNumberConfig.findMany({
-      where: { companyId },
+      where: { companyId, financialYearId },
     });
     return configs;
   }
@@ -283,10 +283,10 @@ export class StockService {
     companyId: number,
     financialYearId: number,
     voucherType: VoucherType,
-    data: { prefix: string; separator: string; suffix: string; digitLength: number; includeYear: boolean }
+    data: { prefix: string; separator: string; suffix: string; digitLength: number; includeYear: boolean; includeMonth?: boolean }
   ) {
     const existing = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType },
+      where: { companyId, financialYearId, voucherType },
     });
 
     let formatChanged = false;
@@ -296,7 +296,8 @@ export class StockService {
         existing.separator !== data.separator ||
         existing.suffix !== data.suffix ||
         existing.digitLength !== data.digitLength ||
-        existing.includeYear !== data.includeYear
+        existing.includeYear !== data.includeYear ||
+        existing.includeMonth !== data.includeMonth
       ) {
         formatChanged = true;
       }
@@ -309,6 +310,7 @@ export class StockService {
           suffix: data.suffix,
           digitLength: data.digitLength,
           includeYear: data.includeYear,
+          includeMonth: data.includeMonth ?? false,
         },
       });
     } else {
@@ -324,6 +326,7 @@ export class StockService {
           suffix: data.suffix,
           digitLength: data.digitLength,
           includeYear: data.includeYear,
+          includeMonth: data.includeMonth ?? false,
         },
       });
     }

@@ -441,9 +441,35 @@ export const JVBookPage: React.FC = () => {
     }
   ];
 
+  const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
+  const [showMonthFilter, setShowMonthFilter] = useState(false);
+  const [selectedMonth, setSelectedMonth] = useState('ALL');
+
+  useEffect(() => {
+    if (!companyId || !activeFinancialYear?.id) return;
+    getAllConfigs({ companyId, financialYearId: activeFinancialYear.id }).then((res) => {
+      if (res.success && Array.isArray(res.data)) {
+        const config = res.data.find((c: any) => c.voucherType === 'JOURNAL_VOUCHER');
+        if (config?.includeMonth) {
+          setShowMonthFilter(true);
+        } else {
+          setShowMonthFilter(false);
+        }
+      }
+    });
+  }, [companyId, activeFinancialYear?.id, getAllConfigs]);
+
   const filteredJournals = useMemo(() => {
     if (!journals) return [];
     return journals.filter(j => {
+      // Month filter
+      if (showMonthFilter && selectedMonth !== 'ALL') {
+        const dateObj = new Date(j.voucherDate);
+        if (!isNaN(dateObj.getTime())) {
+          if (String(dateObj.getMonth()) !== selectedMonth) return false;
+        }
+      }
+
       try {
         if (!j.narration) return gridTab === 'STANDARD';
         const parsed = JSON.parse(j.narration);
@@ -453,7 +479,7 @@ export const JVBookPage: React.FC = () => {
         return gridTab === 'STANDARD';
       }
     });
-  }, [journals, gridTab]);
+  }, [journals, gridTab, showMonthFilter, selectedMonth]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
@@ -597,6 +623,7 @@ export const JVBookPage: React.FC = () => {
                 }}
                 options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
                 placeholder="Select Party Name"
+                shortcutType="account"
               />
 
               {/* Bill Selection in Bill Adjustment Mode */}
@@ -619,6 +646,7 @@ export const JVBookPage: React.FC = () => {
                 onChange={(val) => setAdjAccountId(Number(val) || null)}
                 options={accountsList.filter(a => a.id !== partyAccId).map(a => ({ value: String(a.id), label: a.accountName }))}
                 placeholder="Select adjustment account"
+                shortcutType="account"
               />
             </>
           ) : (
@@ -630,6 +658,7 @@ export const JVBookPage: React.FC = () => {
                 onChange={(val) => setDrAccountId(Number(val) || null)}
                 options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
                 placeholder="Select debit account"
+                shortcutType="account"
               />
 
               <Select
@@ -638,6 +667,7 @@ export const JVBookPage: React.FC = () => {
                 onChange={(val) => setCrAccountId(Number(val) || null)}
                 options={accountsList.map(a => ({ value: String(a.id), label: a.accountName }))}
                 placeholder="Select credit account"
+                shortcutType="account"
               />
             </>
           )}
@@ -825,6 +855,41 @@ export const JVBookPage: React.FC = () => {
               Bill Adjustments
             </button>
           </div>
+
+          {showMonthFilter && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Filter by Month:</span>
+              <select
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(e.target.value)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-background)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  outline: 'none',
+                }}
+              >
+                <option value="ALL">All Months</option>
+                <option value="0">Jan</option>
+                <option value="1">Feb</option>
+                <option value="2">Mar</option>
+                <option value="3">Apr</option>
+                <option value="4">May</option>
+                <option value="5">Jun</option>
+                <option value="6">Jul</option>
+                <option value="7">Aug</option>
+                <option value="8">Sep</option>
+                <option value="9">Oct</option>
+                <option value="10">Nov</option>
+                <option value="11">Dec</option>
+              </select>
+            </div>
+          )}
         </div>
 
         <DataGrid
