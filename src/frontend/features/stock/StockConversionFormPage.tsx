@@ -39,6 +39,41 @@ interface OutputRow {
   certificateNumber: string;
   imageLink: string;
   videoLink: string;
+  // Extended Diamond Details
+  fluorescenceIntensity?: string;
+  fluorescenceColor?: string;
+  rapPricePerCarat?: number | '';
+  rapDiscountPct?: number | '';
+  crownAngle?: number | '';
+  crownHeight?: number | '';
+  pavilionAngle?: number | '';
+  pavilionDepth?: number | '';
+  girdleMin?: string;
+  girdleMax?: string;
+  girdleCondition?: string;
+  culetSize?: string;
+  culetCondition?: string;
+  heartsAndArrows?: string;
+  eyeClean?: string;
+  shade?: string;
+  milky?: string;
+  treatment?: string;
+  tinge?: string;
+  lustre?: string;
+  tableInclusion?: string;
+  sideInclusion?: string;
+  tableOpen?: string;
+  crownOpen?: string;
+  girdleOpen?: string;
+  origin?: string;
+  certificateUrl?: string;
+  webUrl?: string;
+  inscription?: string;
+  keyToSymbols?: string;
+  diamondComment?: string;
+  fancyColor?: string;
+  fancyColorIntensity?: string;
+  fancyColorOvertone?: string;
   // UI Expand state
   isExpanded: boolean;
 }
@@ -68,6 +103,40 @@ const emptyRow = (): OutputRow => ({
   certificateNumber: '',
   imageLink: '',
   videoLink: '',
+  fluorescenceIntensity: '',
+  fluorescenceColor: '',
+  rapPricePerCarat: '',
+  rapDiscountPct: '',
+  crownAngle: '',
+  crownHeight: '',
+  pavilionAngle: '',
+  pavilionDepth: '',
+  girdleMin: '',
+  girdleMax: '',
+  girdleCondition: '',
+  culetSize: '',
+  culetCondition: '',
+  heartsAndArrows: '',
+  eyeClean: '',
+  shade: '',
+  milky: '',
+  treatment: '',
+  tinge: '',
+  lustre: '',
+  tableInclusion: '',
+  sideInclusion: '',
+  tableOpen: '',
+  crownOpen: '',
+  girdleOpen: '',
+  origin: '',
+  certificateUrl: '',
+  webUrl: '',
+  inscription: '',
+  keyToSymbols: '',
+  diamondComment: '',
+  fancyColor: '',
+  fancyColorIntensity: '',
+  fancyColorOvertone: '',
   isExpanded: true,
 });
 
@@ -783,6 +852,76 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                                 value={row.videoLink}
                                 onChange={(e) => handleRowChange(idx, 'videoLink', e.target.value)}
                               />
+                            </div>
+
+                            {/* ── Advanced Diamond Details (Collapsible) ── */}
+                            <div
+                              onClick={() => {
+                                const el = document.getElementById(`conv-adv-${idx}`);
+                                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                                const icon = document.getElementById(`conv-adv-icon-${idx}`);
+                                if (icon) icon.textContent = icon.textContent === '▼' ? '▲' : '▼';
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none', marginTop: '8px', marginBottom: '4px' }}
+                            >
+                              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Advanced Diamond Details</span>
+                              <span id={`conv-adv-icon-${idx}`} style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>▼</span>
+                            </div>
+                            <div id={`conv-adv-${idx}`} style={{ display: 'none' }}>
+                              {/* Fluorescence & Optical */}
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px', marginTop: '8px' }}>Fluorescence & Optical</span>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Fluorescence" placeholder="e.g. NONE" value={row.fluorescenceIntensity ?? ''} onChange={(e) => handleRowChange(idx, 'fluorescenceIntensity', e.target.value.toUpperCase())} />
+                                <Input label="Fluor Color" placeholder="e.g. BLUE" value={row.fluorescenceColor ?? ''} onChange={(e) => handleRowChange(idx, 'fluorescenceColor', e.target.value.toUpperCase())} />
+                                <Input label="Eye Clean" placeholder="e.g. YES" value={row.eyeClean ?? ''} onChange={(e) => handleRowChange(idx, 'eyeClean', e.target.value.toUpperCase())} />
+                                <Input label="Hearts & Arrows" placeholder="e.g. YES" value={row.heartsAndArrows ?? ''} onChange={(e) => handleRowChange(idx, 'heartsAndArrows', e.target.value.toUpperCase())} />
+                                <Input label="Shade" placeholder="e.g. NONE" value={row.shade ?? ''} onChange={(e) => handleRowChange(idx, 'shade', e.target.value.toUpperCase())} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Milky" placeholder="e.g. NONE" value={row.milky ?? ''} onChange={(e) => handleRowChange(idx, 'milky', e.target.value.toUpperCase())} />
+                                <Input label="Tinge" placeholder="e.g. NONE" value={row.tinge ?? ''} onChange={(e) => handleRowChange(idx, 'tinge', e.target.value.toUpperCase())} />
+                                <Input label="Lustre" placeholder="e.g. EXCELLENT" value={row.lustre ?? ''} onChange={(e) => handleRowChange(idx, 'lustre', e.target.value.toUpperCase())} />
+                                <Input label="Rap Price ($/ct)" type="number" step="0.01" value={row.rapPricePerCarat ?? ''} onChange={(e) => handleRowChange(idx, 'rapPricePerCarat', e.target.value)} />
+                                <Input label="Rap Discount %" type="number" step="0.01" value={row.rapDiscountPct ?? ''} onChange={(e) => handleRowChange(idx, 'rapDiscountPct', e.target.value)} />
+                              </div>
+
+                              {/* Girdle, Crown & Pavilion */}
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>Girdle, Crown & Pavilion</span>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Crown Angle" type="number" step="0.01" value={row.crownAngle ?? ''} onChange={(e) => handleRowChange(idx, 'crownAngle', e.target.value)} />
+                                <Input label="Crown Height" type="number" step="0.01" value={row.crownHeight ?? ''} onChange={(e) => handleRowChange(idx, 'crownHeight', e.target.value)} />
+                                <Input label="Pavilion Angle" type="number" step="0.01" value={row.pavilionAngle ?? ''} onChange={(e) => handleRowChange(idx, 'pavilionAngle', e.target.value)} />
+                                <Input label="Pavilion Depth" type="number" step="0.01" value={row.pavilionDepth ?? ''} onChange={(e) => handleRowChange(idx, 'pavilionDepth', e.target.value)} />
+                                <Input label="Girdle Min" placeholder="e.g. THIN" value={row.girdleMin ?? ''} onChange={(e) => handleRowChange(idx, 'girdleMin', e.target.value.toUpperCase())} />
+                                <Input label="Girdle Max" placeholder="e.g. THICK" value={row.girdleMax ?? ''} onChange={(e) => handleRowChange(idx, 'girdleMax', e.target.value.toUpperCase())} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Girdle Condition" placeholder="e.g. FACETED" value={row.girdleCondition ?? ''} onChange={(e) => handleRowChange(idx, 'girdleCondition', e.target.value.toUpperCase())} />
+                                <Input label="Culet Size" placeholder="e.g. NONE" value={row.culetSize ?? ''} onChange={(e) => handleRowChange(idx, 'culetSize', e.target.value.toUpperCase())} />
+                                <Input label="Culet Condition" placeholder="e.g. POINTED" value={row.culetCondition ?? ''} onChange={(e) => handleRowChange(idx, 'culetCondition', e.target.value.toUpperCase())} />
+                                <Input label="Table Open" value={row.tableOpen ?? ''} onChange={(e) => handleRowChange(idx, 'tableOpen', e.target.value.toUpperCase())} />
+                                <Input label="Crown Open" value={row.crownOpen ?? ''} onChange={(e) => handleRowChange(idx, 'crownOpen', e.target.value.toUpperCase())} />
+                                <Input label="Girdle Open" value={row.girdleOpen ?? ''} onChange={(e) => handleRowChange(idx, 'girdleOpen', e.target.value.toUpperCase())} />
+                              </div>
+
+                              {/* Inclusions, Treatment & Origin */}
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>Inclusions, Treatment & Origin</span>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Table Inclusion" value={row.tableInclusion ?? ''} onChange={(e) => handleRowChange(idx, 'tableInclusion', e.target.value.toUpperCase())} />
+                                <Input label="Side Inclusion" value={row.sideInclusion ?? ''} onChange={(e) => handleRowChange(idx, 'sideInclusion', e.target.value.toUpperCase())} />
+                                <Input label="Treatment" placeholder="e.g. NONE" value={row.treatment ?? ''} onChange={(e) => handleRowChange(idx, 'treatment', e.target.value.toUpperCase())} />
+                                <Input label="Origin" placeholder="e.g. INDIA" value={row.origin ?? ''} onChange={(e) => handleRowChange(idx, 'origin', e.target.value.toUpperCase())} />
+                                <Input label="Inscription" value={row.inscription ?? ''} onChange={(e) => handleRowChange(idx, 'inscription', e.target.value)} />
+                                <Input label="Key to Symbols" value={row.keyToSymbols ?? ''} onChange={(e) => handleRowChange(idx, 'keyToSymbols', e.target.value)} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Fancy Color" value={row.fancyColor ?? ''} onChange={(e) => handleRowChange(idx, 'fancyColor', e.target.value.toUpperCase())} />
+                                <Input label="Fancy Intensity" value={row.fancyColorIntensity ?? ''} onChange={(e) => handleRowChange(idx, 'fancyColorIntensity', e.target.value.toUpperCase())} />
+                                <Input label="Fancy Overtone" value={row.fancyColorOvertone ?? ''} onChange={(e) => handleRowChange(idx, 'fancyColorOvertone', e.target.value.toUpperCase())} />
+                                <Input label="Certificate URL" value={row.certificateUrl ?? ''} onChange={(e) => handleRowChange(idx, 'certificateUrl', e.target.value)} />
+                                <Input label="Web URL" value={row.webUrl ?? ''} onChange={(e) => handleRowChange(idx, 'webUrl', e.target.value)} />
+                                <Input label="Comment" value={row.diamondComment ?? ''} onChange={(e) => handleRowChange(idx, 'diamondComment', e.target.value)} />
+                              </div>
                             </div>
                           </div>
                         </td>

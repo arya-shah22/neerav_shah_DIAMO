@@ -125,4 +125,11 @@ export async function hardDeleteCompanyMasters(prisma: PrismaClient, companyId: 
   await prisma.financialYear.deleteMany({ where: { companyId } });
 
   await prisma.userCompanyAccess.deleteMany({ where: { companyId } });
+  await prisma.systemSetting.deleteMany({ where: { companyId } });
+  await prisma.printTemplate.deleteMany({ where: { companyId } });
+  await prisma.voucherNumberConfig.deleteMany({ where: { companyId } });
+  await prisma.voucherNumberSequence.deleteMany({ where: { companyId } });
+  await prisma.notificationRecord.deleteMany({ where: { companyId } });
+  await prisma.loan.deleteMany({ where: { companyId } });
+  await prisma.stockConversion.deleteMany({ where: { companyId } });
 }

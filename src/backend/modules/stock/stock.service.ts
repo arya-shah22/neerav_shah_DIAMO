@@ -15,6 +15,8 @@ import { PrismaService } from '../../database/prisma.service';
 import { generateStockIdNumber, previewNextStockIdNumber } from '../../utils/stock-id-generator';
 import { DEFAULT_DIAMOND_SHAPES, mergeDiamondShapes } from '../../../shared/constants/diamond-shapes';
 
+import { syncStockMeasurements } from '../../../shared/utils/diamond-measurement';
+
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
 
 export interface StockListFilters {
@@ -443,7 +445,7 @@ export class StockService {
       data.financialYearId ? Number(data.financialYearId) : undefined
     );
     await this.validateUniqueStockId(companyId, stockIdNumber);
-    await this.validateCertificateNumber(data.certificateNumber as string | undefined);
+    await this.validateCertificateNumber(companyId, data.certificateNumber as string | undefined);
 
     const costPerCarat = Number(data.costPerCarat) || 0;
     const totalCost = data.totalCost != null ? Number(data.totalCost) : caratWeight * costPerCarat;
@@ -455,6 +457,8 @@ export class StockService {
 
     const targetStatus =
       (data.currentStatus as StockStatus) || StockStatus.AVAILABLE;
+
+    const measurementsData = syncStockMeasurements(data);
 
     return this.prisma.$transaction(async (tx) => {
       const packet = await tx.stockPacket.create({
@@ -472,11 +476,72 @@ export class StockService {
           cut: toUpperOrNull(data.cut),
           polish: toUpperOrNull(data.polish),
           symmetry: toUpperOrNull(data.symmetry),
-          lengthMm: toDecimalOrNull(data.lengthMm),
-          widthMm: toDecimalOrNull(data.widthMm),
-          depthMm: toDecimalOrNull(data.depthMm),
+          lengthMm: toDecimalOrNull(measurementsData.lengthMm),
+          widthMm: toDecimalOrNull(measurementsData.widthMm),
+          depthMm: toDecimalOrNull(measurementsData.depthMm),
+          measurements: measurementsData.measurements,
           totalDepthPct: toDecimalOrNull(data.totalDepthPct),
           tablePct: toDecimalOrNull(data.tablePct),
+          girdlePct: toDecimalOrNull(data.girdlePct),
+          // Extended Diamond Details
+          fluorescenceIntensity: toUpperOrNull(data.fluorescenceIntensity),
+          fluorescenceColor: toUpperOrNull(data.fluorescenceColor),
+          rapPricePerCarat: toDecimalOrNull(data.rapPricePerCarat),
+          rapDiscountPct: toDecimalOrNull(data.rapDiscountPct),
+          crownAngle: toDecimalOrNull(data.crownAngle),
+          crownHeight: toDecimalOrNull(data.crownHeight),
+          pavilionAngle: toDecimalOrNull(data.pavilionAngle),
+          pavilionDepth: toDecimalOrNull(data.pavilionDepth),
+          girdleMin: toUpperOrNull(data.girdleMin),
+          girdleMax: toUpperOrNull(data.girdleMax),
+          girdleCondition: toUpperOrNull(data.girdleCondition),
+          culetSize: toUpperOrNull(data.culetSize),
+          culetCondition: toUpperOrNull(data.culetCondition),
+          heartsAndArrows: toUpperOrNull(data.heartsAndArrows),
+          eyeClean: toUpperOrNull(data.eyeClean),
+          shade: toUpperOrNull(data.shade),
+          milky: toUpperOrNull(data.milky),
+          treatment: toUpperOrNull(data.treatment),
+          tinge: toUpperOrNull(data.tinge),
+          lustre: toUpperOrNull(data.lustre),
+          tableInclusion: toUpperOrNull(data.tableInclusion),
+          sideInclusion: toUpperOrNull(data.sideInclusion),
+          tableOpen: toUpperOrNull(data.tableOpen),
+          crownOpen: toUpperOrNull(data.crownOpen),
+          girdleOpen: toUpperOrNull(data.girdleOpen),
+          origin: toUpperOrNull(data.origin),
+          certificateUrl: emptyToNull(data.certificateUrl),
+          webUrl: emptyToNull(data.webUrl),
+          inscription: emptyToNull(data.inscription),
+          keyToSymbols: emptyToNull(data.keyToSymbols),
+          diamondComment: emptyToNull(data.diamondComment),
+          fancyColor: toUpperOrNull(data.fancyColor),
+          fancyColorIntensity: toUpperOrNull(data.fancyColorIntensity),
+          fancyColorOvertone: toUpperOrNull(data.fancyColorOvertone),
+          availability: toUpperOrNull(data.availability),
+          city: toUpperOrNull(data.city),
+          state: toUpperOrNull(data.state),
+          tradeShow: toUpperOrNull(data.tradeShow),
+          brand: toUpperOrNull(data.brand),
+          sellerSpec: emptyToNull(data.sellerSpec),
+          pairStockNumber: emptyToNull(data.pairStockNumber),
+          isPairSeparable: toUpperOrNull(data.isPairSeparable),
+          parcelStones: emptyToNull(data.parcelStones),
+          reportFilename: emptyToNull(data.reportFilename),
+          reportIssueDate: emptyToNull(data.reportIssueDate),
+          labLocation: toUpperOrNull(data.labLocation),
+          certComment: emptyToNull(data.certComment),
+          memberComment: emptyToNull(data.memberComment),
+          allowRaplinkFeed: toUpperOrNull(data.allowRaplinkFeed),
+          sarineLoupe: emptyToNull(data.sarineLoupe),
+          reportType: toUpperOrNull(data.reportType),
+          diamondType: toUpperOrNull(data.diamondType),
+          blackInclusion: toUpperOrNull(data.blackInclusion),
+          whiteInclusion: toUpperOrNull(data.whiteInclusion),
+          openInclusion: toUpperOrNull(data.openInclusion),
+          starLength: toDecimalOrNull(data.starLength),
+          growthType: toUpperOrNull(data.growthType),
+          bgm: toUpperOrNull(data.bgm),
           certificateType: toUpperOrNull(data.certificateType),
           certificateNumber: emptyToNull(data.certificateNumber),
           costPerCarat,
@@ -550,7 +615,7 @@ export class StockService {
       data.certificateNumber &&
       data.certificateNumber !== existing.certificateNumber
     ) {
-      await this.validateCertificateNumber(data.certificateNumber as string, id);
+      await this.validateCertificateNumber(companyId, data.certificateNumber as string, id);
     }
 
     const costPerCarat =
@@ -565,12 +630,20 @@ export class StockService {
     const previousStatus = existing.currentStatus;
     const newStatus = (data.currentStatus as StockStatus) || previousStatus;
 
+    const mergedMeasurements = syncStockMeasurements({
+      lengthMm: data.lengthMm !== undefined ? data.lengthMm : existing.lengthMm,
+      widthMm: data.widthMm !== undefined ? data.widthMm : existing.widthMm,
+      depthMm: data.depthMm !== undefined ? data.depthMm : existing.depthMm,
+      measurements: data.measurements !== undefined ? data.measurements : existing.measurements,
+      shape: data.shape !== undefined ? data.shape : existing.shape,
+    });
+
     return this.prisma.$transaction(async (tx) => {
       await tx.stockPacket.update({
         where: { id },
         data: {
           qualityId,
-           category: data.category !== undefined ? (data.category as StockCategory)?.toUpperCase() as StockCategory : existing.category,
+          category: data.category !== undefined ? (data.category as StockCategory)?.toUpperCase() as StockCategory : existing.category,
           registrationDate: data.registrationDate
             ? new Date(data.registrationDate as string)
             : existing.registrationDate,
@@ -582,15 +655,77 @@ export class StockService {
           cut: data.cut !== undefined ? toUpperOrNull(data.cut) : existing.cut,
           polish: data.polish !== undefined ? toUpperOrNull(data.polish) : existing.polish,
           symmetry: data.symmetry !== undefined ? toUpperOrNull(data.symmetry) : existing.symmetry,
-          lengthMm: data.lengthMm !== undefined ? toDecimalOrNull(data.lengthMm) : existing.lengthMm,
-          widthMm: data.widthMm !== undefined ? toDecimalOrNull(data.widthMm) : existing.widthMm,
-          depthMm: data.depthMm !== undefined ? toDecimalOrNull(data.depthMm) : existing.depthMm,
+          lengthMm: toDecimalOrNull(mergedMeasurements.lengthMm),
+          widthMm: toDecimalOrNull(mergedMeasurements.widthMm),
+          depthMm: toDecimalOrNull(mergedMeasurements.depthMm),
+          measurements: mergedMeasurements.measurements,
           totalDepthPct:
             data.totalDepthPct !== undefined
               ? toDecimalOrNull(data.totalDepthPct)
               : existing.totalDepthPct,
           tablePct:
             data.tablePct !== undefined ? toDecimalOrNull(data.tablePct) : existing.tablePct,
+          girdlePct:
+            data.girdlePct !== undefined ? toDecimalOrNull(data.girdlePct) : existing.girdlePct,
+          // Extended Diamond Details
+          fluorescenceIntensity: data.fluorescenceIntensity !== undefined ? toUpperOrNull(data.fluorescenceIntensity) : existing.fluorescenceIntensity,
+          fluorescenceColor: data.fluorescenceColor !== undefined ? toUpperOrNull(data.fluorescenceColor) : existing.fluorescenceColor,
+          rapPricePerCarat: data.rapPricePerCarat !== undefined ? toDecimalOrNull(data.rapPricePerCarat) : existing.rapPricePerCarat,
+          rapDiscountPct: data.rapDiscountPct !== undefined ? toDecimalOrNull(data.rapDiscountPct) : existing.rapDiscountPct,
+          crownAngle: data.crownAngle !== undefined ? toDecimalOrNull(data.crownAngle) : existing.crownAngle,
+          crownHeight: data.crownHeight !== undefined ? toDecimalOrNull(data.crownHeight) : existing.crownHeight,
+          pavilionAngle: data.pavilionAngle !== undefined ? toDecimalOrNull(data.pavilionAngle) : existing.pavilionAngle,
+          pavilionDepth: data.pavilionDepth !== undefined ? toDecimalOrNull(data.pavilionDepth) : existing.pavilionDepth,
+          girdleMin: data.girdleMin !== undefined ? toUpperOrNull(data.girdleMin) : existing.girdleMin,
+          girdleMax: data.girdleMax !== undefined ? toUpperOrNull(data.girdleMax) : existing.girdleMax,
+          girdleCondition: data.girdleCondition !== undefined ? toUpperOrNull(data.girdleCondition) : existing.girdleCondition,
+          culetSize: data.culetSize !== undefined ? toUpperOrNull(data.culetSize) : existing.culetSize,
+          culetCondition: data.culetCondition !== undefined ? toUpperOrNull(data.culetCondition) : existing.culetCondition,
+          heartsAndArrows: data.heartsAndArrows !== undefined ? toUpperOrNull(data.heartsAndArrows) : existing.heartsAndArrows,
+          eyeClean: data.eyeClean !== undefined ? toUpperOrNull(data.eyeClean) : existing.eyeClean,
+          shade: data.shade !== undefined ? toUpperOrNull(data.shade) : existing.shade,
+          milky: data.milky !== undefined ? toUpperOrNull(data.milky) : existing.milky,
+          treatment: data.treatment !== undefined ? toUpperOrNull(data.treatment) : existing.treatment,
+          tinge: data.tinge !== undefined ? toUpperOrNull(data.tinge) : existing.tinge,
+          lustre: data.lustre !== undefined ? toUpperOrNull(data.lustre) : existing.lustre,
+          tableInclusion: data.tableInclusion !== undefined ? toUpperOrNull(data.tableInclusion) : existing.tableInclusion,
+          sideInclusion: data.sideInclusion !== undefined ? toUpperOrNull(data.sideInclusion) : existing.sideInclusion,
+          tableOpen: data.tableOpen !== undefined ? toUpperOrNull(data.tableOpen) : existing.tableOpen,
+          crownOpen: data.crownOpen !== undefined ? toUpperOrNull(data.crownOpen) : existing.crownOpen,
+          girdleOpen: data.girdleOpen !== undefined ? toUpperOrNull(data.girdleOpen) : existing.girdleOpen,
+          origin: data.origin !== undefined ? toUpperOrNull(data.origin) : existing.origin,
+          certificateUrl: data.certificateUrl !== undefined ? emptyToNull(data.certificateUrl) : existing.certificateUrl,
+          webUrl: data.webUrl !== undefined ? emptyToNull(data.webUrl) : existing.webUrl,
+          inscription: data.inscription !== undefined ? emptyToNull(data.inscription) : existing.inscription,
+          keyToSymbols: data.keyToSymbols !== undefined ? emptyToNull(data.keyToSymbols) : existing.keyToSymbols,
+          diamondComment: data.diamondComment !== undefined ? emptyToNull(data.diamondComment) : existing.diamondComment,
+          fancyColor: data.fancyColor !== undefined ? toUpperOrNull(data.fancyColor) : existing.fancyColor,
+          fancyColorIntensity: data.fancyColorIntensity !== undefined ? toUpperOrNull(data.fancyColorIntensity) : existing.fancyColorIntensity,
+          fancyColorOvertone: data.fancyColorOvertone !== undefined ? toUpperOrNull(data.fancyColorOvertone) : existing.fancyColorOvertone,
+          availability: data.availability !== undefined ? toUpperOrNull(data.availability) : existing.availability,
+          city: data.city !== undefined ? toUpperOrNull(data.city) : existing.city,
+          state: data.state !== undefined ? toUpperOrNull(data.state) : existing.state,
+          tradeShow: data.tradeShow !== undefined ? toUpperOrNull(data.tradeShow) : existing.tradeShow,
+          brand: data.brand !== undefined ? toUpperOrNull(data.brand) : existing.brand,
+          sellerSpec: data.sellerSpec !== undefined ? emptyToNull(data.sellerSpec) : existing.sellerSpec,
+          pairStockNumber: data.pairStockNumber !== undefined ? emptyToNull(data.pairStockNumber) : existing.pairStockNumber,
+          isPairSeparable: data.isPairSeparable !== undefined ? toUpperOrNull(data.isPairSeparable) : existing.isPairSeparable,
+          parcelStones: data.parcelStones !== undefined ? emptyToNull(data.parcelStones) : existing.parcelStones,
+          reportFilename: data.reportFilename !== undefined ? emptyToNull(data.reportFilename) : existing.reportFilename,
+          reportIssueDate: data.reportIssueDate !== undefined ? emptyToNull(data.reportIssueDate) : existing.reportIssueDate,
+          labLocation: data.labLocation !== undefined ? toUpperOrNull(data.labLocation) : existing.labLocation,
+          certComment: data.certComment !== undefined ? emptyToNull(data.certComment) : existing.certComment,
+          memberComment: data.memberComment !== undefined ? emptyToNull(data.memberComment) : existing.memberComment,
+          allowRaplinkFeed: data.allowRaplinkFeed !== undefined ? toUpperOrNull(data.allowRaplinkFeed) : existing.allowRaplinkFeed,
+          sarineLoupe: data.sarineLoupe !== undefined ? emptyToNull(data.sarineLoupe) : existing.sarineLoupe,
+          reportType: data.reportType !== undefined ? toUpperOrNull(data.reportType) : existing.reportType,
+          diamondType: data.diamondType !== undefined ? toUpperOrNull(data.diamondType) : existing.diamondType,
+          blackInclusion: data.blackInclusion !== undefined ? toUpperOrNull(data.blackInclusion) : existing.blackInclusion,
+          whiteInclusion: data.whiteInclusion !== undefined ? toUpperOrNull(data.whiteInclusion) : existing.whiteInclusion,
+          openInclusion: data.openInclusion !== undefined ? toUpperOrNull(data.openInclusion) : existing.openInclusion,
+          starLength: data.starLength !== undefined ? toDecimalOrNull(data.starLength) : existing.starLength,
+          growthType: data.growthType !== undefined ? toUpperOrNull(data.growthType) : existing.growthType,
+          bgm: data.bgm !== undefined ? toUpperOrNull(data.bgm) : existing.bgm,
           certificateType:
             data.certificateType !== undefined
               ? toUpperOrNull(data.certificateType)
@@ -710,12 +845,13 @@ export class StockService {
     }
   }
 
-  private async validateCertificateNumber(certNumber?: string, excludeId?: number) {
+  private async validateCertificateNumber(companyId: number, certNumber?: string, excludeId?: number) {
     const trimmed = certNumber?.trim();
     if (!trimmed) return;
 
     const dup = await this.prisma.stockPacket.findFirst({
       where: {
+        companyId,
         certificateNumber: trimmed,
         ...(excludeId ? { id: { not: excludeId } } : {}),
       },
@@ -850,29 +986,39 @@ export class StockService {
       }
 
       const existing = await this.prisma.stockPacket.findFirst({
-        where: { companyId, stockIdNumber, isDeleted: false },
+        where: { companyId, stockIdNumber },
       });
       if (existing) {
-        skipped.push({
-          row: rowNum,
-          stockId: stockIdNumber,
-          reason: `Duplicate Stock ID "${stockIdNumber}" already exists`,
-        });
-        continue;
+        if (!existing.isDeleted) {
+          skipped.push({
+            row: rowNum,
+            stockId: stockIdNumber,
+            reason: `Duplicate Stock ID "${stockIdNumber}" already exists`,
+          });
+          continue;
+        } else {
+          // If previous stock was soft-deleted / archived, purge it so it can be re-imported
+          await this.purgeSoftDeletedPacket(existing.id);
+        }
       }
 
       const certNumber = row.certificateNumber?.trim();
       if (certNumber) {
         const certExists = await this.prisma.stockPacket.findFirst({
-          where: { companyId, certificateNumber: certNumber, isDeleted: false },
+          where: { companyId, certificateNumber: certNumber },
         });
         if (certExists) {
-          skipped.push({
-            row: rowNum,
-            stockId: stockIdNumber,
-            reason: `Certificate Number "${certNumber}" already exists`,
-          });
-          continue;
+          if (!certExists.isDeleted) {
+            skipped.push({
+              row: rowNum,
+              stockId: stockIdNumber,
+              reason: `Certificate Number "${certNumber}" already exists`,
+            });
+            continue;
+          } else {
+            // Purge archived packet with same cert number so new stone can be registered
+            await this.purgeSoftDeletedPacket(certExists.id);
+          }
         }
       }
 
@@ -882,58 +1028,150 @@ export class StockService {
         const costPerCarat = Number(row.costPerCarat) || 0;
         const totalCost = row.totalCost != null && row.totalCost !== '' ? Number(row.totalCost) : caratWeight * costPerCarat;
 
+        const measurementsData = syncStockMeasurements(row);
+
+        // Determine initial status based on imported availability column
+        let initialStatus: StockStatus = StockStatus.AVAILABLE;
+        const avail = String(row.availability || '').toUpperCase();
+        if (avail.includes('HOLD') || avail.includes('MEMO') || avail.includes('RESERVED') || avail.includes('PENDING')) {
+          initialStatus = StockStatus.HOLD;
+        } else if (avail.includes('SOLD')) {
+          initialStatus = StockStatus.SOLD;
+        }
+
         await this.prisma.$transaction(async (tx) => {
+          const hasCert = !!(row.certificateNumber || row.certificateType);
+          const computedCategory: StockCategory = hasCert
+            ? StockCategory.CERTIFIED
+            : (row.category ? ((row.category as string).toUpperCase() as StockCategory) : StockCategory.NON_CERTIFIED);
+
           const packet = await tx.stockPacket.create({
-            data: {
-              companyId,
-              qualityId,
-              stockIdNumber,
-              category: ((row.category as StockCategory) || StockCategory.NON_CERTIFIED).toUpperCase() as StockCategory,
-              registrationDate: new Date(),
-              shape: toUpperOrNull(row.shape),
-              caratWeight,
-              pieceCount,
-              color: toUpperOrNull(row.color),
-              clarity: toUpperOrNull(row.clarity),
-              cut: toUpperOrNull(row.cut),
-              polish: toUpperOrNull(row.polish),
-              symmetry: toUpperOrNull(row.symmetry),
-              lengthMm: toDecimalOrNull(row.lengthMm),
-              widthMm: toDecimalOrNull(row.widthMm),
-              depthMm: toDecimalOrNull(row.depthMm),
-              totalDepthPct: toDecimalOrNull(row.totalDepthPct),
-              tablePct: toDecimalOrNull(row.tablePct),
-              certificateType: toUpperOrNull(row.certificateType),
-              certificateNumber: emptyToNull(row.certificateNumber),
-              costPerCarat,
-              totalCost,
-              currentStatus: StockStatus.AVAILABLE,
-              currentOwnership: 'COMPANY',
-              createdBy: userId ?? null,
-            },
+                data: {
+                  companyId,
+                  qualityId,
+                  stockIdNumber,
+                  category: computedCategory,
+                  registrationDate: new Date(),
+                  shape: toUpperOrNull(row.shape),
+                  caratWeight,
+                  pieceCount,
+                  color: toUpperOrNull(row.color),
+                  clarity: toUpperOrNull(row.clarity),
+                  cut: toUpperOrNull(row.cut),
+                  polish: toUpperOrNull(row.polish),
+                  symmetry: toUpperOrNull(row.symmetry),
+                  lengthMm: toDecimalOrNull(measurementsData.lengthMm),
+                  widthMm: toDecimalOrNull(measurementsData.widthMm),
+                  depthMm: toDecimalOrNull(measurementsData.depthMm),
+                  measurements: measurementsData.measurements,
+                  totalDepthPct: toDecimalOrNull(row.totalDepthPct),
+                  tablePct: toDecimalOrNull(row.tablePct),
+                  girdlePct: toDecimalOrNull(row.girdlePct),
+                  // Extended Diamond Details
+                  fluorescenceIntensity: toUpperOrNull(row.fluorescenceIntensity),
+                  fluorescenceColor: toUpperOrNull(row.fluorescenceColor),
+                  rapPricePerCarat: toDecimalOrNull(row.rapPricePerCarat),
+                  rapDiscountPct: toDecimalOrNull(row.rapDiscountPct),
+                  crownAngle: toDecimalOrNull(row.crownAngle),
+                  crownHeight: toDecimalOrNull(row.crownHeight),
+                  pavilionAngle: toDecimalOrNull(row.pavilionAngle),
+                  pavilionDepth: toDecimalOrNull(row.pavilionDepth),
+                  girdleMin: toUpperOrNull(row.girdleMin),
+                  girdleMax: toUpperOrNull(row.girdleMax),
+                  girdleCondition: toUpperOrNull(row.girdleCondition),
+                  culetSize: toUpperOrNull(row.culetSize),
+                  culetCondition: toUpperOrNull(row.culetCondition),
+                  heartsAndArrows: toUpperOrNull(row.heartsAndArrows),
+                  eyeClean: toUpperOrNull(row.eyeClean),
+                  shade: toUpperOrNull(row.shade),
+                  milky: toUpperOrNull(row.milky),
+                  treatment: toUpperOrNull(row.treatment),
+                  tinge: toUpperOrNull(row.tinge),
+                  lustre: toUpperOrNull(row.lustre),
+                  tableInclusion: toUpperOrNull(row.tableInclusion),
+                  sideInclusion: toUpperOrNull(row.sideInclusion),
+                  tableOpen: toUpperOrNull(row.tableOpen),
+                  crownOpen: toUpperOrNull(row.crownOpen),
+                  girdleOpen: toUpperOrNull(row.girdleOpen),
+                  origin: toUpperOrNull(row.origin),
+                  certificateUrl: emptyToNull(row.certificateUrl),
+                  webUrl: emptyToNull(row.webUrl),
+                  inscription: emptyToNull(row.inscription),
+                  keyToSymbols: emptyToNull(row.keyToSymbols),
+                  diamondComment: emptyToNull(row.diamondComment),
+                  fancyColor: toUpperOrNull(row.fancyColor),
+                  fancyColorIntensity: toUpperOrNull(row.fancyColorIntensity),
+                  fancyColorOvertone: toUpperOrNull(row.fancyColorOvertone),
+                  availability: toUpperOrNull(row.availability),
+                  city: toUpperOrNull(row.city),
+                  state: toUpperOrNull(row.state),
+                  tradeShow: toUpperOrNull(row.tradeShow),
+                  brand: toUpperOrNull(row.brand),
+                  sellerSpec: emptyToNull(row.sellerSpec),
+                  pairStockNumber: emptyToNull(row.pairStockNumber),
+                  isPairSeparable: toUpperOrNull(row.isPairSeparable),
+                  parcelStones: emptyToNull(row.parcelStones),
+                  reportFilename: emptyToNull(row.reportFilename),
+                  reportIssueDate: emptyToNull(row.reportIssueDate),
+                  labLocation: toUpperOrNull(row.labLocation),
+                  certComment: emptyToNull(row.certComment),
+                  memberComment: emptyToNull(row.memberComment),
+                  allowRaplinkFeed: toUpperOrNull(row.allowRaplinkFeed),
+                  sarineLoupe: emptyToNull(row.sarineLoupe),
+                  reportType: toUpperOrNull(row.reportType),
+                  diamondType: toUpperOrNull(row.diamondType),
+                  blackInclusion: toUpperOrNull(row.blackInclusion),
+                  whiteInclusion: toUpperOrNull(row.whiteInclusion),
+                  openInclusion: toUpperOrNull(row.openInclusion),
+                  starLength: toDecimalOrNull(row.starLength),
+                  growthType: toUpperOrNull(row.growthType),
+                  bgm: toUpperOrNull(row.bgm),
+                  certificateType: toUpperOrNull(row.certificateType),
+                  certificateNumber: emptyToNull(row.certificateNumber),
+                  costPerCarat,
+                  totalCost,
+                  currentStatus: initialStatus,
+                  currentOwnership: 'COMPANY',
+                  createdBy: userId ?? null,
+                },
+              });
+
+              await tx.stockMovement.create({
+                data: {
+                  stockPacketId: packet.id,
+                  movementDate: new Date(),
+                  movementType: MovementType.STOCK_CREATION,
+                  previousStatus: StockStatus.CREATED,
+                  newStatus: initialStatus,
+                  carats: caratWeight,
+                  pieces: pieceCount,
+                  remarks: 'Imported via CSV',
+                  userId: userId ?? null,
+                },
+              });
+
+            await this.syncMediaLinks(
+              tx,
+              packet.id,
+              row.imageLink as string | undefined,
+              row.videoLink as string | undefined,
+            );
           });
 
-          await tx.stockMovement.create({
-            data: {
-              stockPacketId: packet.id,
-              movementDate: new Date(),
-              movementType: MovementType.STOCK_CREATION,
-              previousStatus: StockStatus.CREATED,
-              newStatus: StockStatus.AVAILABLE,
-              carats: caratWeight,
-              pieces: pieceCount,
-              remarks: 'Imported via CSV',
-              userId: userId ?? null,
-            },
-          });
-        });
-
-        imported.push(stockIdNumber);
+          imported.push(stockIdNumber);
       } catch (err: any) {
+        let reason = err.message || 'Validation or database error';
+        if (reason.includes('UQ_stock_packets_id_number') || reason.includes('stock_id_number')) {
+          reason = `Duplicate Stock ID "${stockIdNumber}" already exists`;
+        } else if (reason.includes('certificate_number') || reason.includes('certificateNumber')) {
+          reason = `Certificate Number "${row.certificateNumber || ''}" is already in use`;
+        } else if (reason.includes('column is too long')) {
+          reason = 'Column value is too long';
+        }
         skipped.push({
           row: rowNum,
           stockId: stockIdNumber,
-          reason: err.message || 'Validation or database error',
+          reason,
         });
       }
     }
@@ -960,7 +1198,9 @@ function toUpperOrNull(value: unknown): string | null {
 
 function toDecimalOrNull(value: unknown): number | null {
   if (value == null || value === '') return null;
-  const num = Number(value);
+  if (typeof value === 'number') return Number.isNaN(value) ? null : value;
+  const cleanStr = String(value).replace(/%/g, '').replace(/,/g, '').trim();
+  const num = Number(cleanStr);
   return Number.isNaN(num) ? null : num;
 }
 

@@ -847,6 +847,76 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                               <Input label="Image URL" placeholder="e.g. http://..." {...register(`items.${index}.imageLink`)} />
                               <Input label="Video URL" placeholder="e.g. http://..." {...register(`items.${index}.videoLink`)} />
                             </div>
+
+                            {/* ── Advanced Diamond Details (Collapsible) ── */}
+                            <div
+                              onClick={() => {
+                                const el = document.getElementById(`adv-${index}`);
+                                if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+                                const icon = document.getElementById(`adv-icon-${index}`);
+                                if (icon) icon.textContent = icon.textContent === '▼' ? '▲' : '▼';
+                              }}
+                              style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', userSelect: 'none', marginTop: '8px', marginBottom: '4px' }}
+                            >
+                              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Advanced Diamond Details</span>
+                              <span id={`adv-icon-${index}`} style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>▼</span>
+                            </div>
+                            <div id={`adv-${index}`} style={{ display: 'none' }}>
+                              {/* Fluorescence & Optical */}
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px', marginTop: '8px' }}>Fluorescence & Optical</span>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Fluorescence" placeholder="e.g. NONE" {...register(`items.${index}.fluorescenceIntensity`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Fluor Color" placeholder="e.g. BLUE" {...register(`items.${index}.fluorescenceColor`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Eye Clean" placeholder="e.g. YES" {...register(`items.${index}.eyeClean`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Hearts & Arrows" placeholder="e.g. YES" {...register(`items.${index}.heartsAndArrows`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Shade" placeholder="e.g. NONE" {...register(`items.${index}.shade`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Milky" placeholder="e.g. NONE" {...register(`items.${index}.milky`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Tinge" placeholder="e.g. NONE" {...register(`items.${index}.tinge`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Lustre" placeholder="e.g. EXCELLENT" {...register(`items.${index}.lustre`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Rap Price ($/ct)" type="number" step="0.01" {...register(`items.${index}.rapPricePerCarat`)} />
+                                <Input label="Rap Discount %" type="number" step="0.01" {...register(`items.${index}.rapDiscountPct`)} />
+                              </div>
+
+                              {/* Girdle, Crown & Pavilion */}
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>Girdle, Crown & Pavilion</span>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Crown Angle" type="number" step="0.01" {...register(`items.${index}.crownAngle`)} />
+                                <Input label="Crown Height" type="number" step="0.01" {...register(`items.${index}.crownHeight`)} />
+                                <Input label="Pavilion Angle" type="number" step="0.01" {...register(`items.${index}.pavilionAngle`)} />
+                                <Input label="Pavilion Depth" type="number" step="0.01" {...register(`items.${index}.pavilionDepth`)} />
+                                <Input label="Girdle Min" placeholder="e.g. THIN" {...register(`items.${index}.girdleMin`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Girdle Max" placeholder="e.g. THICK" {...register(`items.${index}.girdleMax`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Girdle Condition" placeholder="e.g. FACETED" {...register(`items.${index}.girdleCondition`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Culet Size" placeholder="e.g. NONE" {...register(`items.${index}.culetSize`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Culet Condition" placeholder="e.g. POINTED" {...register(`items.${index}.culetCondition`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Table Open" {...register(`items.${index}.tableOpen`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Crown Open" {...register(`items.${index}.crownOpen`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Girdle Open" {...register(`items.${index}.girdleOpen`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                              </div>
+
+                              {/* Inclusions, Treatment & Origin */}
+                              <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', display: 'block', marginBottom: '6px' }}>Inclusions, Treatment & Origin</span>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Table Inclusion" {...register(`items.${index}.tableInclusion`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Side Inclusion" {...register(`items.${index}.sideInclusion`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Treatment" placeholder="e.g. NONE" {...register(`items.${index}.treatment`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Origin" placeholder="e.g. INDIA" {...register(`items.${index}.origin`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Inscription" {...register(`items.${index}.inscription`)} />
+                                <Input label="Key to Symbols" {...register(`items.${index}.keyToSymbols`)} />
+                              </div>
+                              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr 1fr 1fr', gap: '12px', marginBottom: '12px' }}>
+                                <Input label="Fancy Color" {...register(`items.${index}.fancyColor`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Fancy Intensity" {...register(`items.${index}.fancyColorIntensity`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Fancy Overtone" {...register(`items.${index}.fancyColorOvertone`, { onChange: (e) => { e.target.value = e.target.value.toUpperCase(); } })} />
+                                <Input label="Certificate URL" {...register(`items.${index}.certificateUrl`)} />
+                                <Input label="Web URL" {...register(`items.${index}.webUrl`)} />
+                                <Input label="Comment" {...register(`items.${index}.diamondComment`)} />
+                              </div>
+                            </div>
                           </div>
                         )}
                       </td>

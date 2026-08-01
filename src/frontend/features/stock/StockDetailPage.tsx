@@ -148,6 +148,7 @@ export const StockDetailPage: React.FC = () => {
           <div style={cardStyle}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Measurements & Certification</h2>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              <DetailRow label="Measurements" value={packet.measurements || (packet.lengthMm && packet.widthMm && packet.depthMm ? `${Number(packet.lengthMm).toFixed(2)}x${Number(packet.widthMm).toFixed(2)}x${Number(packet.depthMm).toFixed(2)}` : null)} />
               <DetailRow label="Length" value={packet.lengthMm != null ? `${Number(packet.lengthMm).toFixed(2)} mm` : null} />
               <DetailRow label="Width" value={packet.widthMm != null ? `${Number(packet.widthMm).toFixed(2)} mm` : null} />
               <DetailRow label="Depth" value={packet.depthMm != null ? `${Number(packet.depthMm).toFixed(2)} mm` : null} />
@@ -155,6 +156,87 @@ export const StockDetailPage: React.FC = () => {
               <DetailRow label="Table %" value={packet.tablePct != null ? `${Number(packet.tablePct).toFixed(2)}%` : null} />
               <DetailRow label="Cert Type" value={packet.certificateType} />
               <DetailRow label="Cert Number" value={packet.certificateNumber} />
+              {packet.certificateUrl && <DetailRow label="Certificate URL" value={<a href={packet.certificateUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)' }}>{packet.certificateUrl}</a>} />}
+              {packet.inscription && <DetailRow label="Laser Inscription" value={packet.inscription} />}
+            </div>
+          </div>
+
+          {/* Fluorescence & Optical — only show if at least one field has a value */}
+          {/* Fluorescence & Optical */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Fluorescence & Optical</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              <DetailRow label="Fluorescence" value={packet.fluorescenceIntensity} />
+              <DetailRow label="Fluor Color" value={packet.fluorescenceColor} />
+              <DetailRow label="Eye Clean" value={packet.eyeClean} />
+              <DetailRow label="Hearts & Arrows" value={packet.heartsAndArrows} />
+              <DetailRow label="Shade" value={packet.shade} />
+              <DetailRow label="Milky" value={packet.milky} />
+              <DetailRow label="Tinge" value={packet.tinge} />
+              <DetailRow label="Lustre" value={packet.lustre} />
+              <DetailRow label="Rap Price" value={packet.rapPricePerCarat != null ? `$ ${Number(packet.rapPricePerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null} />
+              <DetailRow label="Rap Discount" value={packet.rapDiscountPct != null ? `${Number(packet.rapDiscountPct).toFixed(2)}%` : null} />
+            </div>
+          </div>
+
+          {/* Girdle, Crown & Pavilion */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Girdle, Crown & Pavilion</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              <DetailRow label="Crown Angle" value={packet.crownAngle != null ? `${Number(packet.crownAngle).toFixed(2)}°` : null} />
+              <DetailRow label="Crown Height" value={packet.crownHeight != null ? `${Number(packet.crownHeight).toFixed(2)}%` : null} />
+              <DetailRow label="Pavilion Angle" value={packet.pavilionAngle != null ? `${Number(packet.pavilionAngle).toFixed(2)}°` : null} />
+              <DetailRow label="Pavilion Depth" value={packet.pavilionDepth != null ? `${Number(packet.pavilionDepth).toFixed(2)}%` : null} />
+              <DetailRow label="Girdle Thin" value={packet.girdleMin} />
+              <DetailRow label="Girdle Thick" value={packet.girdleMax} />
+              <DetailRow label="Girdle %" value={packet.girdlePct != null ? `${Number(packet.girdlePct).toFixed(2)}%` : null} />
+              <DetailRow label="Girdle Condition" value={packet.girdleCondition} />
+              <DetailRow label="Culet Size" value={packet.culetSize} />
+              <DetailRow label="Culet Condition" value={packet.culetCondition} />
+              <DetailRow label="Table Open" value={packet.tableOpen} />
+              <DetailRow label="Crown Open" value={packet.crownOpen} />
+              <DetailRow label="Girdle Open" value={packet.girdleOpen} />
+            </div>
+          </div>
+
+          {/* Inclusions, Treatment, Marketplace & Specialty */}
+          <div style={cardStyle}>
+            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Inclusions, Treatment, Marketplace & Specialty</h2>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              <DetailRow label="Table Inclusion" value={packet.tableInclusion} />
+              <DetailRow label="Side Inclusion" value={packet.sideInclusion} />
+              <DetailRow label="Black Inclusion" value={packet.blackInclusion} />
+              <DetailRow label="White Inclusion" value={packet.whiteInclusion} />
+              <DetailRow label="Open Inclusion" value={packet.openInclusion} />
+              <DetailRow label="BGM" value={packet.bgm} />
+              <DetailRow label="Growth Type" value={packet.growthType} />
+              <DetailRow label="Type" value={packet.diamondType} />
+              <DetailRow label="Star Length" value={packet.starLength != null ? `${Number(packet.starLength).toFixed(2)}%` : null} />
+              <DetailRow label="Treatment" value={packet.treatment} />
+              <DetailRow label="Origin" value={packet.origin} />
+              <DetailRow label="Availability" value={packet.availability} />
+              <DetailRow label="City" value={packet.city} />
+              <DetailRow label="State" value={packet.state} />
+              <DetailRow label="Trade Show" value={packet.tradeShow} />
+              <DetailRow label="Brand" value={packet.brand} />
+              <DetailRow label="Seller Spec" value={packet.sellerSpec} />
+              <DetailRow label="Pair Stock #" value={packet.pairStockNumber} />
+              <DetailRow label="Pair Separable" value={packet.isPairSeparable} />
+              <DetailRow label="Parcel Stones" value={packet.parcelStones} />
+              <DetailRow label="Report Filename" value={packet.reportFilename} />
+              <DetailRow label="Report Issue Date" value={packet.reportIssueDate} />
+              <DetailRow label="Report Type" value={packet.reportType} />
+              <DetailRow label="Lab Location" value={packet.labLocation} />
+              <DetailRow label="Allow RapLink Feed" value={packet.allowRaplinkFeed} />
+              <DetailRow label="Sarine Loupe" value={packet.sarineLoupe ? <a href={packet.sarineLoupe} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)' }}>{packet.sarineLoupe}</a> : null} />
+              <DetailRow label="Cert Comment" value={packet.certComment} />
+              <DetailRow label="Member Comment" value={packet.memberComment} />
+              <DetailRow label="Fancy Color" value={packet.fancyColor} />
+              <DetailRow label="Fancy Color Intensity" value={packet.fancyColorIntensity} />
+              <DetailRow label="Fancy Color Overtone" value={packet.fancyColorOvertone} />
+              <DetailRow label="Key to Symbols" value={packet.keyToSymbols} />
+              <DetailRow label="Web URL" value={packet.webUrl ? <a href={packet.webUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)' }}>{packet.webUrl}</a> : null} />
+              <DetailRow label="Comment" value={packet.diamondComment} />
             </div>
           </div>
         </div>

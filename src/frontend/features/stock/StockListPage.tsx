@@ -5,10 +5,14 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Plus, Edit2, Trash2, Gem, Eye, ChevronUp, ChevronDown, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import * as XLSX from 'xlsx';
+import { resolveHeaderAlias } from '../../../shared/constants/csv-header-map';
+import { syncStockMeasurements } from '../../../shared/utils/diamond-measurement';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Badge, Input, Select, Modal, useToast } from '../../components/ui';
+import { exportStockPackets, ExportPreset, FileType } from './stock-export-helper';
 import { useCompanyStore } from '../../state/company-store';
 import { IQuality } from '../quality/quality.types';
 import {
@@ -87,6 +91,9 @@ export const StockListPage: React.FC = () => {
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const [qualities, setQualities] = useState<IQuality[]>([]);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
+  const [exportPreset, setExportPreset] = useState<ExportPreset>('DIAMO');
+  const [exportFileType, setExportFileType] = useState<FileType>('CSV');
   const [selectedQualityId, setSelectedQualityId] = useState<string>('');
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
@@ -139,53 +146,43 @@ export const StockListPage: React.FC = () => {
 
   const downloadTemplate = () => {
     const headers = [
-      'Stock ID',
-      'Category',
-      'Shape',
-      'Carats',
-      'Pieces',
-      'Color',
-      'Clarity',
-      'Cut',
-      'Polish',
-      'Symmetry',
-      'Length (mm)',
-      'Width (mm)',
-      'Depth (mm)',
-      'Depth %',
-      'Table %',
-      'Cert Type',
-      'Cert Number',
-      'Rate',
-      'Total Cost'
+      'Stock ID', 'Category', 'Shape', 'Carats', 'Pieces', 'Color', 'Clarity', 'Cut', 'Polish', 'Symmetry',
+      'Measurements', 'Length (mm)', 'Width (mm)', 'Depth (mm)', 'Depth %', 'Table %',
+      'Fluorescence Intensity', 'Fluorescence Color', 'Rap Price ($/ct)', 'Rap Discount %',
+      'Crown Angle', 'Crown Height', 'Pavilion Angle', 'Pavilion Depth',
+      'Girdle Min', 'Girdle Max', 'Girdle Condition', 'Culet Size', 'Culet Condition',
+      'Hearts & Arrows', 'Eye Clean', 'Shade', 'Milky', 'Treatment', 'Tinge', 'Lustre',
+      'Table Inclusion', 'Side Inclusion', 'Black Inclusion', 'White Inclusion', 'Open Inclusion',
+      'Table Open', 'Crown Open', 'Girdle Open', 'BGM', 'Growth Type', 'Star Length',
+      'Origin', 'Availability', 'City', 'State', 'Trade Show', 'Brand', 'Seller Spec',
+      'Pair Stock #', 'Pair Separable', 'Parcel Stones', 'Report Filename', 'Report Issue Date', 'Lab Location',
+      'Cert Type', 'Cert Number', 'Certificate URL', 'Web URL', 'Image Link', 'Video Link', 'Inscription',
+      'Key to Symbols', 'Comment', 'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone',
+      'Asking Price', 'Rate ($/ct)', 'Total Cost'
     ];
+
     const example = [
-      'DM-2026-EX001',
-      'Certified',
-      'Round',
-      '1.05',
-      '1',
-      'White',
-      'VS1',
-      'EX',
-      'EX',
-      'EX',
-      '6.5',
-      '6.5',
-      '4.0',
-      '61.5',
-      '57',
-      'GIA',
-      '123456789',
-      '5000',
-      '5250'
+      'DM-2026-EX001', 'CERTIFIED', 'ROUND', '1.05', '1', 'D', 'VS1', 'EX', 'EX', 'EX',
+      '6.50-6.52x4.00', '6.50', '6.52', '4.00', '61.50', '57.00',
+      'NONE', 'NONE', '7500.00', '-15.50',
+      '34.50', '15.00', '40.80', '43.00',
+      'THIN', 'SLIGHTLY THICK', 'FACETED', 'NONE', 'POINTED',
+      'YES', 'YES', 'NONE', 'NONE', 'CVD', 'NONE', 'EXCELLENT',
+      'NONE', 'NONE', 'NONE', 'NONE', 'NONE',
+      'NO', 'NO', 'NO', 'NONE', 'CVD', '55.00',
+      'INDIA', 'AVAILABLE', 'SURAT', 'GUJARAT', 'VICENZORO', 'DIAMO', 'SPEC-01',
+      'PAIR-01', 'YES', 'NO', 'REPORT-123.PDF', '2026-01-15', 'MUMBAI',
+      'GIA', '123456789', '"https://example.com/cert.pdf"', '"https://example.com/360view"', '"https://example.com/photo.jpg"', '"https://example.com/video.mp4"', 'GIA 123456789',
+      '"Feather, Crystal"', '"Excellent quality stone"', '', '', '',
+      '5500.00', '5000.00', '5250.00'
     ];
+
     const csvContent = [headers.join(','), example.join(',')].join('\n');
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.setAttribute('href', url);
-    link.setAttribute('download', 'stock_template.csv');
+    link.setAttribute('download', 'stock_inventory_template.csv');
     link.style.visibility = 'hidden';
     document.body.appendChild(link);
     link.click();
@@ -195,20 +192,39 @@ export const StockListPage: React.FC = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const ext = file.name.split('.').pop()?.toLowerCase();
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (!text) return;
-
-      try {
-        const parsed = parseCSV(text);
-        setParsedRows(parsed);
-      } catch (err: any) {
-        showToast('Failed to parse CSV file', 'error');
-      }
-    };
-    reader.readAsText(file);
+    if (ext === 'xlsx' || ext === 'xls') {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        try {
+          const data = new Uint8Array(event.target?.result as ArrayBuffer);
+          const workbook = XLSX.read(data, { type: 'array' });
+          const sheetName = workbook.SheetNames[0];
+          const sheet = workbook.Sheets[sheetName];
+          const jsonRows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: '' });
+          const parsed = parseStockFile(jsonRows);
+          setParsedRows(parsed);
+        } catch (err: any) {
+          showToast('Failed to parse XLSX file: ' + (err.message || ''), 'error');
+        }
+      };
+      reader.readAsArrayBuffer(file);
+    } else {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const text = event.target?.result as string;
+        if (!text) return;
+        try {
+          const csvRows = parseCSVText(text);
+          const parsed = parseStockFile(csvRows);
+          setParsedRows(parsed);
+        } catch (err: any) {
+          showToast('Failed to parse CSV file: ' + (err.message || ''), 'error');
+        }
+      };
+      reader.readAsText(file);
+    }
   };
 
   const handleImportSubmit = async () => {
@@ -250,85 +266,22 @@ export const StockListPage: React.FC = () => {
     setImportResult(null);
   };
 
-  const downloadStockCsv = () => {
+  const openExportModal = () => {
     if (!processedStock || processedStock.length === 0) {
       showToast('No matching stock packets to download', 'info');
       return;
     }
+    setIsExportModalOpen(true);
+  };
 
-    const headers = [
-      'Stock ID',
-      'Quality',
-      'Shape',
-      'Carats',
-      'Pieces',
-      'Color',
-      'Clarity',
-      'Cut',
-      'Polish',
-      'Symmetry',
-      'Length (mm)',
-      'Width (mm)',
-      'Depth (mm)',
-      'Depth %',
-      'Table %',
-      'Cert Type',
-      'Cert Number',
-      'Rate',
-      'Total Cost',
-      'Status',
-      'Registration Date'
-    ];
-
-    const rows = processedStock.map((pkt) => [
-      pkt.stockIdNumber,
-      pkt.quality?.qualityName || '',
-      pkt.shape || '',
-      pkt.caratWeight,
-      pkt.pieceCount,
-      pkt.color || '',
-      pkt.clarity || '',
-      pkt.cut || '',
-      pkt.polish || '',
-      pkt.symmetry || '',
-      pkt.lengthMm || '',
-      pkt.widthMm || '',
-      pkt.depthMm || '',
-      pkt.totalDepthPct || '',
-      pkt.tablePct || '',
-      pkt.certificateType || '',
-      pkt.certificateNumber || '',
-      pkt.costPerCarat,
-      pkt.totalCost,
-      pkt.currentStatus,
-      new Date(pkt.registrationDate).toLocaleDateString('en-IN')
-    ]);
-
-    const csvContent = [
-      headers.join(','),
-      ...rows.map((row) =>
-        row
-          .map((val) => {
-            const strVal = String(val == null ? '' : val);
-            if (strVal.includes(',') || strVal.includes('"') || strVal.includes('\n')) {
-              return `"${strVal.replace(/"/g, '""')}"`;
-            }
-            return strVal;
-          })
-          .join(',')
-      )
-    ].join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `stock_inventory_${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    showToast('Stock inventory CSV downloaded successfully', 'success');
+  const handleExportStock = () => {
+    if (!processedStock || processedStock.length === 0) {
+      showToast('No matching stock packets to download', 'info');
+      return;
+    }
+    exportStockPackets(processedStock, exportPreset, exportFileType, activeCompany?.companyName);
+    setIsExportModalOpen(false);
+    showToast(`Stock exported successfully (${exportPreset} format as ${exportFileType})`, 'success');
   };
 
   const closeStatusModal = () => {
@@ -855,8 +808,8 @@ export const StockListPage: React.FC = () => {
           </p>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="secondary" onClick={downloadStockCsv} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            Download Stock CSV
+          <Button variant="secondary" onClick={openExportModal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            Download Stock
           </Button>
           <Button variant="secondary" onClick={() => setIsImportModalOpen(true)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             Import CSV
@@ -1283,7 +1236,7 @@ export const StockListPage: React.FC = () => {
             </label>
             <input
               type="file"
-              accept=".csv"
+              accept=".csv,.xlsx,.xls"
               onChange={handleFileChange}
               style={{
                 padding: '8px',
@@ -1323,16 +1276,38 @@ export const StockListPage: React.FC = () => {
 
               {importResult.skippedCount > 0 && (
                 <div style={{ border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', overflow: 'hidden' }}>
-                  <div style={{ padding: '6px 12px', background: 'var(--color-bg-header)', fontSize: 'var(--text-small)', fontWeight: 600, borderBottom: '1px solid var(--color-border)' }}>
-                    Skipped Rows Log
+                  <div style={{ padding: '6px 12px', background: 'var(--color-bg-header)', fontSize: 'var(--text-small)', fontWeight: 600, borderBottom: '1px solid var(--color-border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>Skipped Rows Log</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const logText = importResult.skippedDetails
+                          .map(d => `Row ${d.row}: ${d.stockId || '(Empty Stock ID)'} -> ${d.reason}`)
+                          .join('\n');
+                        navigator.clipboard.writeText(logText);
+                        showToast('Skipped log copied to clipboard!', 'success');
+                      }}
+                      style={{
+                        padding: '2px 8px',
+                        fontSize: '11px',
+                        fontWeight: 500,
+                        background: 'var(--color-primary)',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: 'var(--radius-sm)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Copy Log
+                    </button>
                   </div>
-                  <div style={{ maxHeight: '150px', overflowY: 'auto', padding: '6px 12px', display: 'flex', flexDirection: 'column', gap: '4px', background: 'var(--color-bg-card)' }}>
+                  <div style={{ maxHeight: '180px', overflowY: 'auto', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: '6px', background: 'var(--color-bg-card)', userSelect: 'text', WebkitUserSelect: 'text' }}>
                     {importResult.skippedDetails.map((detail, idx) => (
-                      <div key={idx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
-                        <span>
+                      <div key={idx} style={{ fontSize: '11px', display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)', userSelect: 'text', WebkitUserSelect: 'text' }}>
+                        <span style={{ userSelect: 'text', WebkitUserSelect: 'text' }}>
                           <strong>Row {detail.row}:</strong> {detail.stockId || '(Empty Stock ID)'}
                         </span>
-                        <span style={{ color: 'var(--color-danger)' }}>{detail.reason}</span>
+                        <span style={{ color: 'var(--color-danger)', userSelect: 'text', WebkitUserSelect: 'text', marginLeft: '12px', textAlign: 'right' }}>{detail.reason}</span>
                       </div>
                     ))}
                   </div>
@@ -1342,107 +1317,121 @@ export const StockListPage: React.FC = () => {
           )}
         </div>
       </Modal>
+
+      {/* Download Stock Export Modal */}
+      <Modal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        title={`Download Stock Export (${processedStock.length} packets)`}
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setIsExportModalOpen(false)}>
+              Cancel
+            </Button>
+            <Button variant="primary" onClick={handleExportStock}>
+              Download File
+            </Button>
+          </>
+        }
+      >
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px 0' }}>
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '8px', display: 'block' }}>
+              Select Format Preset:
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+              {[
+                { id: 'DIAMO', label: 'DIAMO Standard', desc: 'All ~70 attributes' },
+                { id: 'RAPNET', label: 'RapNet Format', desc: '61 RapNet columns' },
+                { id: 'VDB', label: 'VDB Format', desc: '48 VDB columns' },
+                { id: 'NIVODA', label: 'Nivoda Format', desc: '41 Nivoda columns' },
+              ].map((opt) => {
+                const isSelected = exportPreset === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setExportPreset(opt.id as ExportPreset)}
+                    style={{
+                      padding: '12px',
+                      borderRadius: 'var(--radius-md)',
+                      border: isSelected ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      background: isSelected ? 'var(--color-accent-light)' : 'var(--color-bg-card)',
+                      color: isSelected ? 'var(--color-accent-hover)' : 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 700 }}>{opt.label}</span>
+                    <span style={{ fontSize: '11px', color: isSelected ? 'var(--color-accent-hover)' : 'var(--color-text-muted)' }}>{opt.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '8px', display: 'block' }}>
+              Select File Type:
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {[
+                { id: 'CSV', label: 'CSV (.csv)' },
+                { id: 'XLSX', label: 'Excel (.xlsx)' },
+              ].map((opt) => {
+                const isSelected = exportFileType === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setExportFileType(opt.id as FileType)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 16px',
+                      borderRadius: 'var(--radius-md)',
+                      border: isSelected ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      background: isSelected ? 'var(--color-accent-light)' : 'var(--color-bg-card)',
+                      color: isSelected ? 'var(--color-accent-hover)' : 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      textAlign: 'center',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };
 
-function parseCSV(text: string): any[] {
+/**
+ * Parse CSV text into array of raw row objects keyed by header.
+ */
+function parseCSVText(text: string): Record<string, unknown>[] {
   const lines = text.split(/\r?\n/);
   if (lines.length === 0) return [];
-  
+
   const headers = parseCSVLine(lines[0]);
-  const result: any[] = [];
-  
+  const result: Record<string, unknown>[] = [];
+
   for (let i = 1; i < lines.length; i++) {
     const line = lines[i].trim();
     if (!line) continue;
     const values = parseCSVLine(line);
-    const row: any = {};
+    const row: Record<string, unknown> = {};
     headers.forEach((header, index) => {
-      const value = values[index]?.trim() || '';
-      const normalizedHeader = header.trim().toLowerCase().replace(/\s+/g, '').replace(/[^a-z0-9]/g, '');
-      
-      switch (normalizedHeader) {
-        case 'stockid':
-        case 'stockidnumber':
-          row.stockIdNumber = value;
-          break;
-        case 'category':
-          const cat = value.toUpperCase().replace('-', '_');
-          if (cat === 'CERTIFIED' || cat === 'NON_CERTIFIED') {
-            row.category = cat;
-          } else if (value.toLowerCase().includes('non')) {
-            row.category = 'NON_CERTIFIED';
-          } else if (value.toLowerCase().includes('cert')) {
-            row.category = 'CERTIFIED';
-          } else {
-            row.category = 'NON_CERTIFIED';
-          }
-          break;
-        case 'shape':
-          row.shape = value;
-          break;
-        case 'carats':
-        case 'carat':
-        case 'weight':
-          row.caratWeight = value;
-          break;
-        case 'pieces':
-        case 'piece':
-        case 'pcs':
-        case 'piececount':
-          row.pieceCount = value;
-          break;
-        case 'color':
-          row.color = value;
-          break;
-        case 'clarity':
-          row.clarity = value;
-          break;
-        case 'cut':
-          row.cut = value;
-          break;
-        case 'polish':
-          row.polish = value;
-          break;
-        case 'symmetry':
-          row.symmetry = value;
-          break;
-        case 'length':
-        case 'lengthmm':
-          row.lengthMm = value;
-          break;
-        case 'width':
-        case 'widthmm':
-          row.widthMm = value;
-          break;
-        case 'depth':
-        case 'depthmm':
-          row.depthMm = value;
-          break;
-        case 'depthpct':
-        case 'totaldepthpct':
-          row.totalDepthPct = value;
-          break;
-        case 'tablepct':
-          row.tablePct = value;
-          break;
-        case 'certtype':
-        case 'certificatetype':
-          row.certificateType = value;
-          break;
-        case 'certnumber':
-        case 'certificatenumber':
-          row.certificateNumber = value;
-          break;
-        case 'rate':
-        case 'costpercarat':
-          row.costPerCarat = value;
-          break;
-        case 'totalcost':
-          row.totalCost = value;
-          break;
-      }
+      row[header.trim()] = values[index]?.trim() || '';
     });
     result.push(row);
   }
@@ -1453,7 +1442,7 @@ function parseCSVLine(line: string): string[] {
   const result: string[] = [];
   let current = '';
   let inQuotes = false;
-  
+
   for (let i = 0; i < line.length; i++) {
     const char = line[i];
     if (char === '"') {
@@ -1472,4 +1461,82 @@ function parseCSVLine(line: string): string[] {
     }
     return val;
   });
+}
+
+/**
+ * Universal stock file parser.
+ * Takes raw row objects (from CSV or XLSX) and maps headers to internal field names
+ * using the CSV_HEADER_ALIASES dictionary. Case-insensitive, whitespace-tolerant.
+ */
+function parseStockFile(rawRows: Record<string, unknown>[]): any[] {
+  if (rawRows.length === 0) return [];
+
+  // Build header mapping from the first row's keys
+  const firstRow = rawRows[0];
+  const rawHeaders = Object.keys(firstRow);
+  const headerMap: Record<string, string> = {}; // rawKey -> internalFieldName
+
+  for (const rawKey of rawHeaders) {
+    const internalField = resolveHeaderAlias(rawKey);
+    if (internalField) {
+      headerMap[rawKey] = internalField;
+    }
+  }
+
+  const result: any[] = [];
+
+  for (const rawRow of rawRows) {
+    const row: any = {};
+    for (const [rawKey, internalField] of Object.entries(headerMap)) {
+      const value = rawRow[rawKey];
+      const strValue = value != null ? String(value).trim() : '';
+      if (!strValue) continue;
+
+      // Special handling for 'category' field
+      if (internalField === 'category') {
+        const cat = strValue.toUpperCase().replace(/-/g, '_');
+        if (cat === 'CERTIFIED' || cat === 'NON_CERTIFIED') {
+          row.category = cat;
+        } else if (strValue.toLowerCase().includes('non')) {
+          row.category = 'NON_CERTIFIED';
+        } else if (strValue.toLowerCase().includes('cert')) {
+          row.category = 'CERTIFIED';
+        } else {
+          row.category = 'NON_CERTIFIED';
+        }
+      } else {
+        const NUMERIC_FIELDS = [
+          'caratWeight', 'pieceCount', 'costPerCarat', 'totalCost', 'targetSaleRate',
+          'lengthMm', 'widthMm', 'depthMm', 'totalDepthPct', 'tablePct', 'girdlePct',
+          'rapPricePerCarat', 'rapDiscountPct', 'crownAngle', 'crownHeight',
+          'pavilionAngle', 'pavilionDepth', 'starLength'
+        ];
+        if (NUMERIC_FIELDS.includes(internalField)) {
+          const cleanNum = strValue.replace(/%/g, '').replace(/,/g, '').trim();
+          const num = Number(cleanNum);
+          row[internalField] = !isNaN(num) ? num : strValue;
+        } else {
+          row[internalField] = strValue;
+        }
+      }
+    }
+
+    // Auto-synchronize combined measurements string & individual length/width/depth
+    const synced = syncStockMeasurements(row);
+    if (synced.lengthMm != null) row.lengthMm = synced.lengthMm;
+    if (synced.widthMm != null) row.widthMm = synced.widthMm;
+    if (synced.depthMm != null) row.depthMm = synced.depthMm;
+    if (synced.measurements) row.measurements = synced.measurements;
+
+    // Enforce Category = CERTIFIED if certificateNumber or certificateType is present
+    if (row.certificateNumber || row.certificateType) {
+      row.category = 'CERTIFIED';
+    } else if (!row.category) {
+      row.category = 'NON_CERTIFIED';
+    }
+
+    result.push(row);
+  }
+
+  return result;
 }
