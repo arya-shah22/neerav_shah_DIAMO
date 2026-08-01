@@ -478,7 +478,7 @@ export const LoanPage: React.FC = () => {
               alignItems: 'end'
             }}>
               <Select
-                label="Loan Direction *"
+                label="Loan Direction"
                 options={loanTypeOptions}
                 value={loanType}
                 onChange={(val) => setLoanType(val)}
@@ -486,7 +486,7 @@ export const LoanPage: React.FC = () => {
               />
 
               <Select
-                label="Select Party Account *"
+                label="Select Party Account"
                 options={partyOptions}
                 value={partyId}
                 onChange={(val) => setPartyId(val)}
@@ -495,7 +495,7 @@ export const LoanPage: React.FC = () => {
               />
 
               <Select
-                label="Cash / Bank Account *"
+                label="Cash / Bank Account"
                 options={cashBankOptions}
                 value={cashBankAccountId}
                 onChange={(val) => setCashBankAccountId(val)}
@@ -505,7 +505,7 @@ export const LoanPage: React.FC = () => {
 
               <Input
                 type="date"
-                label="Loan Date *"
+                label="Loan Date"
                 value={loanDate}
                 onChange={(e) => setLoanDate(e.target.value)}
                 required
@@ -520,7 +520,7 @@ export const LoanPage: React.FC = () => {
             }}>
               <Input
                 type="number"
-                label="Principal Amount *"
+                label="Principal Amount"
                 value={principalAmount || ''}
                 onChange={(e) => setPrincipalAmount(Number(e.target.value))}
                 required
@@ -537,7 +537,7 @@ export const LoanPage: React.FC = () => {
               />
 
               <Select
-                label="Interest Type *"
+                label="Interest Type"
                 options={interestTypeOptions}
                 value={interestType}
                 onChange={(val) => setInterestType(val)}
@@ -546,7 +546,7 @@ export const LoanPage: React.FC = () => {
 
               <Input
                 type="number"
-                label="Duration (Months) *"
+                label="Duration (Months)"
                 value={durationMonths || ''}
                 onChange={(e) => setDurationMonths(Number(e.target.value))}
                 required
