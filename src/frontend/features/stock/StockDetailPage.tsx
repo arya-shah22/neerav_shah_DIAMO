@@ -15,7 +15,7 @@ const LIST_ROUTE = '/inventory/stock';
 function DetailRow({ label, value, searchQuery }: { label: string; value: React.ReactNode; searchQuery?: string }) {
   const isMatch = searchQuery?.trim()
     ? label.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-      (typeof value === 'string' && value.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    (typeof value === 'string' && value.toLowerCase().includes(searchQuery.trim().toLowerCase()))
     : false;
 
   return (
@@ -181,9 +181,9 @@ export const StockDetailPage: React.FC = () => {
 
   const matchedFields = searchQuery.trim()
     ? allFields.filter(f =>
-        f.label.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
-        (typeof f.value === 'string' && f.value.toLowerCase().includes(searchQuery.trim().toLowerCase()))
-      )
+      f.label.toLowerCase().includes(searchQuery.trim().toLowerCase()) ||
+      (typeof f.value === 'string' && f.value.toLowerCase().includes(searchQuery.trim().toLowerCase()))
+    )
     : [];
 
   return (
