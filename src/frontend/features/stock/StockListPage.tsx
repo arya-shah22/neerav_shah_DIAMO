@@ -43,7 +43,7 @@ export const StockListPage: React.FC = () => {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StockStatus | ''>('');
   const [categoryFilter, setCategoryFilter] = useState<StockCategory | ''>('');
-  
+
   // Advanced Filter States
   const [selectedShapes, setSelectedShapes] = useState<string[]>([]);
   const [minCarat, setMinCarat] = useState<string>('');
@@ -147,34 +147,38 @@ export const StockListPage: React.FC = () => {
   const downloadTemplate = () => {
     const headers = [
       'Stock ID', 'Category', 'Shape', 'Carats', 'Pieces', 'Color', 'Clarity', 'Cut', 'Polish', 'Symmetry',
-      'Measurements', 'Length (mm)', 'Width (mm)', 'Depth (mm)', 'Depth %', 'Table %',
-      'Fluorescence Intensity', 'Fluorescence Color', 'Rap Price ($/ct)', 'Rap Discount %',
+      'Measurements', 'Length', 'Width', 'Depth', 'Depth %', 'Table %',
+      'Fluorescence', 'Fluor Color', 'Rap Price ($/ct)', 'Rap Discount %',
       'Crown Angle', 'Crown Height', 'Pavilion Angle', 'Pavilion Depth',
-      'Girdle Min', 'Girdle Max', 'Girdle Condition', 'Culet Size', 'Culet Condition',
+      'Girdle Min', 'Girdle Max', 'Girdle %', 'Girdle Condition', 'Culet Size', 'Culet Condition',
       'Hearts & Arrows', 'Eye Clean', 'Shade', 'Milky', 'Treatment', 'Tinge', 'Lustre',
       'Table Inclusion', 'Side Inclusion', 'Black Inclusion', 'White Inclusion', 'Open Inclusion',
-      'Table Open', 'Crown Open', 'Girdle Open', 'BGM', 'Growth Type', 'Star Length',
+      'Table Open', 'Crown Open', 'Girdle Open', 'BGM', 'Growth Type', 'Diamond Type', 'Star Length',
       'Origin', 'Availability', 'City', 'State', 'Trade Show', 'Brand', 'Seller Spec',
-      'Pair Stock #', 'Pair Separable', 'Parcel Stones', 'Report Filename', 'Report Issue Date', 'Lab Location',
+      'Pair Stock #', 'Pair Separable', 'Parcel Stones', 'Report Filename', 'Report Issue Date', 'Report Type', 'Lab Location',
+      'Allow RapLink Feed', 'Sarine Loupe',
       'Cert Type', 'Cert Number', 'Certificate URL', 'Web URL', 'Image Link', 'Video Link', 'Inscription',
-      'Key to Symbols', 'Comment', 'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone',
-      'Asking Price', 'Rate ($/ct)', 'Total Cost'
+      'Key to Symbols', 'Comment', 'Cert Comment', 'Member Comment',
+      'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone',
+      'Asking Price', 'Target Sale Rate (₹/ct)', 'Rate ($/ct)', 'Total Cost'
     ];
 
     const example = [
-      'DM-2026-EX001', 'CERTIFIED', 'ROUND', '1.05', '1', 'D', 'VS1', 'EX', 'EX', 'EX',
+      'DM-2026-EX001', 'CERTIFIED', 'ROUND', '1.050', '1', 'D', 'VS1', 'EX', 'EX', 'EX',
       '6.50-6.52x4.00', '6.50', '6.52', '4.00', '61.50', '57.00',
       'NONE', 'NONE', '7500.00', '-15.50',
       '34.50', '15.00', '40.80', '43.00',
-      'THIN', 'SLIGHTLY THICK', 'FACETED', 'NONE', 'POINTED',
+      'THIN', 'SLIGHTLY THICK', '', 'FACETED', 'NONE', 'POINTED',
       'YES', 'YES', 'NONE', 'NONE', 'CVD', 'NONE', 'EXCELLENT',
       'NONE', 'NONE', 'NONE', 'NONE', 'NONE',
-      'NO', 'NO', 'NO', 'NONE', 'CVD', '55.00',
+      'NO', 'NO', 'NO', 'NONE', 'CVD', '', '55.00',
       'INDIA', 'AVAILABLE', 'SURAT', 'GUJARAT', 'VICENZORO', 'DIAMO', 'SPEC-01',
-      'PAIR-01', 'YES', 'NO', 'REPORT-123.PDF', '2026-01-15', 'MUMBAI',
+      'PAIR-01', 'YES', 'NO', 'REPORT-123.PDF', '2026-01-15', '', 'MUMBAI',
+      '', '',
       'GIA', '123456789', '"https://example.com/cert.pdf"', '"https://example.com/360view"', '"https://example.com/photo.jpg"', '"https://example.com/video.mp4"', 'GIA 123456789',
-      '"Feather, Crystal"', '"Excellent quality stone"', '', '', '',
-      '5500.00', '5000.00', '5250.00'
+      '"Feather, Crystal"', '"Excellent quality stone"', '', '',
+      '', '', '',
+      '5500.00', '5500.00', '5000.00', '5250.00'
     ];
 
     const csvContent = [headers.join(','), example.join(',')].join('\n');
@@ -899,7 +903,7 @@ export const StockListPage: React.FC = () => {
               {renderBadgeFilter('Shape', shapeOptions, selectedShapes, setSelectedShapes)}
               {renderBadgeFilter('Color', colorOptions, selectedColors, setSelectedColors)}
               {renderBadgeFilter('Clarity', clarityOptions, selectedClarities, setSelectedClarities)}
-              
+
               <div style={{
                 display: 'flex',
                 flexDirection: 'column',

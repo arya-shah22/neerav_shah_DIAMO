@@ -170,6 +170,7 @@ export const CSV_HEADER_ALIASES: Record<string, string> = {
 
   // ── Cost / Rate ───────────────────────────────────
   'rate': 'costPerCarat',
+  'rate ct': 'costPerCarat',
   'cost per carat': 'costPerCarat',
   'costpercarat': 'costPerCarat',
   'price per carat': 'costPerCarat',
@@ -191,7 +192,10 @@ export const CSV_HEADER_ALIASES: Record<string, string> = {
 
   // ── Target Sale Rate ──────────────────────────────
   'target sale rate': 'targetSaleRate',
+  'target sale rate ct': 'targetSaleRate',
   'targetsalerate': 'targetSaleRate',
+  'target rate': 'targetSaleRate',
+  'targetrate': 'targetSaleRate',
   'asking price': 'targetSaleRate',
   'askingprice': 'targetSaleRate',
 
@@ -220,6 +224,7 @@ export const CSV_HEADER_ALIASES: Record<string, string> = {
 
   // ── Rap Price ─────────────────────────────────────
   'rap price': 'rapPricePerCarat',
+  'rap price ct': 'rapPricePerCarat',
   'rapprice': 'rapPricePerCarat',
   'rap price per carat': 'rapPricePerCarat',
   'rappricepercarat': 'rapPricePerCarat',
@@ -230,6 +235,7 @@ export const CSV_HEADER_ALIASES: Record<string, string> = {
 
   // ── Rap Discount % ────────────────────────────────
   'rap discount': 'rapDiscountPct',
+  'rap discount %': 'rapDiscountPct',
   'rapdiscount': 'rapDiscountPct',
   'rap discount pct': 'rapDiscountPct',
   'rapdiscountpct': 'rapDiscountPct',
@@ -298,7 +304,7 @@ export const CSV_HEADER_ALIASES: Record<string, string> = {
   'ha': 'heartsAndArrows',
   'hearts and arrows': 'heartsAndArrows',
   'heartsandarrows': 'heartsAndArrows',
-  'hearts  arrows': 'heartsAndArrows',
+  'hearts arrows': 'heartsAndArrows',
 
   // ── Eye Clean ─────────────────────────────────────
   'eye clean': 'eyeClean',
@@ -346,6 +352,7 @@ export const CSV_HEADER_ALIASES: Record<string, string> = {
   // ── Origin ────────────────────────────────────────
   'origin': 'origin',
   'country': 'origin',
+  'location': 'origin',
   'country of origin': 'origin',
   'countryoforigin': 'origin',
   'cop': 'origin',
