@@ -34,6 +34,7 @@ export const StockFormPage: React.FC = () => {
   const [useManualId, setUseManualId] = useState(false);
   const [editBlocked, setEditBlocked] = useState(false);
   const [piecesNotCounted, setPiecesNotCounted] = useState(false);
+  const [formExchangeRate, setFormExchangeRate] = useState<number>(83.25);
   const [advancedSections, setAdvancedSections] = useState({ fluorescence: false, girdle: false, inclusions: false });
   const toggleSection = useCallback((key: 'fluorescence' | 'girdle' | 'inclusions') => {
     setAdvancedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -45,6 +46,7 @@ export const StockFormPage: React.FC = () => {
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const { invoke: fetchPreviewId } = useIpc<string>('stock:preview-id');
   const { invoke: fetchShapes } = useIpc<string[]>('stock:shapes-list');
+  const { invoke: fetchLatestRate } = useIpc<any>('exchange-rate:latest');
 
   const {
     register,
@@ -92,8 +94,13 @@ export const StockFormPage: React.FC = () => {
         setQualities(res.data.filter((q) => !q.isService));
       }
     });
+    fetchLatestRate({ companyId }).then((res) => {
+      if (res?.success && res.data?.exchangeRate) {
+        setFormExchangeRate(res.data.exchangeRate);
+      }
+    });
     loadShapes();
-  }, [companyId, fetchQualities, loadShapes]);
+  }, [companyId, fetchQualities, fetchLatestRate, loadShapes]);
 
   useEffect(() => {
     if (!companyId) return;
@@ -605,9 +612,43 @@ export const StockFormPage: React.FC = () => {
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation & Target Selling</h2>
           <div style={grid3}>
-            <Input label="Cost per Carat (₹)" type="number" step="0.01" {...register('costPerCarat', { valueAsNumber: true })} />
-            <Input label="Total Cost (₹)" type="number" step="0.01" {...register('totalCost', { valueAsNumber: true })} />
-            <Input label="Target Sale Rate (₹/ct) [Optional]" type="number" step="0.01" placeholder="Target asking price" {...register('targetSaleRate', { valueAsNumber: true })} />
+            <Input label="Cost per Carat ($)" type="number" step="0.01" {...register('costPerCarat', { valueAsNumber: true })} />
+            <Input label="Total Cost ($)" type="number" step="0.01" {...register('totalCost', { valueAsNumber: true })} />
+            <Input label="Target Sale Rate ($/ct) [Optional]" type="number" step="0.01" placeholder="Target asking price in $" {...register('targetSaleRate', { valueAsNumber: true })} />
+          </div>
+
+          <div style={{ marginTop: '16px', background: 'var(--color-row-alt)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ flex: '0 0 240px' }}>
+              <Input
+                label="Exchange Rate ($1 = ₹)"
+                type="number"
+                step="0.01"
+                value={formExchangeRate}
+                onChange={(e) => setFormExchangeRate(Number(e.target.value) || 0)}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '24px', flex: 1, flexWrap: 'wrap', paddingTop: '16px' }}>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'block' }}>Cost in INR</span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#b45309' }}>
+                  ₹{((costPerCarat || 0) * formExchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} / ct
+                </span>
+              </div>
+              <div>
+                <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'block' }}>Total Cost in INR</span>
+                <span style={{ fontSize: '15px', fontWeight: 700, color: '#b45309' }}>
+                  ₹{((watch('totalCost') || 0) * formExchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              {watch('targetSaleRate') ? (
+                <div>
+                  <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', display: 'block' }}>Target Rate in INR</span>
+                  <span style={{ fontSize: '15px', fontWeight: 700, color: '#047857' }}>
+                    ₹{((watch('targetSaleRate') || 0) * formExchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} / ct
+                  </span>
+                </div>
+              ) : null}
+            </div>
           </div>
         </div>
 

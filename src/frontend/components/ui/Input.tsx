@@ -103,8 +103,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
           }}
           onWheel={(e) => {
             // Prevent accidental value changes on mouse wheel for number inputs.
-            if (isNumber && document.activeElement === e.currentTarget) {
-              e.currentTarget.blur();
+            if (isNumber) {
+              (e.currentTarget as HTMLElement).blur();
+              e.preventDefault();
             }
             onWheel?.(e);
           }}

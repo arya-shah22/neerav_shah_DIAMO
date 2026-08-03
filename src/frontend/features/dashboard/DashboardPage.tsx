@@ -650,7 +650,7 @@ export const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Card 4: Cash On Hand Money */}
+        {/* Card 4: On-Hand (Cash - INR) */}
         <div
           onClick={() => navigate('/vouchers/cash-bank')}
           style={{
@@ -676,7 +676,7 @@ export const DashboardPage: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Cash On Hand Money
+              On-Hand (Cash - INR)
             </span>
             <div style={{ background: '#dcfce7', padding: '6px', borderRadius: '8px', color: '#16a34a' }}>
               <Wallet size={16} />
@@ -684,24 +684,68 @@ export const DashboardPage: React.FC = () => {
           </div>
 
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              Live Cash Balance
-            </div>
             <div style={{ fontSize: '22px', fontWeight: 800, color: '#16a34a', marginTop: '2px' }}>
               {isCashBankPermitted ? formatCurrency(telemetry?.todayCash.netBalance || 0) : '₹***,***'}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-              Total Receipts: {isCashBankPermitted ? formatCurrency(telemetry?.todayCash.receipts || 0) : '₹***,***'}
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Cash Register (INR)
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>Receipts: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayCash.receipts || 0) : '₹***,***'}</strong></span>
             <span>Payments: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayCash.payments || 0) : '₹***,***'}</strong></span>
-            <span style={{ color: '#16a34a', fontWeight: 600 }}>Main Cash A/c &rarr;</span>
           </div>
         </div>
 
-        {/* Card 5: In Bank Money */}
+        {/* Card 5: On-Hand (Cash - USD) */}
+        <div
+          onClick={() => navigate('/vouchers/cash-bank')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid #10b981',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0, 0, 0, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              On-Hand (Cash - USD)
+            </span>
+            <div style={{ background: '#d1fae5', padding: '6px', borderRadius: '8px', color: '#10b981' }}>
+              <Wallet size={16} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>
+              {isCashBankPermitted ? `$ ${(telemetry?.todayCash.usdBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '$***'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Physical Dollar Cash Vault
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>Status: <strong>Active USD Vault</strong></span>
+          </div>
+        </div>
+
+        {/* Card 6: In Bank (INR) */}
         <div
           onClick={() => navigate('/vouchers/cash-bank')}
           style={{
@@ -727,28 +771,72 @@ export const DashboardPage: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              In Bank Money (Treasury)
+              In Bank (INR)
             </span>
             <div style={{ background: '#ccfbf1', padding: '6px', borderRadius: '8px', color: '#0d9488' }}>
-              <Building size={16} />
+              <Wallet size={16} />
             </div>
           </div>
 
           <div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              Live Bank Treasury Balance
-            </div>
             <div style={{ fontSize: '22px', fontWeight: 800, color: '#0d9488', marginTop: '2px' }}>
               {isCashBankPermitted ? formatCurrency(telemetry?.todayBank.netBalance || 0) : '₹***,***'}
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-              Bank Receipts: {isCashBankPermitted ? formatCurrency(telemetry?.todayBank.receipts || 0) : '₹***,***'}
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              Current Bank Accounts
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
-            <span>Bank Payments: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayBank.payments || 0) : '₹***,***'}</strong></span>
-            <span style={{ color: '#0d9488', fontWeight: 600 }}>HDFC / ICICI &rarr;</span>
+            <span>Receipts: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayBank.receipts || 0) : '₹***,***'}</strong></span>
+            <span>Payments: <strong>{isCashBankPermitted ? formatCurrency(telemetry?.todayBank.payments || 0) : '₹***,***'}</strong></span>
+          </div>
+        </div>
+
+        {/* Card 7: In Bank (USD) */}
+        <div
+          onClick={() => navigate('/vouchers/cash-bank')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid #06b6d4',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0, 0, 0, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              In Bank (USD)
+            </span>
+            <div style={{ background: '#cffafe', padding: '6px', borderRadius: '8px', color: '#06b6d4' }}>
+              <Wallet size={16} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#06b6d4', marginTop: '2px' }}>
+              {isCashBankPermitted ? `$ ${(telemetry?.todayBank.usdBalance || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : '$***'}
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+              EEFC Foreign Currency Account
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>Status: <strong>Active EEFC Account</strong></span>
           </div>
         </div>
 

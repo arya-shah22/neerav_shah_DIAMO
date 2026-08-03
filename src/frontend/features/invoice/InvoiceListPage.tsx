@@ -295,7 +295,19 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     {
       key: 'netAmount',
       header: 'NET AMOUNT',
-      render: (row) => `₹${Number(row.netAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      render: (row) => {
+        const curr = row.transactionCurrency || 'INR';
+        const primarySymbol = curr === 'USD' ? '$' : '₹';
+        const primaryFormatted = `${primarySymbol}${Number(row.netAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        const altFormatted = row.netAmountAlt && Number(row.netAmountAlt) > 0
+          ? ` (${curr === 'USD' ? '₹' : '$'}${Number(row.netAmountAlt).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})`
+          : '';
+        return (
+          <span style={{ fontWeight: 600 }}>
+            {primaryFormatted}{altFormatted}
+          </span>
+        );
+      },
     },
     {
       key: 'outstandingAmount',
@@ -303,13 +315,15 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
       render: (row) => {
         const outstanding = Number(row.outstandingAmount ?? (Number(row.netAmount || 0) - Number(row.jamaAmount || 0)));
         const overdue = isOverdue(row);
+        const curr = row.transactionCurrency || 'INR';
+        const sym = curr === 'USD' ? '$' : '₹';
         if (outstanding <= 0) {
-          return <span style={{ color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>₹0.00 (PAID)</span>;
+          return <span style={{ color: '#16a34a', fontWeight: 600, fontSize: '12px' }}>{sym}0.00 (PAID)</span>;
         }
         return (
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontWeight: 700, color: overdue ? '#dc2626' : '#d97706' }}>
-              ₹{outstanding.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              {sym}{outstanding.toLocaleString('en-US', { minimumFractionDigits: 2 })}
             </span>
             {overdue && (
               <span style={{ fontSize: '10px', color: '#dc2626', fontWeight: 600 }}>

@@ -67,6 +67,22 @@ export const StockReportPage: React.FC = () => {
     fetchModalDetails();
   }, [activeDetailId, companyId, getStockDetail, getStockTimeline]);
 
+  // Currency View Toggle
+  const [viewCurrency, setViewCurrency] = useState<'USD' | 'INR'>('USD');
+  const [exchangeRateInput, setExchangeRateInput] = useState<string>('83.25');
+  const exchangeRate = Number(exchangeRateInput) || 1;
+
+  const { invoke: fetchLatestRate } = useIpc<any>('exchange-rate:latest');
+
+  useEffect(() => {
+    if (!companyId) return;
+    fetchLatestRate({ companyId }).then((res) => {
+      if (res?.success && res.data?.exchangeRate) {
+        setExchangeRateInput(String(res.data.exchangeRate));
+      }
+    });
+  }, [companyId, fetchLatestRate]);
+
   // IPC Hooks
   const { data: reportData, loading, invoke: fetchStockReport } = useIpc<any>('report:stock');
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
@@ -150,19 +166,29 @@ export const StockReportPage: React.FC = () => {
     },
     { 
       key: 'costRate', 
-      header: 'COST RATE', 
+      header: `COST RATE (${viewCurrency === 'USD' ? '$/CT' : '₹/CT'})`, 
       align: 'right',
-      render: (row) => `₹${Number(row.costRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => {
+        const val = viewCurrency === 'USD' ? Number(row.costRate) : Number(row.costRate) * exchangeRate;
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+      }
     },
     { 
       key: 'totalValue', 
-      header: 'VALUATION', 
+      header: `VALUATION (${viewCurrency === 'USD' ? '$' : '₹'})`, 
       align: 'right',
-      render: (row) => (
-        <span style={{ fontWeight: 600 }}>
-          ₹{Number(row.totalValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-        </span>
-      )
+      render: (row) => {
+        const val = viewCurrency === 'USD' ? Number(row.totalValue) : Number(row.totalValue) * exchangeRate;
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        return (
+          <span style={{ fontWeight: 600 }}>
+            {sym}{val.toLocaleString(loc, { minimumFractionDigits: 2 })}
+          </span>
+        );
+      }
     },
     { 
       key: 'currentStatus', 
@@ -181,7 +207,7 @@ export const StockReportPage: React.FC = () => {
       )
     },
     { key: 'location', header: 'LOCATION' },
-  ], []);
+  ], [viewCurrency, exchangeRate]);
 
   const qualityColumns: Column<any>[] = useMemo(() => [
     { key: 'qualityName', header: 'QUALITY GRADE', sortable: true },
@@ -194,21 +220,31 @@ export const StockReportPage: React.FC = () => {
     },
     { 
       key: 'averageRate', 
-      header: 'AVERAGE RATE', 
+      header: `AVERAGE RATE (${viewCurrency === 'USD' ? '$/CT' : '₹/CT'})`, 
       align: 'right',
-      render: (row) => `₹${Number(row.averageRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => {
+        const val = viewCurrency === 'USD' ? Number(row.averageRate) : Number(row.averageRate) * exchangeRate;
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+      }
     },
     { 
       key: 'totalValue', 
-      header: 'TOTAL VALUATION', 
+      header: `TOTAL VALUATION (${viewCurrency === 'USD' ? '$' : '₹'})`, 
       align: 'right',
-      render: (row) => (
-        <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>
-          ₹{Number(row.totalValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-        </span>
-      )
+      render: (row) => {
+        const val = viewCurrency === 'USD' ? Number(row.totalValue) : Number(row.totalValue) * exchangeRate;
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        return (
+          <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>
+            {sym}{val.toLocaleString(loc, { minimumFractionDigits: 2 })}
+          </span>
+        );
+      }
     },
-  ], []);
+  ], [viewCurrency, exchangeRate]);
 
   const profitabilityColumns: Column<any>[] = useMemo(() => [
     { key: 'stockIdNumber', header: 'PACKET NO', sortable: true },
@@ -232,30 +268,44 @@ export const StockReportPage: React.FC = () => {
     },
     { 
       key: 'costRate', 
-      header: 'COST RATE (₹/CT)', 
+      header: `COST RATE (${viewCurrency === 'USD' ? '$/CT' : '₹/CT'})`, 
       align: 'right',
-      render: (row) => `₹${Number(row.costRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => {
+        const val = viewCurrency === 'USD' ? Number(row.costRate) : Number(row.costRate) * exchangeRate;
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+      }
     },
     { 
       key: 'totalValue', 
-      header: 'TOTAL COST (₹)', 
+      header: `TOTAL COST (${viewCurrency === 'USD' ? '$' : '₹'})`, 
       align: 'right',
-      render: (row) => `₹${Number(row.totalValue).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => {
+        const val = viewCurrency === 'USD' ? Number(row.totalValue) : Number(row.totalValue) * exchangeRate;
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        return `${sym}${val.toLocaleString(loc, { minimumFractionDigits: 2 })}`;
+      }
     },
     { 
       key: 'sellingRate', 
-      header: 'SALE / TARGET RATE (₹/CT)', 
+      header: `SALE / TARGET RATE (${viewCurrency === 'USD' ? '$/CT' : '₹/CT'})`, 
       align: 'right',
       render: (row) => {
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+
         if (row.actualSaleRate != null) {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
               <span style={{ color: '#16a34a', fontWeight: 700 }}>
-                ₹{Number(row.actualSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} (SOLD)
+                {sym}{(Number(row.actualSaleRate) * mult).toLocaleString(loc, { minimumFractionDigits: 2 })} (SOLD)
               </span>
               {row.targetSaleRate != null && (
                 <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
-                  Target: ₹{Number(row.targetSaleRate).toLocaleString('en-IN')}
+                  Target: {sym}{(Number(row.targetSaleRate) * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
                 </span>
               )}
             </div>
@@ -265,7 +315,7 @@ export const StockReportPage: React.FC = () => {
           return (
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
               <span style={{ color: '#0284c7', fontWeight: 600 }}>
-                ₹{Number(row.targetSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {sym}{(Number(row.targetSaleRate) * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
               <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>
                 Target Asking
@@ -278,30 +328,38 @@ export const StockReportPage: React.FC = () => {
     },
     { 
       key: 'revenue', 
-      header: 'REVENUE / VALUATION (₹)', 
+      header: `REVENUE / VALUATION (${viewCurrency === 'USD' ? '$' : '₹'})`, 
       align: 'right',
       render: (row) => {
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+
         const rate = row.actualSaleRate != null ? Number(row.actualSaleRate) : (row.targetSaleRate != null ? Number(row.targetSaleRate) : null);
         if (rate == null) return <span style={{ opacity: 0.5 }}>—</span>;
-        const val = Number(row.caratWeight) * rate;
-        return <span style={{ fontWeight: 600 }}>₹{val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>;
+        const val = (Number(row.caratWeight) * rate) * mult;
+        return <span style={{ fontWeight: 600 }}>{sym}{val.toLocaleString(loc, { minimumFractionDigits: 2 })}</span>;
       }
     },
     { 
       key: 'stockProfit', 
-      header: 'PROFIT / LOSS (₹)', 
+      header: `PROFIT / LOSS (${viewCurrency === 'USD' ? '$' : '₹'})`, 
       align: 'right',
       render: (row) => {
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+
         const rate = row.actualSaleRate != null ? Number(row.actualSaleRate) : (row.targetSaleRate != null ? Number(row.targetSaleRate) : null);
         if (rate == null) return <span style={{ opacity: 0.5 }}>—</span>;
         const totalRev = Number(row.caratWeight) * rate;
-        const profit = totalRev - Number(row.totalValue);
+        const profit = (totalRev - Number(row.totalValue)) * mult;
         const isPos = profit >= 0;
         const isRealized = row.actualSaleRate != null;
         return (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
             <span style={{ color: isPos ? (isRealized ? '#16a34a' : '#0284c7') : '#dc2626', fontWeight: 700 }}>
-              {isPos ? '+' : ''}₹{profit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              {isPos ? '+' : ''}{sym}{profit.toLocaleString(loc, { minimumFractionDigits: 2 })}
             </span>
             <span style={{ fontSize: '10px', fontWeight: 600, color: isRealized ? '#16a34a' : 'var(--color-text-secondary)' }}>
               {isRealized ? 'Realized Net Profit' : 'Estimated Target Profit'}
@@ -436,46 +494,55 @@ export const StockReportPage: React.FC = () => {
             </div>
           </div>
 
-          {/* Printable Summary Block */}
           <div style={{ 
             display: 'grid', 
-            gridTemplateColumns: '1fr 1fr 1fr', 
-            gap: '12px', 
-            marginBottom: '24px', 
-            padding: '16px', 
+            gridTemplateColumns: 'repeat(3, 1fr)', 
+            gap: '8px', 
+            marginBottom: '16px', 
             background: '#f8fafc', 
+            padding: '10px', 
             border: '1px solid #cbd5e1', 
             borderRadius: '6px',
             fontSize: '11px',
             lineHeight: '1.4'
           }}>
-            <div>
-              <strong>Total Packets:</strong> {reportData.summary.totalPackets} ({reportData.summary.totalCarats.toFixed(3)} Cts)
-            </div>
-            <div>
-              <strong>Total Valuation:</strong> ₹{reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </div>
-            <div>
-              <strong>Available Stock:</strong> {reportData.summary.statusBreakdown.available.count} Pkts ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.available.value.toLocaleString('en-IN')})
-            </div>
-            <div>
-              <strong>Reserved / Hold:</strong> {reportData.summary.statusBreakdown.reserved.count} Pkts ({reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.reserved.value.toLocaleString('en-IN')})
-            </div>
-            <div>
-              <strong>In Job Work:</strong> {reportData.summary.statusBreakdown.jobWork.count} Pkts ({reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.jobWork.value.toLocaleString('en-IN')})
-            </div>
-            <div>
-              <strong>Transit / Created:</strong> {reportData.summary.statusBreakdown.transit.count} Pkts ({reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.transit.value.toLocaleString('en-IN')})
-            </div>
-            <div>
-              <strong>Sold:</strong> {reportData.summary.statusBreakdown.sold.count} Pkts ({reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.sold.value.toLocaleString('en-IN')})
-            </div>
-            <div>
-              <strong>Returned:</strong> {reportData.summary.statusBreakdown.returned.count} Pkts ({reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.returned.value.toLocaleString('en-IN')})
-            </div>
-            <div>
-              <strong>Damaged:</strong> {reportData.summary.statusBreakdown.damaged.count} Pkts ({reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.damaged.value.toLocaleString('en-IN')})
-            </div>
+            {(() => {
+              const sym = viewCurrency === 'USD' ? '$' : '₹';
+              const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+              const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+
+              return (
+                <>
+                  <div>
+                    <strong>Total Packets:</strong> {reportData.summary.totalPackets} ({reportData.summary.totalCarats.toFixed(3)} Cts)
+                  </div>
+                  <div>
+                    <strong>Total Valuation:</strong> {sym}{(reportData.summary.totalValuation * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                  </div>
+                  <div>
+                    <strong>Available Stock:</strong> {reportData.summary.statusBreakdown.available.count} Pkts ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.available.value * mult).toLocaleString(loc)})
+                  </div>
+                  <div>
+                    <strong>Reserved / Hold:</strong> {reportData.summary.statusBreakdown.reserved.count} Pkts ({reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.reserved.value * mult).toLocaleString(loc)})
+                  </div>
+                  <div>
+                    <strong>In Job Work:</strong> {reportData.summary.statusBreakdown.jobWork.count} Pkts ({reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.jobWork.value * mult).toLocaleString(loc)})
+                  </div>
+                  <div>
+                    <strong>Transit / Created:</strong> {reportData.summary.statusBreakdown.transit.count} Pkts ({reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.transit.value * mult).toLocaleString(loc)})
+                  </div>
+                  <div>
+                    <strong>Sold:</strong> {reportData.summary.statusBreakdown.sold.count} Pkts ({reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.sold.value * mult).toLocaleString(loc)})
+                  </div>
+                  <div>
+                    <strong>Returned:</strong> {reportData.summary.statusBreakdown.returned.count} Pkts ({reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.returned.value * mult).toLocaleString(loc)})
+                  </div>
+                  <div>
+                    <strong>Damaged:</strong> {reportData.summary.statusBreakdown.damaged.count} Pkts ({reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.damaged.value * mult).toLocaleString(loc)})
+                  </div>
+                </>
+              );
+            })()}
           </div>
 
           {activeTab === 'REGISTER' ? (
@@ -486,23 +553,30 @@ export const StockReportPage: React.FC = () => {
                   <th style={{ textAlign: 'left', padding: '6px' }}>Quality</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Size/Shape</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Carats</th>
-                  <th style={{ textAlign: 'right', padding: '6px' }}>Cost Rate</th>
-                  <th style={{ textAlign: 'right', padding: '6px' }}>Valuation</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Cost Rate ({viewCurrency === 'USD' ? '$/Ct' : '₹/Ct'})</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Valuation ({viewCurrency === 'USD' ? '$' : '₹'})</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Status</th>
                 </tr>
               </thead>
               <tbody>
-                {reportData.packets.map((p: any, idx: number) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '6px', fontWeight: 600 }}>{p.stockIdNumber}</td>
-                    <td style={{ padding: '6px' }}>{p.qualityName}</td>
-                    <td style={{ padding: '6px' }}>{p.shape || '—'} {p.color} {p.clarity}</td>
-                    <td style={{ textAlign: 'right', padding: '6px' }}>{p.caratWeight.toFixed(3)} Cts</td>
-                    <td style={{ textAlign: 'right', padding: '6px' }}>₹{p.costRate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', padding: '6px', fontWeight: 600 }}>₹{p.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ padding: '6px' }}>{p.currentStatus}</td>
-                  </tr>
-                ))}
+                {reportData.packets.map((p: any, idx: number) => {
+                  const sym = viewCurrency === 'USD' ? '$' : '₹';
+                  const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+                  const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+                  const rateVal = p.costRate * mult;
+                  const totalVal = p.totalValue * mult;
+                  return (
+                    <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '6px', fontWeight: 600 }}>{p.stockIdNumber}</td>
+                      <td style={{ padding: '6px' }}>{p.qualityName}</td>
+                      <td style={{ padding: '6px' }}>{p.shape || '—'} {p.color} {p.clarity}</td>
+                      <td style={{ textAlign: 'right', padding: '6px' }}>{p.caratWeight.toFixed(3)} Cts</td>
+                      <td style={{ textAlign: 'right', padding: '6px' }}>{sym}{rateVal.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ textAlign: 'right', padding: '6px', fontWeight: 600 }}>{sym}{totalVal.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ padding: '6px' }}>{p.currentStatus}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           ) : (
@@ -512,20 +586,27 @@ export const StockReportPage: React.FC = () => {
                   <th style={{ textAlign: 'left', padding: '8px' }}>Quality Grade</th>
                   <th style={{ textAlign: 'center', padding: '8px' }}>Packet Count</th>
                   <th style={{ textAlign: 'right', padding: '8px' }}>Total Carats</th>
-                  <th style={{ textAlign: 'right', padding: '8px' }}>Average Rate</th>
-                  <th style={{ textAlign: 'right', padding: '8px' }}>Total Valuation</th>
+                  <th style={{ textAlign: 'right', padding: '8px' }}>Average Rate ({viewCurrency === 'USD' ? '$/Ct' : '₹/Ct'})</th>
+                  <th style={{ textAlign: 'right', padding: '8px' }}>Total Valuation ({viewCurrency === 'USD' ? '$' : '₹'})</th>
                 </tr>
               </thead>
               <tbody>
-                {reportData.qualityAggregates.map((q: any, idx: number) => (
-                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '8px', fontWeight: 600 }}>{q.qualityName}</td>
-                    <td style={{ textAlign: 'center', padding: '8px' }}>{q.count}</td>
-                    <td style={{ textAlign: 'right', padding: '8px' }}>{q.carats.toFixed(3)} Cts</td>
-                    <td style={{ textAlign: 'right', padding: '8px' }}>₹{q.averageRate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{q.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  </tr>
-                ))}
+                {reportData.qualityAggregates.map((q: any, idx: number) => {
+                  const sym = viewCurrency === 'USD' ? '$' : '₹';
+                  const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+                  const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+                  const avgVal = q.averageRate * mult;
+                  const totalVal = q.totalValue * mult;
+                  return (
+                    <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                      <td style={{ padding: '8px', fontWeight: 600 }}>{q.qualityName}</td>
+                      <td style={{ textAlign: 'center', padding: '8px' }}>{q.count}</td>
+                      <td style={{ textAlign: 'right', padding: '8px' }}>{q.carats.toFixed(3)} Cts</td>
+                      <td style={{ textAlign: 'right', padding: '8px' }}>{sym}{avgVal.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                      <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>{sym}{totalVal.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -545,7 +626,36 @@ export const StockReportPage: React.FC = () => {
           </p>
         </div>
         {reportData && (
-          <div style={{ display: 'flex', gap: '8px' }}>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* View Currency Switch */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-surface)', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>View Currency:</span>
+              <select
+                value={viewCurrency}
+                onChange={(e) => setViewCurrency((e.target.value as 'USD' | 'INR') || 'USD')}
+                style={{ padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 700, background: 'var(--color-surface)', cursor: 'pointer' }}
+              >
+                <option value="USD">USD ($)</option>
+                <option value="INR">INR (₹)</option>
+              </select>
+              {viewCurrency === 'INR' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Rate ($1=₹):</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={exchangeRateInput}
+                    onChange={(e) => setExchangeRateInput(e.target.value)}
+                    onWheel={(e) => {
+                      (e.currentTarget as HTMLElement).blur();
+                      e.preventDefault();
+                    }}
+                    style={{ width: '75px', padding: '3px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 600 }}
+                  />
+                </div>
+              ) : null}
+            </div>
+
             <Button variant="secondary" onClick={handleExportCSV} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Download size={16} /> Export CSV
             </Button>
@@ -560,134 +670,144 @@ export const StockReportPage: React.FC = () => {
       </div>
 
       {/* Summary Cards */}
-      {reportData && (
-        <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
-          {/* Card 0: Total Packets */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Total Packets</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)', marginTop: '4px' }}>
-              {reportData.summary.totalPackets}
-            </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.totalCarats.toFixed(3)} Carats Total
-            </span>
-          </div>
+      {reportData && (() => {
+        const sym = viewCurrency === 'USD' ? '$' : '₹';
+        const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+        const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
 
-          {/* Card 1: Current Active Vault Valuation */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderLeft: '4px solid #16a34a', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>1. Current Active Valuation</span>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
-              ₹{(reportData.summary.activeValuation ?? (reportData.summary.statusBreakdown.available.value + reportData.summary.statusBreakdown.reserved.value + reportData.summary.statusBreakdown.jobWork.value)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-            </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
-              {(reportData.summary.activePacketsCount ?? (reportData.summary.statusBreakdown.available.count + reportData.summary.statusBreakdown.reserved.count + reportData.summary.statusBreakdown.jobWork.count))} Packets ({(reportData.summary.activeCarats ?? (reportData.summary.statusBreakdown.available.carats + reportData.summary.statusBreakdown.reserved.carats + reportData.summary.statusBreakdown.jobWork.carats)).toFixed(3)} Cts)
-            </div>
-            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-              (Active vault stock in Available + Hold + Job Work)
-            </div>
-          </div>
+        const activeVal = (reportData.summary.activeValuation ?? (reportData.summary.statusBreakdown.available.value + reportData.summary.statusBreakdown.reserved.value + reportData.summary.statusBreakdown.jobWork.value)) * mult;
+        const availVal = reportData.summary.statusBreakdown.available.value * mult;
+        const cumVal = reportData.summary.totalValuation * mult;
 
-          {/* Card 2: Valuation Based on Available Stock */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderLeft: '4px solid #0284c7', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>2. Available Stock Valuation</span>
-            <div style={{ fontSize: '20px', fontWeight: 800, color: '#0284c7', marginTop: '4px' }}>
-              ₹{reportData.summary.statusBreakdown.available.value.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+        return (
+          <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
+            {/* Card 0: Total Packets */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Total Packets</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)', marginTop: '4px' }}>
+                {reportData.summary.totalPackets}
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.totalCarats.toFixed(3)} Carats Total
+              </span>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
-              {reportData.summary.statusBreakdown.available.count} Packets ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts)
-            </div>
-            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-              (Stock strictly ready for immediate sale)
-            </div>
-          </div>
 
-          {/* Card 3: Total Cumulative Valuation (All Stock) */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Cumulative Valuation</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', marginTop: '4px' }}>
-              ₹{reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            {/* Card 1: Current Active Vault Valuation */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderLeft: '4px solid #16a34a', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>1. Current Active Valuation</span>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#16a34a', marginTop: '4px' }}>
+                {sym}{activeVal.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
+                {(reportData.summary.activePacketsCount ?? (reportData.summary.statusBreakdown.available.count + reportData.summary.statusBreakdown.reserved.count + reportData.summary.statusBreakdown.jobWork.count))} Packets ({(reportData.summary.activeCarats ?? (reportData.summary.statusBreakdown.available.carats + reportData.summary.statusBreakdown.reserved.carats + reportData.summary.statusBreakdown.jobWork.carats)).toFixed(3)} Cts)
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                (Active vault stock in Available + Hold + Job Work)
+              </div>
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
-              {reportData.summary.totalPackets} Total Packets ({reportData.summary.totalCarats.toFixed(3)} Cts)
-            </div>
-            <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
-              (All historical stock including Sold & Returned)
-            </div>
-          </div>
 
-          {/* Card 4: Reserved / Hold */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Reserved / Hold</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#6366f1', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.reserved.count} Packets
+            {/* Card 2: Valuation Based on Available Stock */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderLeft: '4px solid #0284c7', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>2. Available Stock Valuation</span>
+              <div style={{ fontSize: '20px', fontWeight: 800, color: '#0284c7', marginTop: '4px' }}>
+                {sym}{availVal.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
+                {reportData.summary.statusBreakdown.available.count} Packets ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts)
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                (Stock strictly ready for immediate sale)
+              </div>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.reserved.value.toLocaleString()}
-            </span>
-          </div>
 
-          {/* Card 5: In Job Work */}
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>In Job Work</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-warning)', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.jobWork.count} Packets
+            {/* Card 3: Total Cumulative Valuation (All Stock) */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Cumulative Valuation</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-text-primary)', marginTop: '4px' }}>
+                {sym}{cumVal.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              </div>
+              <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
+                {reportData.summary.totalPackets} Total Packets ({reportData.summary.totalCarats.toFixed(3)} Cts)
+              </div>
+              <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+                (All historical stock including Sold & Returned)
+              </div>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.jobWork.value.toLocaleString()}
-            </span>
-          </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Transit / Created</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#06b6d4', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.transit.count} Packets
+            {/* Card 4: Reserved / Hold */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Reserved / Hold</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#6366f1', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.reserved.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.reserved.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.transit.value.toLocaleString()}
-            </span>
-          </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Sold</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.sold.count} Packets
+            {/* Card 5: In Job Work */}
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>In Job Work</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-warning)', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.jobWork.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.jobWork.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.sold.value.toLocaleString()}
-            </span>
-          </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Returned</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.returned.count} Packets
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Transit / Created</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#06b6d4', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.transit.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.transit.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.returned.value.toLocaleString()}
-            </span>
-          </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Damaged</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#ef4444', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.damaged.count} Packets
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Sold</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.sold.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.sold.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.damaged.value.toLocaleString()}
-            </span>
-          </div>
 
-          <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Archived</span>
-            <div style={{ fontSize: '20px', fontWeight: 700, color: '#6b7280', marginTop: '4px' }}>
-              {reportData.summary.statusBreakdown.archived.count} Packets
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Returned</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.returned.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.returned.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
             </div>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-              {reportData.summary.statusBreakdown.archived.carats.toFixed(3)} Cts | ₹{reportData.summary.statusBreakdown.archived.value.toLocaleString()}
-            </span>
+
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Damaged</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#ef4444', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.damaged.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.damaged.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
+
+            <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Archived</span>
+              <div style={{ fontSize: '20px', fontWeight: 700, color: '#6b7280', marginTop: '4px' }}>
+                {reportData.summary.statusBreakdown.archived.count} Packets
+              </div>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                {reportData.summary.statusBreakdown.archived.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.archived.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+              </span>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Filter panel */}
       <div className="no-print" style={{
@@ -942,7 +1062,9 @@ export const StockReportPage: React.FC = () => {
                     }}>
                       <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>TOTAL VALUE</span>
                       <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--color-text-primary)', marginTop: '2px' }}>
-                        ₹{Math.round(reportData.summary.totalValuation / 100000)}L
+                        {viewCurrency === 'USD'
+                          ? `$${(reportData.summary.totalValuation / 1000).toFixed(1)}K`
+                          : `₹${(reportData.summary.totalValuation * exchangeRate / 100000).toFixed(1)}L`}
                       </span>
                     </div>
                   </div>
@@ -953,17 +1075,22 @@ export const StockReportPage: React.FC = () => {
                       { name: 'Reserved', color: '#6366f1', value: reportData.summary.statusBreakdown.reserved.value, count: reportData.summary.statusBreakdown.reserved.count },
                       { name: 'Job Work', color: 'var(--color-warning)', value: reportData.summary.statusBreakdown.jobWork.value, count: reportData.summary.statusBreakdown.jobWork.count },
                       { name: 'Sold', color: 'var(--color-success)', value: reportData.summary.statusBreakdown.sold.value, count: reportData.summary.statusBreakdown.sold.count },
-                    ].map((item, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: item.color }} />
-                          <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{item.name} ({item.count})</span>
+                    ].map((item, idx) => {
+                      const val = viewCurrency === 'USD' ? item.value : item.value * exchangeRate;
+                      const sym = viewCurrency === 'USD' ? '$' : '₹';
+                      const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+                      return (
+                        <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <div style={{ width: '12px', height: '12px', borderRadius: '3px', background: item.color }} />
+                            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>{item.name} ({item.count})</span>
+                          </div>
+                          <span style={{ color: 'var(--color-text-secondary)', fontWeight: 700 }}>
+                            {sym}{val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
                         </div>
-                        <span style={{ color: 'var(--color-text-secondary)', fontWeight: 700 }}>
-                          ₹{item.value.toLocaleString('en-IN')}
-                        </span>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
               </div>
@@ -980,7 +1107,9 @@ export const StockReportPage: React.FC = () => {
                     { label: '365+ Days', key: 'above_365', color: '#f3f4f6', barColor: '#6b7280' },
                   ].map((bracket, idx) => {
                     const data = reportData.summary.ageing[bracket.key];
-                    const val = data?.value || 0;
+                    const rawVal = data?.value || 0;
+                    const val = viewCurrency === 'USD' ? rawVal : rawVal * exchangeRate;
+                    const sym = viewCurrency === 'USD' ? '$' : '₹';
                     
                     const maxVal = Math.max(
                       reportData.summary.ageing.days_0_30?.value || 1,
@@ -989,12 +1118,12 @@ export const StockReportPage: React.FC = () => {
                       reportData.summary.ageing.days_181_365?.value || 1,
                       reportData.summary.ageing.above_365?.value || 1
                     );
-                    const pctHeight = maxVal > 0 ? (val / maxVal) * 100 : 0;
+                    const pctHeight = maxVal > 0 ? (rawVal / maxVal) * 100 : 0;
 
                     return (
                       <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: '18%', gap: '8px' }}>
                         <div style={{ fontSize: '10px', fontWeight: 700, color: 'var(--color-text-primary)' }}>
-                          ₹{Math.round(val / 1000)}K
+                          {sym}{Math.round(val / 1000)}K
                         </div>
                         <div style={{
                           width: '100%',
@@ -1029,19 +1158,24 @@ export const StockReportPage: React.FC = () => {
               <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '20px' }}>Valuation by Diamond Shape</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {(reportData.summary.shapeConcentration || []).slice(0, 5).map((shape: any, idx: number) => (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
-                        <span style={{ color: 'var(--color-text-primary)' }}>{shape.name}</span>
-                        <span style={{ color: 'var(--color-text-secondary)' }}>
-                          ₹{shape.value.toLocaleString('en-IN')} ({shape.percentage.toFixed(1)}%)
-                        </span>
+                  {(reportData.summary.shapeConcentration || []).slice(0, 5).map((shape: any, idx: number) => {
+                    const val = viewCurrency === 'USD' ? shape.value : shape.value * exchangeRate;
+                    const sym = viewCurrency === 'USD' ? '$' : '₹';
+                    const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+                    return (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+                          <span style={{ color: 'var(--color-text-primary)' }}>{shape.name}</span>
+                          <span style={{ color: 'var(--color-text-secondary)' }}>
+                            {sym}{val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({shape.percentage.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: '8px', background: 'var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${shape.percentage}%`, height: '100%', background: 'var(--color-primary)', borderRadius: '4px' }} />
+                        </div>
                       </div>
-                      <div style={{ width: '100%', height: '8px', background: 'var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: `${shape.percentage}%`, height: '100%', background: 'var(--color-primary)', borderRadius: '4px' }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {(!reportData.summary.shapeConcentration || reportData.summary.shapeConcentration.length === 0) && (
                     <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
                       No shape concentration statistics available.
@@ -1054,19 +1188,24 @@ export const StockReportPage: React.FC = () => {
               <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '24px' }}>
                 <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '20px' }}>Valuation by Clarity Grade</h3>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {(reportData.summary.clarityConcentration || []).slice(0, 5).map((clarity: any, idx: number) => (
-                    <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
-                        <span style={{ color: 'var(--color-text-primary)' }}>{clarity.name}</span>
-                        <span style={{ color: 'var(--color-text-secondary)' }}>
-                          ₹{clarity.value.toLocaleString('en-IN')} ({clarity.percentage.toFixed(1)}%)
-                        </span>
+                  {(reportData.summary.clarityConcentration || []).slice(0, 5).map((clarity: any, idx: number) => {
+                    const val = viewCurrency === 'USD' ? clarity.value : clarity.value * exchangeRate;
+                    const sym = viewCurrency === 'USD' ? '$' : '₹';
+                    const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+                    return (
+                      <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
+                          <span style={{ color: 'var(--color-text-primary)' }}>{clarity.name}</span>
+                          <span style={{ color: 'var(--color-text-secondary)' }}>
+                            {sym}{val.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ({clarity.percentage.toFixed(1)}%)
+                          </span>
+                        </div>
+                        <div style={{ width: '100%', height: '8px', background: 'var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}>
+                          <div style={{ width: `${clarity.percentage}%`, height: '100%', background: '#6366f1', borderRadius: '4px' }} />
+                        </div>
                       </div>
-                      <div style={{ width: '100%', height: '8px', background: 'var(--color-border)', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: `${clarity.percentage}%`, height: '100%', background: '#6366f1', borderRadius: '4px' }} />
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                   {(!reportData.summary.clarityConcentration || reportData.summary.clarityConcentration.length === 0) && (
                     <div style={{ color: 'var(--color-text-secondary)', fontSize: '13px', textAlign: 'center', padding: '20px' }}>
                       No clarity concentration statistics available.
@@ -1361,24 +1500,40 @@ export const StockReportPage: React.FC = () => {
                             })()}
                           </div>
                           <div style={{ display: 'flex', gap: '16px', alignItems: 'center', fontSize: '12px' }}>
-                            {isConversionGroup && roughCost != null && (
-                              <span>Rough Purchase: <strong>₹{roughCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                            )}
-                            {isConversionGroup && jobWorkCost != null && (
-                              <span>Job Work Charges: <strong>₹{jobWorkCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                            )}
-                            <span>Total Input Cost: <strong>₹{totalInputInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                            <span>Output Valuation: <strong>₹{totalOutputValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</strong></span>
-                            <span style={{
-                              padding: '4px 10px',
-                              borderRadius: '4px',
-                              background: isProfit ? '#dcfce7' : '#fee2e2',
-                              color: isProfit ? '#15803d' : '#b91c1c',
-                              fontWeight: 700,
-                              fontSize: '13px'
-                            }}>
-                              Lot Profit: {isProfit ? '+' : ''}₹{groupProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({groupMargin.toFixed(2)}%)
-                            </span>
+                            {(() => {
+                              const sym = viewCurrency === 'USD' ? '$' : '₹';
+                              const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+                              const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+
+                              const roughDisp = roughCost != null ? roughCost * mult : null;
+                              const jobDisp = jobWorkCost != null ? jobWorkCost * mult : null;
+                              const inputDisp = totalInputInvestment * mult;
+                              const outputDisp = totalOutputValuation * mult;
+                              const profitDisp = groupProfit * mult;
+
+                              return (
+                                <>
+                                  {isConversionGroup && roughDisp != null && (
+                                    <span>Rough Purchase: <strong>{sym}{roughDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</strong></span>
+                                  )}
+                                  {isConversionGroup && jobDisp != null && (
+                                    <span>Job Work Charges: <strong>{sym}{jobDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</strong></span>
+                                  )}
+                                  <span>Total Input Cost: <strong>{sym}{inputDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</strong></span>
+                                  <span>Output Valuation: <strong>{sym}{outputDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</strong></span>
+                                  <span style={{
+                                    padding: '4px 10px',
+                                    borderRadius: '4px',
+                                    background: isProfit ? '#dcfce7' : '#fee2e2',
+                                    color: isProfit ? '#15803d' : '#b91c1c',
+                                    fontWeight: 700,
+                                    fontSize: '13px'
+                                  }}>
+                                    Lot Profit: {isProfit ? '+' : ''}{sym}{profitDisp.toLocaleString(loc, { minimumFractionDigits: 2 })} ({groupMargin.toFixed(2)}%)
+                                  </span>
+                                </>
+                              );
+                            })()}
                           </div>
                         </div>
                         <DataGrid

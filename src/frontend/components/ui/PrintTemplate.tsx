@@ -20,8 +20,8 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
   const { activeCompany } = useActiveCompany();
   const cfg = mergeWithDefaults(rawConfig || null);
 
-  // Helper to convert number to Indian currency words
-  const numberToWords = (num: number): string => {
+  // Helper to convert number to currency words (USD / INR)
+  const numberToWords = (num: number, currency: 'USD' | 'INR' = 'INR'): string => {
     try {
       const a = ['', 'one ', 'two ', 'three ', 'four ', 'five ', 'six ', 'seven ', 'eight ', 'nine ', 'ten ', 'eleven ', 'twelve ', 'thirteen ', 'fourteen ', 'fifteen ', 'sixteen ', 'seventeen ', 'eighteen ', 'nineteen '];
       const b = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
@@ -43,7 +43,7 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
       };
 
       let n = Math.floor(num);
-      if (n === 0) return 'zero';
+      if (n === 0) return currency === 'USD' ? 'US Dollars Zero Only' : 'Rupees Zero Only';
 
       let i = 0;
       let word = '';
@@ -65,7 +65,8 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
         i++;
       }
 
-      return 'Rupees ' + word.trim().replace(/\s+/g, ' ') + ' Only';
+      const prefix = currency === 'USD' ? 'US Dollars ' : 'Rupees ';
+      return prefix + word.trim().replace(/\s+/g, ' ') + ' Only';
     } catch {
       return '';
     }
@@ -571,61 +572,90 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                     })()}
                   </div>
                 ) : (
-                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.72em' : '0.9em' }}>
-                    <thead>
-                      <tr style={{ background: '#f8fafc', borderBottom: '2px solid #000' }}>
-                        {cfg.itemTable.showSrNoColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'left' }}>#</th>}
-                        <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'left' }}>Item / Quality</th>
-                        {cfg.itemTable.showHsnColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'center' }}>HSN</th>}
-                        {cfg.itemTable.showQuantityColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Qty</th>}
-                        {cfg.itemTable.showPurityColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Carats</th>}
-                        <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Pcs</th>
-                        <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Rate</th>
-                        {cfg.itemTable.showDiscountColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Disc %</th>}
-                        <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Amount</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {(data.items || []).map((item: any, idx: number) => (
-                        <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                          {cfg.itemTable.showSrNoColumn && <td style={{ padding: isCompact ? '2px' : '6px' }}>{idx + 1}</td>}
-                           <td style={{ padding: isCompact ? '2px' : '6px', fontWeight: 600 }}>
-                            {item.quality?.qualityName || item.qualityName || item.itemName || 'Item'}
-                            {cfg.itemTable.showPacketIdColumn && (item.stockPacket?.stockIdNumber || item.packetNo) && (
-                              <div style={{ fontSize: '0.75em', color: '#475569', fontWeight: 400, marginTop: '1px', fontFamily: 'monospace' }}>
-                                Pkt: {item.stockPacket?.stockIdNumber || item.packetNo}
+                  (() => {
+                    const isDocUsd = data.transactionCurrency === 'USD';
+                    const docExchRate = Number(data.exchangeRate) || 90;
+                    const finalAmt = getFinalAmount();
+                    const altInrVal = data.totalAmountAlt ? Number(data.totalAmountAlt) : Math.round(finalAmt * docExchRate * 100) / 100;
+
+                    return (
+                      <>
+                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.72em' : '0.9em' }}>
+                          <thead>
+                            <tr style={{ background: '#f8fafc', borderBottom: '2px solid #000' }}>
+                              {cfg.itemTable.showSrNoColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'left' }}>#</th>}
+                              <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'left' }}>Item / Quality</th>
+                              {cfg.itemTable.showHsnColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'center' }}>HSN</th>}
+                              {cfg.itemTable.showQuantityColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Qty</th>}
+                              {cfg.itemTable.showPurityColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Carats</th>}
+                              <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Pcs</th>
+                              <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Rate ({isDocUsd ? '$' : '₹'})</th>
+                              {cfg.itemTable.showDiscountColumn && <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Disc %</th>}
+                              <th style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>Amount ({isDocUsd ? '$' : '₹'})</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {(data.items || []).map((item: any, idx: number) => {
+                              const itemRate = Number(item.rate || 0);
+                              const itemAmt = Number(item.amount || item.grossAmount || 0);
+
+                              return (
+                                <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                  {cfg.itemTable.showSrNoColumn && <td style={{ padding: isCompact ? '2px' : '6px' }}>{idx + 1}</td>}
+                                  <td style={{ padding: isCompact ? '2px' : '6px', fontWeight: 600 }}>
+                                    {item.quality?.qualityName || item.qualityName || item.itemName || 'Item'}
+                                    {cfg.itemTable.showPacketIdColumn && (item.stockPacket?.stockIdNumber || item.packetNo) && (
+                                      <div style={{ fontSize: '0.75em', color: '#475569', fontWeight: 400, marginTop: '1px', fontFamily: 'monospace' }}>
+                                        Pkt: {item.stockPacket?.stockIdNumber || item.packetNo}
+                                      </div>
+                                    )}
+                                  </td>
+                                  {cfg.itemTable.showHsnColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'center', fontSize: '0.85em' }}>{item.hsnCode || item.hsnNumber || '—'}</td>}
+                                  {cfg.itemTable.showQuantityColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{Number(item.quantity || 0) > 0 ? Number(item.quantity).toFixed(2) : '—'}</td>}
+                                  {cfg.itemTable.showPurityColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{Number(item.carats || 0).toFixed(2)}</td>}
+                                  <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>
+                                    {item.pieces === 0 || item.pieces === null || item.pieces === undefined ? '—' : item.pieces}
+                                  </td>
+                                  <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>
+                                    {isDocUsd ? `$${itemRate.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${itemRate.toLocaleString('en-IN')}`}
+                                  </td>
+                                  {cfg.itemTable.showDiscountColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{item.discountPercent || 0}%</td>}
+                                  <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right', fontWeight: 700 }}>
+                                    {isDocUsd ? `$${itemAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${itemAmt.toLocaleString('en-IN')}`}
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+
+                        {/* Total & Summary */}
+                        <div style={{ borderTop: '2px solid #000', paddingTop: isCompact ? '3px' : '6px', marginTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: isCompact ? '0.8em' : '0.95em' }}>
+                          <div style={{ fontSize: isCompact ? '0.72em' : '0.85em', color: '#475569', fontWeight: 500 }}>
+                            <div>{numberToWords(finalAmt, isDocUsd ? 'USD' : 'INR')}</div>
+                            {isDocUsd && (
+                              <div style={{ marginTop: '2px', fontStyle: 'italic', fontSize: '0.9em', color: '#64748b' }}>
+                                Equivalent: {numberToWords(altInrVal, 'INR')}
                               </div>
                             )}
-                          </td>
-                          {cfg.itemTable.showHsnColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'center', fontSize: '0.85em' }}>{item.hsnCode || item.hsnNumber || '—'}</td>}
-                          {cfg.itemTable.showQuantityColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{Number(item.quantity || 0) > 0 ? Number(item.quantity).toFixed(2) : '—'}</td>}
-                          {cfg.itemTable.showPurityColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{Number(item.carats || 0).toFixed(2)}</td>}
-                          <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>
-                            {item.pieces === 0 || item.pieces === null || item.pieces === undefined ? '—' : item.pieces}
-                          </td>
-                          <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>₹{Number(item.rate || 0).toLocaleString('en-IN')}</td>
-                          {cfg.itemTable.showDiscountColumn && <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right' }}>{item.discountPercent || 0}%</td>}
-                          <td style={{ padding: isCompact ? '2px' : '6px', textAlign: 'right', fontWeight: 700 }}>₹{Number(item.amount || item.grossAmount || 0).toLocaleString('en-IN')}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                )}
+                            {isBankTx && party?.bankName && <div style={{ marginTop: '1px' }}>Bank: {party.bankName}</div>}
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div>
+                              <span>NET AMOUNT: </span>
+                              <span>{isDocUsd ? `$${finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `₹${finalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}</span>
+                            </div>
+                            {isDocUsd && (
+                              <div style={{ fontSize: '0.85em', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
+                                (₹{altInrVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹{docExchRate}/$)
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </>
+                    );
+                  })())}
               </div>
-
-              {/* Total & Summary */}
-              <div style={{ borderTop: '2px solid #000', paddingTop: isCompact ? '3px' : '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: isCompact ? '0.8em' : '0.95em' }}>
-                <div style={{ fontSize: isCompact ? '0.72em' : '0.85em', color: '#475569', fontWeight: 500 }}>
-                  {numberToWords(getFinalAmount())}
-                  {isBankTx && party?.bankName && <div style={{ marginTop: '1px' }}>Bank: {party.bankName}</div>}
-                </div>
-                <div>
-                  <span>NET AMOUNT: </span>
-                  <span>₹{getFinalAmount().toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-
-              {/* Company Bank Details & Payment QR */}
               {(cfg.footer.showBankDetails || cfg.footer.showPaymentQr) && (
                 <div style={{ borderTop: '1px solid #e2e8f0', paddingTop: isCompact ? '3px' : '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: isCompact ? '0.7em' : '0.8em', color: '#334155' }}>
                   {cfg.footer.showBankDetails && (activeCompany?.bankName || activeCompany?.bankAccountNumber) ? (

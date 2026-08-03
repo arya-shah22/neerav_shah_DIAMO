@@ -298,19 +298,17 @@ export class LoanService {
     const loanType = data.loanType as LoanType;
     const narration = data.narration || '';
 
+    const transactionCurrency = (data.transactionCurrency as any) || 'INR';
+    const exchangeRate = Number(data.exchangeRate) || 1.0;
+    const principalAmountAlt = data.principalAmountAlt
+      ? Number(data.principalAmountAlt)
+      : Math.round(principalAmount * exchangeRate * 100) / 100;
+
     if (!partyId || !cashBankAccountId) {
       throw new BadRequestException('Party and Cash/Bank accounts must be selected');
     }
     if (principalAmount <= 0) {
       throw new BadRequestException('Principal amount must be greater than zero');
-    }
-
-    // Constraint: GIVEN loan principal cannot exceed on-hand cash
-    if (loanType === LoanType.GIVEN) {
-      const onHand = await this.getOnHandMoney(companyId);
-      if (principalAmount > onHand) {
-        throw new BadRequestException(`Insufficient cash on-hand (Available: ₹${onHand.toLocaleString('en-IN')})`);
-      }
     }
 
     const { totalInterest, totalRepayable } = this.calculateInterest(
@@ -351,14 +349,16 @@ export class LoanService {
           totalInterest,
           totalRepayable,
           amountRepaid: 0,
-          balanceRemaining: totalRepayable
+          balanceRemaining: totalRepayable,
+          transactionCurrency,
+          exchangeRate,
+          principalAmountAlt,
         }
       });
 
       // 3. Create entry in Cash/Bank Book
       const isGiven = loanType === LoanType.GIVEN;
 
-      // 3. Create entry in Cash/Bank Book
       const isBank = await this.isBankAccount(cashBankAccountId);
       let cbType: CashBankType;
       if (isGiven) {
@@ -386,7 +386,10 @@ export class LoanService {
           cashBankAccountId,
           amount: principalAmount,
           narration: `Loan Inception: ${narration}`,
-          referenceBillNo: voucherNumber
+          referenceBillNo: voucherNumber,
+          transactionCurrency,
+          exchangeRate,
+          amountAlt: principalAmountAlt,
         }
       });
 
@@ -442,11 +445,16 @@ export class LoanService {
       // If Given loan: they repay inward cash (Cash debited, Party credited)
       const isGiven = loan.loanType === LoanType.GIVEN;
 
+      const exRate = Number(loan.exchangeRate) || 1.0;
+      const amountAlt = Math.round(amount * exRate * 100) / 100;
+
       const repayment = await tx.loanRepayment.create({
         data: {
           loanId,
           paymentDate,
           amount,
+          exchangeRate: exRate,
+          amountAlt,
           cashBankAccountId,
           narration
         }
@@ -462,8 +470,6 @@ export class LoanService {
           status: nextStatus
         }
       });
-
-
 
       // 3. Create entry in Cash/Bank Book
       const isBank = await this.isBankAccount(cashBankAccountId);
@@ -493,7 +499,10 @@ export class LoanService {
           cashBankAccountId,
           amount,
           narration: `Loan Repayment: ${narration}`,
-          referenceBillNo: loan.voucherNumber
+          referenceBillNo: loan.voucherNumber,
+          transactionCurrency: loan.transactionCurrency,
+          exchangeRate: exRate,
+          amountAlt,
         }
       });
 

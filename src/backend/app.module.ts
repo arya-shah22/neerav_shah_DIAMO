@@ -31,6 +31,7 @@ import { SuperAdminModule } from './modules/super-admin/super-admin.module';
 import { DashboardModule } from './modules/dashboard/dashboard.module';
 import { NotificationModule } from './modules/notification/notification.module';
 import { UserWorkspaceModule } from './modules/user-workspace/workspace.module';
+import { ExchangeRateModule } from './modules/exchange-rate/exchange-rate.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { UserWorkspaceModule } from './modules/user-workspace/workspace.module';
     DashboardModule,
     NotificationModule,
     UserWorkspaceModule,
+    ExchangeRateModule,
   ],
   controllers: [],
   providers: [

@@ -78,22 +78,24 @@ export class DashboardService {
     // Query outstanding sale invoices from sale_invoices table
     const saleInvoices = await this.prisma.saleInvoice.findMany({
       where: { companyId, isDeleted: false, status: { not: 'CANCELLED' } },
-      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true },
+      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
     });
 
     // Query outstanding purchase invoices from purchase_invoices table
     const purchaseInvoices = await this.prisma.purchaseInvoice.findMany({
       where: { companyId, isDeleted: false, status: { not: 'CANCELLED' } },
-      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true },
+      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
     });
 
     // Process sale invoices for receivables
     saleInvoices.forEach((inv: any) => {
-      const net = Number(inv.netAmount || 0);
-      const jama = Number(inv.jamaAmount || 0);
-      const outstanding = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
+      const exRate = inv.transactionCurrency === 'USD' ? (Number(inv.exchangeRate) || 1) : 1;
+      const net = Number(inv.netAmount || 0) * exRate;
+      const jama = Number(inv.jamaAmount || 0) * exRate;
+      const outstandingRaw = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
-        : Math.max(0, net - jama);
+        : Math.max(0, Number(inv.netAmount || 0) - Number(inv.jamaAmount || 0));
+      const outstanding = outstandingRaw * exRate;
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
 
@@ -110,11 +112,13 @@ export class DashboardService {
 
     // Process purchase invoices for payables
     purchaseInvoices.forEach((inv: any) => {
-      const net = Number(inv.netAmount || 0);
-      const jama = Number(inv.jamaAmount || 0);
-      const outstanding = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
+      const exRate = inv.transactionCurrency === 'USD' ? (Number(inv.exchangeRate) || 1) : 1;
+      const net = Number(inv.netAmount || 0) * exRate;
+      const jama = Number(inv.jamaAmount || 0) * exRate;
+      const outstandingRaw = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
-        : Math.max(0, net - jama);
+        : Math.max(0, Number(inv.netAmount || 0) - Number(inv.jamaAmount || 0));
+      const outstanding = outstandingRaw * exRate;
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
 
@@ -149,9 +153,9 @@ export class DashboardService {
 
     accounts.forEach((acc: any) => {
       const groupText = groupNatureMap.get(acc.accountGroupId) || '';
-      if (groupText.includes('DEBTOR') || groupText.includes('CUSTOMER') || groupText.includes('ASSET')) {
+      if (groupText.includes('DEBTOR') || groupText.includes('CUSTOMER')) {
         customerCount++;
-      } else if (groupText.includes('CREDITOR') || groupText.includes('SUPPLIER') || groupText.includes('LIABILITY')) {
+      } else if (groupText.includes('CREDITOR') || groupText.includes('SUPPLIER')) {
         supplierCount++;
       }
     });
@@ -166,11 +170,14 @@ export class DashboardService {
           { createdAt: { gte: todayStart, lte: todayEnd } },
         ],
       },
-      select: { netAmount: true },
+      select: { netAmount: true, transactionCurrency: true, exchangeRate: true },
     });
 
     let salesTodayValue = 0;
-    salesToday.forEach((s: any) => { salesTodayValue += Number(s.netAmount || 0); });
+    salesToday.forEach((s: any) => {
+      const exRate = s.transactionCurrency === 'USD' ? (Number(s.exchangeRate) || 1) : 1;
+      salesTodayValue += Number(s.netAmount || 0) * exRate;
+    });
 
     // Today's Purchase Invoices
     const purchasesToday = await this.prisma.purchaseInvoice.findMany({
@@ -182,11 +189,14 @@ export class DashboardService {
           { createdAt: { gte: todayStart, lte: todayEnd } },
         ],
       },
-      select: { netAmount: true },
+      select: { netAmount: true, transactionCurrency: true, exchangeRate: true },
     });
 
     let purchaseTodayValue = 0;
-    purchasesToday.forEach((p: any) => { purchaseTodayValue += Number(p.netAmount || 0); });
+    purchasesToday.forEach((p: any) => {
+      const exRate = p.transactionCurrency === 'USD' ? (Number(p.exchangeRate) || 1) : 1;
+      purchaseTodayValue += Number(p.netAmount || 0) * exRate;
+    });
 
     // Cash & Bank Vouchers and Account Balances
     const allCashBankVouchers = await this.prisma.cashBankVoucher.findMany({
@@ -215,7 +225,9 @@ export class DashboardService {
     });
 
     let finalCashNetBalance = 0;
+    let finalCashUsdBalance = 0;
     let finalBankNetBalance = 0;
+    let finalBankUsdBalance = 0;
 
     cashBankAccounts.forEach((acc: any) => {
       const opening = Number(acc.openingBalanceAmount || 0);
@@ -231,9 +243,17 @@ export class DashboardService {
       const accName = (acc.accountName || '').toLowerCase();
 
       if (groupName.includes('cash') || accName.includes('cash')) {
-        finalCashNetBalance += balance;
+        if (accName.includes('usd')) {
+          finalCashUsdBalance += balance;
+        } else {
+          finalCashNetBalance += balance;
+        }
       } else if (groupName.includes('bank') || accName.includes('bank') || accName.includes('hdfc') || accName.includes('icici') || accName.includes('sbi') || accName.includes('axis') || accName.includes('kotak')) {
-        finalBankNetBalance += balance;
+        if (accName.includes('usd')) {
+          finalBankUsdBalance += balance;
+        } else {
+          finalBankNetBalance += balance;
+        }
       }
     });
 
@@ -287,6 +307,26 @@ export class DashboardService {
       },
     });
 
+    // Fetch origin purchase invoice currencies for packets
+    const packetIds = packets.map((p) => p.id);
+    const purchasePacketItems = await this.prisma.purchaseInvoiceItem.findMany({
+      where: { stockPacketId: { in: packetIds } },
+      select: {
+        stockPacketId: true,
+        purchaseInvoice: { select: { transactionCurrency: true, exchangeRate: true } },
+      },
+    });
+
+    const packetCurrencyMap = new Map<number, { currency: string; rate: number }>();
+    purchasePacketItems.forEach((pi) => {
+      if (pi.stockPacketId && pi.purchaseInvoice) {
+        packetCurrencyMap.set(pi.stockPacketId, {
+          currency: pi.purchaseInvoice.transactionCurrency || 'USD',
+          rate: Number(pi.purchaseInvoice.exchangeRate) || 1,
+        });
+      }
+    });
+
     let totalCarats = 0;
     let totalPackets = packets.length;
     let availablePackets = 0;
@@ -297,12 +337,17 @@ export class DashboardService {
 
     packets.forEach((p: any) => {
       const wt = Number(p.caratWeight || 0);
-      const price = Number(p.totalCost || 0);
+      const rawPrice = Number(p.totalCost || 0);
+      
+      const currInfo = packetCurrencyMap.get(p.id);
+      const exRate = currInfo?.currency === 'USD' ? (currInfo.rate || 1) : (p.targetSaleRateCurrency === 'USD' ? 89 : 1);
+      const priceInr = rawPrice * exRate;
+
       totalCarats += wt;
-      totalValuation += price;
+      totalValuation += priceInr;
 
       if (p.currentStatus === 'AVAILABLE') availablePackets++;
-      if (p.currentStatus === 'ON_HOLD' || p.currentStatus === 'RESERVED') heldPackets++;
+      if (p.currentStatus === 'HOLD' || p.currentStatus === 'ON_HOLD' || p.currentStatus === 'RESERVED') heldPackets++;
 
       if (p.certificateNumber && p.certificateNumber.trim() !== '') {
         certifiedCount++;
@@ -362,11 +407,13 @@ export class DashboardService {
         receipts: displayCashReceipts,
         payments: displayCashPayments,
         netBalance: finalCashNetBalance,
+        usdBalance: finalCashUsdBalance,
       },
       todayBank: {
         receipts: displayBankReceipts,
         payments: displayBankPayments,
         netBalance: finalBankNetBalance,
+        usdBalance: finalBankUsdBalance,
       },
       businessSummary: {
         customerCount,
@@ -417,7 +464,8 @@ export class DashboardService {
     salesInvoices.forEach((inv: any) => {
       const d = new Date(inv.invoiceDate || inv.createdAt);
       const mKey = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
-      const net = Number(inv.netAmount || 0);
+      const exRate = inv.transactionCurrency === 'USD' ? (Number(inv.exchangeRate) || 1) : 1;
+      const net = Number(inv.netAmount || 0) * exRate;
 
       if (monthlySalesMap.has(mKey)) {
         const curr = monthlySalesMap.get(mKey)!;
@@ -436,8 +484,9 @@ export class DashboardService {
       (inv.items || []).forEach((it: any) => {
         const qName = it.quality?.qualityName || it.qualityName || 'Standard';
         const qObj = qualityMap.get(qName) || { carats: 0, salesValue: 0 };
+        const itemValInr = Number(it.netAmount || it.amount || it.grossAmount || 0) * exRate;
         qObj.carats += Number(it.carats || 0);
-        qObj.salesValue += Number(it.amount || it.grossAmount || 0);
+        qObj.salesValue += itemValInr;
         qualityMap.set(qName, qObj);
       });
     });
@@ -447,7 +496,8 @@ export class DashboardService {
     purchaseInvoices.forEach((inv: any) => {
       const d = new Date(inv.invoiceDate || inv.createdAt);
       const mKey = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
-      const net = Number(inv.netAmount || 0);
+      const exRate = inv.transactionCurrency === 'USD' ? (Number(inv.exchangeRate) || 1) : 1;
+      const net = Number(inv.netAmount || 0) * exRate;
 
       if (monthlyPurchaseMap.has(mKey)) {
         const curr = monthlyPurchaseMap.get(mKey)!;

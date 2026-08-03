@@ -106,7 +106,9 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
           <DetailRow label="GSTIN" value={invoice.customerGstin || '—'} />
           <DetailRow label="State Code" value={invoice.customerStateCode || '—'} />
           <DetailRow label="Brokerage %" value={`${Number(invoice.brokeragePct || 0).toFixed(2)}%`} />
-          <DetailRow label="Brokerage Amount" value={`₹${Number(invoice.brokerageAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`} />
+          <DetailRow label="Brokerage Amount" value={`${(invoice.transactionCurrency === 'USD' ? '$' : '₹')}${Number(invoice.brokerageAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}`} />
+          <DetailRow label="Currency" value={`${invoice.transactionCurrency || 'INR'}`} />
+          <DetailRow label="Exchange Rate" value={invoice.transactionCurrency === 'USD' ? `$1 = ₹${Number(invoice.exchangeRate || 1).toFixed(4)}` : '1.0000'} />
         </div>
       </div>
 
@@ -128,35 +130,38 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
             </tr>
           </thead>
           <tbody>
-            {(invoice.items || []).map((item, idx) => (
-              <tr key={item.id || idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                <td style={{ padding: '10px 8px', fontSize: '13px' }}>{idx + 1}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', fontWeight: 600 }}>
-                  <div>{item.quality?.qualityName || '—'}</div>
-                  {(item as any).stockPacket && (
-                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 400, marginTop: '4px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                      <span style={{ background: 'var(--color-row-alt)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 600 }}>
-                        📦 {(item as any).stockPacket.stockIdNumber}
-                      </span>
-                      {[(item as any).stockPacket.shape, (item as any).stockPacket.color, (item as any).stockPacket.clarity, (item as any).stockPacket.cut].filter(Boolean).join(' / ')}
-                    </div>
-                  )}
-                </td>
-                <td style={{ padding: '10px 8px', fontSize: '13px' }}>{item.hsnNumber || '—'}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.carats).toFixed(3)}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>
-                  {item.pieces === 0 || item.pieces === null || item.pieces === undefined ? (
-                    <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>None</span>
-                  ) : (
-                    item.pieces
-                  )}
-                </td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>₹{Number(item.rate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.gstPct || 0).toFixed(2)}%</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>₹{Number(item.grossAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right', fontWeight: 600 }}>₹{Number(item.netAmount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-              </tr>
-            ))}
+            {(invoice.items || []).map((item, idx) => {
+              const currSymbol = invoice.transactionCurrency === 'USD' ? '$' : '₹';
+              return (
+                <tr key={item.id || idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
+                  <td style={{ padding: '10px 8px', fontSize: '13px' }}>{idx + 1}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', fontWeight: 600 }}>
+                    <div>{item.quality?.qualityName || '—'}</div>
+                    {(item as any).stockPacket && (
+                      <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 400, marginTop: '4px', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                        <span style={{ background: 'var(--color-row-alt)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontWeight: 600 }}>
+                          📦 {(item as any).stockPacket.stockIdNumber}
+                        </span>
+                        {[(item as any).stockPacket.shape, (item as any).stockPacket.color, (item as any).stockPacket.clarity, (item as any).stockPacket.cut].filter(Boolean).join(' / ')}
+                      </div>
+                    )}
+                  </td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px' }}>{item.hsnNumber || '—'}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.carats).toFixed(3)}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>
+                    {item.pieces === 0 || item.pieces === null || item.pieces === undefined ? (
+                      <span style={{ color: 'var(--color-text-secondary)', fontStyle: 'italic' }}>None</span>
+                    ) : (
+                      item.pieces
+                    )}
+                  </td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{currSymbol}{Number(item.rate).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{Number(item.gstPct || 0).toFixed(2)}%</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right' }}>{currSymbol}{Number(item.grossAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ padding: '10px 8px', fontSize: '13px', textAlign: 'right', fontWeight: 600 }}>{currSymbol}{Number(item.netAmount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -181,11 +186,11 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
             <span>Gross Amount:</span>
-            <span style={{ fontWeight: 600 }}>₹{Number(invoice.totalGrossAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span style={{ fontWeight: 600 }}>{invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.totalGrossAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
             <span>Discount:</span>
-            <span style={{ color: 'var(--color-danger)' }}>-₹{Number(invoice.totalDiscount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span style={{ color: 'var(--color-danger)' }}>-{invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.totalDiscount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
             <span>CGST:</span>
@@ -201,11 +206,18 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
             <span>Round Off:</span>
-            <span>{Number(invoice.roundOff) >= 0 ? '+' : ''}₹{Number(invoice.roundOff).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span>{Number(invoice.roundOff) >= 0 ? '+' : ''}{invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.roundOff).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', borderTop: '2px solid var(--color-accent)', paddingTop: '10px' }}>
             <span>Net Total:</span>
-            <span>₹{Number(invoice.netAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span>
+              {invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.netAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {invoice.netAmountAlt && Number(invoice.netAmountAlt) > 0 && (
+                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-secondary)', marginLeft: '6px' }}>
+                  ({invoice.transactionCurrency === 'USD' ? '₹' : '$'}{Number(invoice.netAmountAlt).toLocaleString('en-US', { minimumFractionDigits: 2 })})
+                </span>
+              )}
+            </span>
           </div>
         </div>
       </div>

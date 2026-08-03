@@ -126,6 +126,8 @@ export const invoiceSchema = z.object({
   totalSgst: z.number().min(0).default(0),
   totalIgst: z.number().min(0).default(0),
   narration: z.string().optional().or(z.literal('')),
+  transactionCurrency: z.enum(['USD', 'INR']).default('INR'),
+  exchangeRate: z.number().positive().default(1),
   items: z.array(invoiceItemSchema).min(1, 'At least one item must be added'),
 });
 

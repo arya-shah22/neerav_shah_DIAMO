@@ -32,6 +32,46 @@ export function formatCurrency(amount: number | string | null | undefined): stri
 }
 
 /**
+ * Format currency to US Dollars display
+ */
+export function formatUsd(amount: number | string | null | undefined): string {
+  if (amount == null) return '$0.00';
+  const val = typeof amount === 'string' ? parseFloat(amount) : amount;
+  if (isNaN(val)) return '$0.00';
+
+  const formatter = new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return formatter.format(val);
+}
+
+/**
+ * Format amount with dynamic currency code
+ */
+export function formatAmount(amount: number | string | null | undefined, currency: 'USD' | 'INR'): string {
+  if (currency === 'USD') return formatUsd(amount);
+  return formatCurrency(amount);
+}
+
+/**
+ * Format dual-currency display string
+ * e.g., "$500.00 (₹41,625.00)" or "₹41,625.00 ($500.00)"
+ */
+export function formatDualCurrency(
+  amountPrimary: number | string | null | undefined,
+  amountAlt: number | string | null | undefined,
+  primaryCurrency: 'USD' | 'INR'
+): string {
+  const altCurrency = primaryCurrency === 'USD' ? 'INR' : 'USD';
+  const primary = formatAmount(amountPrimary, primaryCurrency);
+  const alt = formatAmount(amountAlt, altCurrency);
+  return `${primary} (${alt})`;
+}
+
+/**
  * Format a Date object or ISO string to standard DD-MM-YYYY format
  */
 export function formatDate(date: Date | string | null | undefined): string {

@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Trash2, AlertTriangle, Plus, Minus, Wallet, FileText, CheckSquare, Square, Printer } from 'lucide-react';
+import { Trash2, AlertTriangle, Plus, Minus, Wallet, Landmark, FileText, CheckSquare, Square, Printer } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Button, Input, Select, useToast } from '../../components/ui';
@@ -63,6 +63,10 @@ export const CashBankPage: React.FC = () => {
   // Dynamic remarks array
   const [remarks, setRemarks] = useState<string[]>(['']);
 
+  // Multi-Currency States
+  const [transactionCurrency, setTransactionCurrency] = useState<'INR' | 'USD'>('INR');
+  const [exchangeRate, setExchangeRate] = useState<number>(90.00);
+
   const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
   const [showMonthFilter, setShowMonthFilter] = useState(false);
   const [selectedMonth, setSelectedMonth] = useState('ALL');
@@ -98,7 +102,9 @@ export const CashBankPage: React.FC = () => {
   const [accountsList, setAccountsList] = useState<IAccount[]>([]);
   const [unpaidBills, setUnpaidBills] = useState<any[]>([]);
   const [cashBalance, setCashBalance] = useState<number>(0);
+  const [cashUsdBalance, setCashUsdBalance] = useState<number>(0);
   const [bankBalance, setBankBalance] = useState<number>(0);
+  const [bankUsdBalance, setBankUsdBalance] = useState<number>(0);
 
   const refreshData = useCallback(async () => {
     if (!companyId) return;
@@ -125,15 +131,29 @@ export const CashBankPage: React.FC = () => {
     }
   }, [companyId, transactionType, activeFinancialYear, fetchPreviewNo]);
 
-  // Handoff default Cash vs Bank account selection
+  // Handoff default Cash vs Bank account selection based on Currency
   const getAssetAccountId = useCallback((): number | null => {
     const isCash = transactionType === 'CASH_PAYMENT' || transactionType === 'CASH_RECEIPT';
-    const matchKeyword = isCash ? 'cash' : 'bank';
-    const matched = accountsList.find(a => 
-      a.accountName.toLowerCase().includes(matchKeyword)
-    );
-    return matched ? matched.id : null;
-  }, [transactionType, accountsList]);
+    if (isCash) {
+      if (transactionCurrency === 'USD') {
+        const usdMatch = accountsList.find(a => a.accountName.toLowerCase().includes('cash') && a.accountName.toLowerCase().includes('usd'));
+        if (usdMatch) return usdMatch.id;
+      }
+      const inrMatch = accountsList.find(a => a.accountName.toLowerCase().includes('cash') && !a.accountName.toLowerCase().includes('usd'));
+      if (inrMatch) return inrMatch.id;
+      const anyCash = accountsList.find(a => a.accountName.toLowerCase().includes('cash'));
+      return anyCash ? anyCash.id : null;
+    } else {
+      if (transactionCurrency === 'USD') {
+        const usdBankMatch = accountsList.find(a => a.accountName.toLowerCase().includes('bank') && a.accountName.toLowerCase().includes('usd'));
+        if (usdBankMatch) return usdBankMatch.id;
+      }
+      const inrBankMatch = accountsList.find(a => a.accountName.toLowerCase().includes('bank') && !a.accountName.toLowerCase().includes('usd'));
+      if (inrBankMatch) return inrBankMatch.id;
+      const anyBank = accountsList.find(a => a.accountName.toLowerCase().includes('bank'));
+      return anyBank ? anyBank.id : null;
+    }
+  }, [transactionType, transactionCurrency, accountsList]);
 
   const assetAccountId = getAssetAccountId();
 
@@ -189,38 +209,48 @@ export const CashBankPage: React.FC = () => {
     loadUnpaidBillsAndNotes();
   }, [companyId, partyId, transactionType, fetchUnpaidPurchases, fetchUnpaidSales, fetchPartyNotes, vouchers]);
 
-  // Fetch running balances for Cash and Bank side-by-side
+  // Fetch running balances for Cash (INR), Cash (USD), Bank (INR), and Bank (USD)
   useEffect(() => {
     const fetchBalances = async () => {
       if (!companyId) return;
       
+      let cashInrSum = 0;
+      let cashUsdSum = 0;
       const cashAccs = accountsList.filter(a => {
         const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
         const name = a.accountName.toLowerCase();
         return groupName.includes('cash') || name.includes('cash');
       });
-      let cashSum = 0;
+
       for (const cAcc of cashAccs) {
         const res = await getBalance({ companyId, cashBankAccountId: cAcc.id });
         if (res.success) {
-          cashSum += Number(res.data) || 0;
+          const isUsd = cAcc.accountName.toLowerCase().includes('usd');
+          if (isUsd) cashUsdSum += Number(res.data) || 0;
+          else cashInrSum += Number(res.data) || 0;
         }
       }
-      setCashBalance(cashSum);
+      setCashBalance(cashInrSum);
+      setCashUsdBalance(cashUsdSum);
 
+      let bankInrSum = 0;
+      let bankUsdSum = 0;
       const bankAccs = accountsList.filter(a => {
         const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
         const name = a.accountName.toLowerCase();
         return groupName.includes('bank') || name.includes('bank') || name.includes('hdfc') || name.includes('icici') || name.includes('sbi') || name.includes('axis') || name.includes('kotak');
       });
-      let bankSum = 0;
+
       for (const bAcc of bankAccs) {
         const res = await getBalance({ companyId, cashBankAccountId: bAcc.id });
         if (res.success) {
-          bankSum += Number(res.data) || 0;
+          const isUsd = bAcc.accountName.toLowerCase().includes('usd');
+          if (isUsd) bankUsdSum += Number(res.data) || 0;
+          else bankInrSum += Number(res.data) || 0;
         }
       }
-      setBankBalance(bankSum);
+      setBankBalance(bankInrSum);
+      setBankUsdBalance(bankUsdSum);
     };
     fetchBalances();
   }, [companyId, accountsList, getBalance, vouchers]);
@@ -230,10 +260,37 @@ export const CashBankPage: React.FC = () => {
     setReferenceBillNo(billNo);
     const matched = unpaidBills.find(b => b.voucherNumber === billNo);
     if (matched) {
+      const isUsd = matched.transactionCurrency === 'USD';
+      setTransactionCurrency(isUsd ? 'USD' : 'INR');
+      if (matched.exchangeRate) {
+        setExchangeRate(Number(matched.exchangeRate));
+      } else if (isUsd) {
+        setExchangeRate(90.00);
+      }
       setAmount(Number(matched.outstandingAmount) || 0);
     } else {
       setAmount(0);
     }
+  };
+
+  // Handle currency toggle conversion (USD <-> INR)
+  const handleCurrencyChange = (newCurrency: 'INR' | 'USD') => {
+    if (newCurrency === transactionCurrency) return;
+
+    const rate = exchangeRate > 0 ? exchangeRate : 90;
+    if (newCurrency === 'INR' && transactionCurrency === 'USD') {
+      // Convert USD ($12,000) -> INR (₹1,080,000)
+      if (amount > 0) {
+        setAmount(Number((amount * rate).toFixed(2)));
+      }
+    } else if (newCurrency === 'USD' && transactionCurrency === 'INR') {
+      // Convert INR (₹1,080,000) -> USD ($12,000)
+      if (amount > 0) {
+        setAmount(Number((amount / rate).toFixed(2)));
+      }
+    }
+
+    setTransactionCurrency(newCurrency);
   };
 
   // Net cash physically flowing out/in
@@ -300,6 +357,10 @@ export const CashBankPage: React.FC = () => {
       return;
     }
 
+    const finalAmountAlt = transactionCurrency === 'USD' 
+      ? Number((netAmountFlow * exchangeRate).toFixed(2))
+      : netAmountFlow;
+
     const payload = {
       financialYearId: activeFinancialYear?.id,
       voucherDate,
@@ -314,6 +375,9 @@ export const CashBankPage: React.FC = () => {
       adjustedNoteAmount: applyCreditAdjustment ? creditAdjustmentAmount : (applyDebitAdjustment ? debitAdjustmentAmount : 0),
       isCreditAdjustment: applyCreditAdjustment,
       narration: JSON.stringify(remarks.filter(r => r.trim() !== '')),
+      transactionCurrency,
+      exchangeRate,
+      amountAlt: finalAmountAlt,
     };
 
     const res = await createVoucher({ companyId, data: payload });
@@ -358,10 +422,16 @@ export const CashBankPage: React.FC = () => {
   };
 
   const partyOptions = accountsList.map(a => ({ value: String(a.id), label: a.accountName }));
-  const billOptions = unpaidBills.map(b => ({
-    value: b.voucherNumber,
-    label: `${b.billNumber || b.voucherNumber} (Outstanding: ₹${Number(b.outstandingAmount).toLocaleString('en-IN')})`
-  }));
+  const billOptions = unpaidBills.map(b => {
+    const isUsd = b.transactionCurrency === 'USD';
+    const amt = Number(b.outstandingAmount);
+    const exRate = Number(b.exchangeRate) || 90;
+    const alt = b.outstandingAmountAlt ? Number(b.outstandingAmountAlt) : Math.round(amt * exRate);
+    const label = isUsd
+      ? `${b.billNumber || b.voucherNumber} (Outstanding: $${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })} / ₹${alt.toLocaleString('en-IN', { minimumFractionDigits: 2 })})`
+      : `${b.billNumber || b.voucherNumber} (Outstanding: ₹${amt.toLocaleString('en-IN', { minimumFractionDigits: 2 })})`;
+    return { value: b.voucherNumber, label };
+  });
 
   const columns: Column<any>[] = [
     {
@@ -407,8 +477,25 @@ export const CashBankPage: React.FC = () => {
     },
     {
       key: 'amount',
-      header: 'NET CASH',
-      render: (row) => `₹ ${Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      header: 'NET CASH / AMOUNT',
+      render: (row) => {
+        const isUsd = row.transactionCurrency === 'USD';
+        const amt = Number(row.amount);
+        const alt = row.amountAlt ? Number(row.amountAlt) : Math.round(amt * (Number(row.exchangeRate) || 90));
+        if (isUsd) {
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>
+                $ {amt.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+                (₹ {alt.toLocaleString('en-IN', { minimumFractionDigits: 2 })})
+              </span>
+            </div>
+          );
+        }
+        return `₹ ${amt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+      }
     },
     {
       key: 'remarks',
@@ -435,62 +522,158 @@ export const CashBankPage: React.FC = () => {
   const hasAnyNotes = totalCreditNotesVal > 0 || totalDebitNotesVal > 0;
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-      {/* Header Title with Left Corner Balance Display */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div>
-          <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>
-            Cash & Bank Book
-          </h1>
-          <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
-            Record payment receipts and cash entries against outstanding bills.
-          </p>
-        </div>
-        
-        {/* On-Hand Money Display on the Right Header side */}
-        {/* Cash and Bank Balances displayed side-by-side */}
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {/* On-Hand Money (Cash) */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+      {/* Header Title Section */}
+      <div>
+        <h1 style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text-primary)', letterSpacing: '-0.3px' }}>
+          Cash & Bank Book
+        </h1>
+        <p style={{ color: 'var(--color-text-secondary)', fontSize: '13px', marginTop: '4px' }}>
+          Record payment receipts and cash entries against outstanding bills.
+        </p>
+      </div>
+
+      {/* 4 Financial Metric Cards Grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))',
+        gap: '16px',
+        width: '100%'
+      }}>
+        {/* Card 1: Cash INR */}
+        <div style={{
+          background: 'var(--color-surface)',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
           <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '10px',
+            background: 'rgba(59, 130, 246, 0.1)',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            background: 'var(--color-surface)',
-            padding: '10px 16px',
-            borderRadius: '8px',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-sm)'
+            justifyContent: 'center',
+            flexShrink: 0
           }}>
-            <Wallet size={20} color="var(--color-primary)" />
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                On-Hand (Cash)
-              </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>
-                ₹ {cashBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </div>
+            <Wallet size={22} color="#3b82f6" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              On-Hand (Cash - INR)
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#3b82f6', marginTop: '2px', lineHeight: 1.2 }}>
+              ₹ {cashBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
             </div>
           </div>
+        </div>
 
-          {/* In Bank Balance */}
+        {/* Card 2: Cash USD */}
+        <div style={{
+          background: 'var(--color-surface)',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
           <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '10px',
+            background: 'rgba(16, 185, 129, 0.1)',
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            background: 'var(--color-surface)',
-            padding: '10px 16px',
-            borderRadius: '8px',
-            border: '1px solid var(--color-border)',
-            boxShadow: 'var(--shadow-sm)'
+            justifyContent: 'center',
+            flexShrink: 0
           }}>
-            <Wallet size={20} color="var(--color-success)" />
-            <div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                In Bank
-              </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-success)' }}>
-                ₹ {bankBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
-              </div>
+            <Wallet size={22} color="#10b981" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              On-Hand (Cash - USD)
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#10b981', marginTop: '2px', lineHeight: 1.2 }}>
+              $ {cashUsdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              (₹ {(cashUsdBalance * exchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })})
+            </div>
+          </div>
+        </div>
+
+        {/* Card 3: Bank INR */}
+        <div style={{
+          background: 'var(--color-surface)',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '10px',
+            background: 'rgba(139, 92, 246, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Landmark size={22} color="#8b5cf6" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              In Bank (INR)
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#8b5cf6', marginTop: '2px', lineHeight: 1.2 }}>
+              ₹ {bankBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            </div>
+          </div>
+        </div>
+
+        {/* Card 4: Bank USD */}
+        <div style={{
+          background: 'var(--color-surface)',
+          padding: '16px 20px',
+          borderRadius: '12px',
+          border: '1px solid var(--color-border)',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.03)',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '16px'
+        }}>
+          <div style={{
+            width: '44px',
+            height: '44px',
+            borderRadius: '10px',
+            background: 'rgba(6, 182, 212, 0.1)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flexShrink: 0
+          }}>
+            <Landmark size={22} color="#06b6d4" />
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              In Bank (USD)
+            </div>
+            <div style={{ fontSize: '18px', fontWeight: 700, color: '#06b6d4', marginTop: '2px', lineHeight: 1.2 }}>
+              $ {bankUsdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            </div>
+            <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', marginTop: '2px' }}>
+              (₹ {(bankUsdBalance * exchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })})
             </div>
           </div>
         </div>
@@ -615,20 +798,40 @@ export const CashBankPage: React.FC = () => {
             placeholder="Select unpaid bill"
           />
 
-          <Input
-            label="Gross Settlement Amount *"
-            type="number"
-            placeholder="0.00"
-            value={amount || ''}
-            onChange={(e) => setAmount(Number(e.target.value))}
+          <Select
+            label="Currency"
+            value={transactionCurrency}
+            onChange={(val) => handleCurrencyChange(val as 'INR' | 'USD')}
+            options={[
+              { value: 'INR', label: 'INR (₹)' },
+              { value: 'USD', label: 'USD ($)' },
+            ]}
           />
 
-          <Input
-            label="Voucher Number (Optional)"
-            placeholder="Enter manual voucher number"
-            value={manualVoucherNo}
-            onChange={(e) => setManualVoucherNo(e.target.value)}
-          />
+          {transactionCurrency === 'USD' && (
+            <Input
+              label="Exchange Rate ($1 = ₹) *"
+              type="number"
+              step="0.01"
+              value={exchangeRate}
+              onChange={(e) => setExchangeRate(Number(e.target.value) || 1)}
+            />
+          )}
+
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <Input
+              label={`Gross Settlement Amount (${transactionCurrency === 'USD' ? '$' : '₹'}) *`}
+              type="number"
+              placeholder="0.00"
+              value={amount || ''}
+              onChange={(e) => setAmount(Number(e.target.value))}
+            />
+            {transactionCurrency === 'USD' && amount > 0 && (
+              <span style={{ fontSize: '11px', color: 'var(--color-primary)', marginTop: '4px', fontWeight: 600 }}>
+                Equivalent: ₹{(amount * exchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })} (@ ₹{exchangeRate}/$)
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Dynamic Credit/Debit Note Adjustments Box (Accumulated) */}

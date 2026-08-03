@@ -313,7 +313,7 @@ export class InvoiceService {
   async create(companyId: number, data: Record<string, any>) {
     const financialYearId = Number(data.financialYearId);
     const invoiceType = data.invoiceType as InvoiceType;
-    const partyId = Number(data.customerId); // frontend always sends customerId
+    const partyId = Number(data.customerId || data.supplierId);
     const brokerId = (data.brokerId !== undefined && data.brokerId !== null && data.brokerId !== '' && data.brokerId !== 'null' && data.brokerId !== 'undefined')
       ? Number(data.brokerId)
       : null;
@@ -323,6 +323,9 @@ export class InvoiceService {
     const invoiceDate = new Date(data.invoiceDate);
     const creditDays = Number(data.creditDays) || 0;
     const dueDate = new Date(invoiceDate.getTime() + creditDays * 24 * 60 * 60 * 1000);
+
+    const transactionCurrency: 'USD' | 'INR' = (data.transactionCurrency === 'USD' || data.transactionCurrency === 'INR') ? data.transactionCurrency : 'INR';
+    const exchangeRate = Number(data.exchangeRate) > 0 ? Number(data.exchangeRate) : 1;
 
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const party = await this.prisma.account.findUnique({ where: { id: partyId } });
@@ -368,6 +371,9 @@ export class InvoiceService {
         const discountPct = Number(it.discountPct) || 0;
         const gstPct = Number(it.gstPct) || 0;
 
+        // Multi-currency conversion for line items
+        const rateAlt = transactionCurrency === 'USD' ? Math.round(rate * exchangeRate * 100) / 100 : Math.round((rate / exchangeRate) * 100) / 100;
+
         const gross = carats * rate;
         const discount = (gross * discountPct) / 100;
         const itemAddAmount = (gross * addPct) / 100;
@@ -395,6 +401,7 @@ export class InvoiceService {
         }
 
         const netVal = taxable + cgst + sgst + igst;
+        const netAmountAltItem = transactionCurrency === 'USD' ? Math.round(netVal * exchangeRate * 100) / 100 : Math.round((netVal / exchangeRate) * 100) / 100;
 
         let stockPacketId: number | null = null;
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
@@ -618,6 +625,7 @@ export class InvoiceService {
           carats,
           pieces,
           rate,
+          rateAlt,
           targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
           lessPct: discountPct + lessPct,
           termsRate: rate,
@@ -627,6 +635,7 @@ export class InvoiceService {
           sgstAmount: sgst,
           igstAmount: igst,
           netAmount: netVal,
+          netAmountAlt: netAmountAltItem,
           stockPacketId,
         });
       }
@@ -638,6 +647,7 @@ export class InvoiceService {
       const rawNet = taxableTotal + taxTotal;
       const roundOff = Math.round(rawNet) - rawNet;
       const netAmount = Math.round(rawNet);
+      const netAmountAlt = transactionCurrency === 'USD' ? Math.round(netAmount * exchangeRate * 100) / 100 : Math.round((netAmount / exchangeRate) * 100) / 100;
 
       // 1. Create Invoice Record — branch by type
       let createdInvoice: any;
@@ -671,7 +681,12 @@ export class InvoiceService {
             totalIgst,
             roundOff,
             netAmount,
+            netAmountAlt,
             outstandingAmount: netAmount,
+            transactionCurrency,
+            exchangeRate,
+            referenceInvoiceId: data.referenceInvoiceId || null,
+            referenceBillNumber: data.referenceBillNumber || null,
             narration: data.narration || '',
             items: {
               create: parsedItems,
@@ -712,7 +727,12 @@ export class InvoiceService {
             totalIgst,
             roundOff,
             netAmount,
+            netAmountAlt,
             outstandingAmount: netAmount,
+            transactionCurrency,
+            exchangeRate,
+            referenceInvoiceId: data.referenceInvoiceId || null,
+            referenceBillNumber: data.referenceBillNumber || null,
             narration: data.narration || '',
             items: {
               create: parsedItems,
@@ -736,6 +756,10 @@ export class InvoiceService {
       else if (isPurchaseBook) partyDebitCredit = DebitCreditType.CREDIT;
       else if (isPurchaseReturn) partyDebitCredit = DebitCreditType.DEBIT;
 
+      // Compute INR normalized amounts for General Ledger entries (GL is always in INR)
+      const glNetAmount = transactionCurrency === 'USD' ? Math.round(netAmount * exchangeRate * 100) / 100 : netAmount;
+      const glTaxableTotal = transactionCurrency === 'USD' ? Math.round(taxableTotal * exchangeRate * 100) / 100 : taxableTotal;
+
       // Party Posting
       await tx.generalLedgerEntry.create({
         data: {
@@ -743,7 +767,10 @@ export class InvoiceService {
           accountId: partyId,
           voucherDate: invoiceDate,
           debitCreditType: partyDebitCredit,
-          amount: netAmount,
+          amount: glNetAmount,
+          originalCurrency: transactionCurrency,
+          originalAmount: netAmount,
+          exchangeRate: exchangeRate,
           sourceVoucherType: invoiceType as any,
           sourceVoucherId: createdInvoice.id,
           sourceBillNumber: billNumber,
@@ -764,7 +791,10 @@ export class InvoiceService {
           accountId: salesOrPurchaseLedgerId,
           voucherDate: invoiceDate,
           debitCreditType: revenueDebitCredit,
-          amount: taxableTotal,
+          amount: glTaxableTotal,
+          originalCurrency: transactionCurrency,
+          originalAmount: taxableTotal,
+          exchangeRate: exchangeRate,
           sourceVoucherType: invoiceType as any,
           sourceVoucherId: createdInvoice.id,
           sourceBillNumber: billNumber,
@@ -872,7 +902,11 @@ export class InvoiceService {
               data: {
                 stockPacketId: packet.id,
                 movementDate: invoiceDate,
-                movementType: hasStockInward ? MovementType.PURCHASE : MovementType.SALES,
+                movementType: invoiceType === 'SALE_RETURN'
+                  ? MovementType.SALES_RETURN
+                  : (invoiceType === 'PURCHASE_RETURN'
+                    ? MovementType.PURCHASE_RETURN
+                    : (hasStockInward ? MovementType.PURCHASE : MovementType.SALES)),
                 previousStatus: packet.currentStatus,
                 newStatus: newStatus,
                 carats: itemCarats,
@@ -908,6 +942,23 @@ export class InvoiceService {
             });
           }
         }
+      }
+
+      // Log exchange rate if non-default rate or transaction in USD
+      if (transactionCurrency === 'USD') {
+        await tx.exchangeRateLog.create({
+          data: {
+            companyId,
+            rateDate: invoiceDate,
+            fromCurrency: 'USD',
+            toCurrency: 'INR',
+            exchangeRate,
+            source: 'TRANSACTION',
+            sourceVoucherType: invoiceType,
+            sourceVoucherId: createdInvoice.id,
+            remarks: `Auto-logged from ${invoiceType} #${billNumber}`,
+          },
+        });
       }
 
       return createdInvoice;
@@ -1000,6 +1051,8 @@ export class InvoiceService {
               ? currentCarats + itemCarats
               : Math.max(0, currentCarats - itemCarats);
 
+            const shouldDeletePacket = !hasStockOutward && restoredCarats <= 0.0001;
+
             await tx.stockPacket.update({
               where: { id: packet.id },
               data: {
@@ -1009,6 +1062,8 @@ export class InvoiceService {
                   : { decrement: item.pieces || 0 },
                 // Restore to AVAILABLE when reversing a sale/purchase-return
                 currentStatus: hasStockOutward ? StockStatus.AVAILABLE : undefined,
+                isDeleted: shouldDeletePacket ? true : undefined,
+                deletedAt: shouldDeletePacket ? new Date() : undefined,
               },
             });
           }

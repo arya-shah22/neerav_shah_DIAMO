@@ -308,6 +308,11 @@ enum LoanStatus {
   CLOSED
 }
 
+enum CurrencyCode {
+  USD
+  INR
+}
+
 // ═══════════════════════════════════════════════════════════════════════════════
 // SECTION 2: CORE INFRASTRUCTURE TABLES (4)
 // ═══════════════════════════════════════════════════════════════════════════════
@@ -390,6 +395,7 @@ model Company {
   notificationRecords    NotificationRecord[]
   Loan                   Loan[]
   stockConversions       StockConversion[]
+  exchangeRateLogs       ExchangeRateLog[]
 
   @@map("companies")
 }
@@ -723,6 +729,11 @@ model SaleInvoice {
   jamaAmount        Decimal @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
   outstandingAmount Decimal @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
 
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  netAmountAlt        Decimal      @default(0.00) @map("net_amount_alt") @db.Decimal(18, 2)
+
   // Reference (for Returns / Debit Notes)
   referenceInvoiceId  Int?    @map("reference_invoice_id") @db.UnsignedInt
   referenceBillNumber String? @map("reference_bill_number") @db.VarChar(50)
@@ -778,6 +789,8 @@ model SaleInvoiceItem {
   cessPct       Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
   cessAmount    Decimal @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
   netAmount      Decimal  @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  rateAlt        Decimal? @map("rate_alt") @db.Decimal(18, 2)
+  netAmountAlt   Decimal? @map("net_amount_alt") @db.Decimal(18, 2)
   targetSaleRate Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
   stockPacketId  Int?     @map("stock_packet_id") @db.UnsignedInt
 
@@ -837,6 +850,11 @@ model PurchaseInvoice {
   jamaAmount        Decimal @default(0.00) @map("jama_amount") @db.Decimal(18, 2)
   outstandingAmount Decimal @default(0.00) @map("outstanding_amount") @db.Decimal(18, 2)
 
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  netAmountAlt        Decimal      @default(0.00) @map("net_amount_alt") @db.Decimal(18, 2)
+
   // Reference (for Returns / Debit Notes)
   referenceInvoiceId  Int?    @map("reference_invoice_id") @db.UnsignedInt
   referenceBillNumber String? @map("reference_bill_number") @db.VarChar(50)
@@ -891,6 +909,8 @@ model PurchaseInvoiceItem {
   cessPct           Decimal @default(0.00) @map("cess_pct") @db.Decimal(5, 2)
   cessAmount        Decimal @default(0.00) @map("cess_amount") @db.Decimal(18, 2)
   netAmount         Decimal @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+  rateAlt           Decimal? @map("rate_alt") @db.Decimal(18, 2)
+  netAmountAlt      Decimal? @map("net_amount_alt") @db.Decimal(18, 2)
   stockPacketId     Int?    @map("stock_packet_id") @db.UnsignedInt
 
   // Relations
@@ -929,6 +949,11 @@ model ChallanVoucher {
   totalAmount    Decimal @default(0.00) @map("total_amount") @db.Decimal(18, 2)
   returnedCarats Decimal @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
   returnedPieces Int     @default(0) @map("returned_pieces") @db.UnsignedInt
+
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  totalAmountAlt      Decimal      @default(0.00) @map("total_amount_alt") @db.Decimal(18, 2)
 
   // Conversion Reference
   convertedInvoiceType String? @map("converted_invoice_type") @db.VarChar(30)
@@ -971,6 +996,8 @@ model ChallanItem {
   pieces           Int     @default(1) @db.UnsignedInt
   rate             Decimal @default(0.00) @map("rate") @db.Decimal(18, 2)
   amount           Decimal @default(0.00) @map("amount") @db.Decimal(18, 2)
+  rateAlt          Decimal? @map("rate_alt") @db.Decimal(18, 2)
+  amountAlt        Decimal? @map("amount_alt") @db.Decimal(18, 2)
   returnedCarats   Decimal @default(0.000) @map("returned_carats") @db.Decimal(12, 3)
   returnedPieces   Int     @default(0) @map("returned_pieces") @db.UnsignedInt
   stockPacketId    Int?    @map("stock_packet_id") @db.UnsignedInt
@@ -1001,6 +1028,10 @@ model JournalVoucher {
   referenceId     String?       @map("reference_id") @db.VarChar(50)
   referenceType   String?       @map("reference_type") @db.VarChar(30)
 
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+
   // Audit
   createdBy Int?      @map("created_by") @db.UnsignedInt
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -1029,6 +1060,7 @@ model JournalVoucherLine {
   accountId        Int             @map("account_id") @db.UnsignedInt
   debitCreditType  DebitCreditType @map("debit_credit_type")
   amount           Decimal         @map("amount") @db.Decimal(18, 2)
+  amountAlt        Decimal?        @map("amount_alt") @db.Decimal(18, 2)
   narration        String?         @db.VarChar(255)
   outstandingBillId Int?             @map("outstanding_bill_id") @db.UnsignedInt
 
@@ -1072,6 +1104,11 @@ model CashBankVoucher {
   // Amount
   amount    Decimal @map("amount") @db.Decimal(18, 2)
   narration String? @db.Text
+
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  amountAlt           Decimal      @default(0.00) @map("amount_alt") @db.Decimal(18, 2)
 
   // Reference
   referenceBillNo String? @map("reference_bill_no") @db.VarChar(50)
@@ -1137,6 +1174,11 @@ model JobVoucher {
   totalAmount Decimal @default(0.00) @map("total_amount") @db.Decimal(18, 2)
   narration   String? @db.Text
 
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  totalAmountAlt      Decimal      @default(0.00) @map("total_amount_alt") @db.Decimal(18, 2)
+
   // Audit
   createdBy Int?      @map("created_by") @db.UnsignedInt
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -1169,6 +1211,8 @@ model JobVoucherItem {
   pieces        Int     @default(1) @db.UnsignedInt
   rate          Decimal @default(0.00) @map("rate") @db.Decimal(18, 2)
   amount        Decimal @default(0.00) @map("amount") @db.Decimal(18, 2)
+  rateAlt       Decimal? @map("rate_alt") @db.Decimal(18, 2)
+  amountAlt     Decimal? @map("amount_alt") @db.Decimal(18, 2)
   stockPacketId Int?    @map("stock_packet_id") @db.UnsignedInt
   remarks       String? @db.VarChar(255)
 
@@ -1220,6 +1264,11 @@ model GeneralLedgerEntry {
 
   narration String? @db.VarChar(255)
 
+  // Currency Tracking (GL always posts in INR; these track the original currency)
+  originalCurrency CurrencyCode? @map("original_currency")
+  originalAmount   Decimal?      @map("original_amount") @db.Decimal(18, 2)
+  exchangeRate     Decimal?      @map("exchange_rate") @db.Decimal(12, 4)
+
   // Audit
   createdBy Int?     @map("created_by") @db.UnsignedInt
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
@@ -1251,6 +1300,11 @@ model OutstandingBill {
   // Polymorphic Source
   sourceVoucherType VoucherType @map("source_voucher_type")
   sourceVoucherId   Int         @map("source_voucher_id") @db.UnsignedInt
+
+  // Currency
+  transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
+  exchangeRate        Decimal      @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  originalAmountAlt   Decimal      @default(0.00) @map("original_amount_alt") @db.Decimal(18, 2)
 
   // Audit
   createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
@@ -1387,10 +1441,13 @@ model StockPacket {
   certificateType   String? @map("certificate_type") @db.VarChar(255)
   certificateNumber String? @map("certificate_number") @db.VarChar(191)
 
-  // Valuation
-  costPerCarat   Decimal  @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
-  totalCost      Decimal  @default(0.00) @map("total_cost") @db.Decimal(18, 2)
-  targetSaleRate Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
+  // Valuation (always in USD from CSV)
+  costPerCarat          Decimal       @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
+  totalCost             Decimal       @default(0.00) @map("total_cost") @db.Decimal(18, 2)
+  targetSaleRate        Decimal?      @map("target_sale_rate") @db.Decimal(18, 2)
+  targetSaleRateCurrency CurrencyCode? @map("target_sale_rate_currency")
+  costPerCaratInr       Decimal?      @map("cost_per_carat_inr") @db.Decimal(18, 2)
+  totalCostInr          Decimal?      @map("total_cost_inr") @db.Decimal(18, 2)
 
   // Denormalized Status (updated by StockMovement events)
   currentStatus    StockStatus    @default(CREATED) @map("current_status")
@@ -1958,6 +2015,11 @@ model Loan {
   amountRepaid         Decimal               @default(0.00) @map("amount_repaid") @db.Decimal(18, 2)
   balanceRemaining     Decimal               @default(0.00) @map("balance_remaining") @db.Decimal(18, 2)
 
+  // Currency
+  transactionCurrency  CurrencyCode          @default(INR) @map("transaction_currency")
+  exchangeRate         Decimal               @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  principalAmountAlt   Decimal               @default(0.00) @map("principal_amount_alt") @db.Decimal(18, 2)
+
   // Audit
   createdBy Int?      @map("created_by") @db.UnsignedInt
   createdAt DateTime  @default(now()) @map("created_at") @db.DateTime(3)
@@ -1984,6 +2046,8 @@ model LoanRepayment {
   loanId            Int      @map("loan_id") @db.UnsignedInt
   paymentDate       DateTime @map("payment_date") @db.Date
   amount            Decimal  @map("amount") @db.Decimal(18, 2)
+  exchangeRate      Decimal  @default(1.0000) @map("exchange_rate") @db.Decimal(12, 4)
+  amountAlt         Decimal  @default(0.00) @map("amount_alt") @db.Decimal(18, 2)
   cashBankAccountId Int      @map("cash_bank_account_id") @db.UnsignedInt
   narration         String?  @db.VarChar(255)
   createdBy         Int?     @map("created_by") @db.UnsignedInt
@@ -2096,3 +2160,34 @@ model StockConversionOutput {
   @@map("stock_conversion_outputs")
 }
 
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECTION: EXCHANGE RATE LOG (Multi-Currency Support)
+// ═══════════════════════════════════════════════════════════════════════════════
+
+/// Historical log of all exchange rates used in the system.
+/// Every transaction that involves currency conversion logs its rate here.
+/// Also serves as the source for "latest rate" pre-fill in forms.
+model ExchangeRateLog {
+  id                Int          @id @default(autoincrement()) @db.UnsignedInt
+  companyId         Int          @map("company_id") @db.UnsignedInt
+  rateDate          DateTime     @map("rate_date") @db.Date
+  fromCurrency      CurrencyCode @default(USD) @map("from_currency")
+  toCurrency        CurrencyCode @default(INR) @map("to_currency")
+  exchangeRate      Decimal      @map("exchange_rate") @db.Decimal(12, 4)
+  source            String       @default("MANUAL") @map("source") @db.VarChar(30) // MANUAL, TRANSACTION, SYSTEM
+
+  // Reference to what triggered this entry
+  sourceVoucherType String?      @map("source_voucher_type") @db.VarChar(30)
+  sourceVoucherId   Int?         @map("source_voucher_id") @db.UnsignedInt
+
+  remarks           String?      @db.VarChar(255)
+  createdBy         Int?         @map("created_by") @db.UnsignedInt
+  createdAt         DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+
+  // Relations
+  company           Company      @relation(fields: [companyId], references: [id])
+
+  @@index([companyId, rateDate], map: "IX_exchange_rate_log_date")
+  @@index([companyId, fromCurrency, toCurrency, rateDate], map: "IX_exchange_rate_log_pair_date")
+  @@map("exchange_rate_logs")
+}

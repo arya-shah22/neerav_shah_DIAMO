@@ -31,6 +31,7 @@ import { SuperAdminController } from '../backend/modules/super-admin/super-admin
 import { DashboardController } from '../backend/modules/dashboard/dashboard.controller';
 import { NotificationController } from '../backend/modules/notification/notification.controller';
 import { UserWorkspaceController } from '../backend/modules/user-workspace/workspace.controller';
+import { ExchangeRateController } from '../backend/modules/exchange-rate/exchange-rate.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import type { IApiResponse } from '../shared/types/common.types';
 
@@ -78,6 +79,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const dashboardController = nestApp.get(DashboardController);
   const notificationController = nestApp.get(NotificationController);
   const userWorkspaceController = nestApp.get(UserWorkspaceController);
+  const exchangeRateController = nestApp.get(ExchangeRateController);
 
   // ─── Dashboard ───────────────────────────────────────────
   ipcHandle(ipcMain, 'dashboard:get-telemetry', (payload) => dashboardController.handleGetTelemetry(payload));
@@ -520,6 +522,14 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   // ─── Phase 13.7: System Preferences ─────────────────────────
   ipcHandle(ipcMain, 'preferences:get-settings', (payload) => preferencesController.handleGetSettings(payload));
   ipcHandle(ipcMain, 'preferences:save-settings', (payload) => preferencesController.handleSaveSettings(payload));
+
+  // ─── Exchange Rate (Multi-Currency Support) ─────────────────
+  ipcHandle(ipcMain, 'exchange-rate:log', (payload) => exchangeRateController.handleLogRate(payload));
+  ipcHandle(ipcMain, 'exchange-rate:latest', (payload) => exchangeRateController.handleGetLatestRate(payload));
+  ipcHandle(ipcMain, 'exchange-rate:for-date', (payload) => exchangeRateController.handleGetRateForDate(payload));
+  ipcHandle(ipcMain, 'exchange-rate:history', (payload) => exchangeRateController.handleGetRateHistory(payload));
+  ipcHandle(ipcMain, 'exchange-rate:update', (payload) => exchangeRateController.handleUpdateRate(payload));
+  ipcHandle(ipcMain, 'exchange-rate:delete', (payload) => exchangeRateController.handleDeleteRate(payload));
 
   // ─── Phase 13.8: Audit & Security Controls ─────────────────
   ipcHandle(ipcMain, 'audit:get-settings', (payload) => auditController.handleGetSettings(payload));

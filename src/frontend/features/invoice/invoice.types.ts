@@ -1,3 +1,5 @@
+import type { CurrencyCode } from '../../../shared/types/exchange-rate.types';
+
 export type InvoiceType = 'SALE_INVOICE' | 'SALE_RETURN' | 'SALE_DEBIT_NOTE' | 'PURCHASE_INVOICE' | 'PURCHASE_RETURN' | 'PURCHASE_DEBIT_NOTE';
 export type InvoiceStatus = 'DRAFT' | 'SAVED' | 'APPROVED' | 'CANCELLED' | 'DELETED';
 export type PaymentStatus = 'UNPAID' | 'PARTIALLY_PAID' | 'PAID';
@@ -9,6 +11,7 @@ export interface IInvoiceItem {
   carats: number;
   pieces?: number;
   rate: number;
+  rateAlt?: number;
   discountPct?: number;
   stockPacketId?: number;
   grossAmount?: number;
@@ -17,6 +20,7 @@ export interface IInvoiceItem {
   sgstAmount?: number;
   igstAmount?: number;
   netAmount?: number;
+  netAmountAlt?: number;
   quality?: {
     id: number;
     qualityName: string;
@@ -54,6 +58,10 @@ export interface IInvoice {
   netAmount: number;
   jamaAmount?: number;
   outstandingAmount?: number;
+  // Currency fields
+  transactionCurrency: CurrencyCode;
+  exchangeRate: number;
+  netAmountAlt: number;
   referenceInvoiceId?: number | null;
   referenceBillNumber?: string | null;
   narration?: string;

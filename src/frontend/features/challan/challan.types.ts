@@ -58,6 +58,9 @@ export interface IChallan {
   totalAmount: number;
   returnedCarats: number;
   returnedPieces: number;
+  transactionCurrency?: 'INR' | 'USD';
+  exchangeRate?: number;
+  totalAmountAlt?: number;
   narration?: string | null;
   party?: {
     id: number;

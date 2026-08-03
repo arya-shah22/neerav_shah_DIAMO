@@ -38,6 +38,10 @@ interface StockPacketObj {
   caratWeight: number;
   pieceCount: number;
   costPerCarat: number;
+  targetSaleRate?: number | null;
+  targetSaleRateCurrency?: string | null;
+  costPerCaratInr?: number | null;
+  originalCurrency?: 'USD' | 'INR';
   qualityId: number;
   currentStatus: string;
   quality?: {
@@ -75,6 +79,9 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
   const [narration, setNarration] = useState('');
   const [challanNumber, setChallanNumber] = useState('');
   const [isManualBillNumber, setIsManualBillNumber] = useState(false);
+
+  const [transactionCurrency, setTransactionCurrency] = useState<'INR' | 'USD'>('INR');
+  const [exchangeRate, setExchangeRate] = useState<number>(90);
 
   // Items grid
   const [items, setItems] = useState<Partial<IChallanItem>[]>([
@@ -183,6 +190,8 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
         setExpectedReturnDate(c.expectedReturnDate ? new Date(c.expectedReturnDate).toISOString().split('T')[0] : '');
         setNarration(c.narration || '');
         setChallanStatus(c.status);
+        if (c.transactionCurrency) setTransactionCurrency(c.transactionCurrency);
+        if (c.exchangeRate) setExchangeRate(Number(c.exchangeRate));
 
         // If editing, append this challan's stock packets to available packets list so they don't disappear from the selector
         const usedPackets = c.items
@@ -249,6 +258,30 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
     setItems(updated);
   };
 
+  // Handle currency toggle with automatic rate conversion
+  const handleCurrencyChange = (newCurr: 'INR' | 'USD') => {
+    if (newCurr === transactionCurrency) return;
+    const rate = exchangeRate || 90;
+    const updated = items.map((row) => {
+      if (!row.rate) return row;
+      const newRate = newCurr === 'INR'
+        ? Math.round(Number(row.rate) * rate * 100) / 100
+        : Math.round((Number(row.rate) / rate) * 100) / 100;
+      const carats = Number(row.carats) || 0;
+      return {
+        ...row,
+        rate: newRate,
+        amount: Math.round(carats * newRate * 100) / 100,
+      };
+    });
+    setTransactionCurrency(newCurr);
+    setItems(updated);
+  };
+
+  const handleExchangeRateChange = (newRate: number) => {
+    setExchangeRate(newRate);
+  };
+
   // Handle row changes
   const handleRowChange = (index: number, field: keyof IChallanItem, value: any) => {
     const updated = [...items];
@@ -263,8 +296,20 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
           row.qualityId = pkt.qualityId;
           row.carats = pkt.caratWeight;
           row.pieces = pkt.pieceCount;
-          row.rate = pkt.costPerCarat;
-          row.amount = pkt.caratWeight * pkt.costPerCarat;
+          const pktCurr = pkt.originalCurrency || (pkt.targetSaleRateCurrency as any) || (pkt.costPerCarat < 1000 ? 'USD' : 'INR');
+          const origRate = pkt.targetSaleRate || pkt.costPerCarat || 0;
+          const rateVal = exchangeRate || 90;
+
+          // Convert rate if packet original currency differs from form transaction currency
+          let calculatedRate = origRate;
+          if (pktCurr === 'USD' && transactionCurrency === 'INR') {
+            calculatedRate = Math.round(origRate * rateVal * 100) / 100;
+          } else if (pktCurr === 'INR' && transactionCurrency === 'USD') {
+            calculatedRate = Math.round((origRate / rateVal) * 100) / 100;
+          }
+
+          row.rate = calculatedRate;
+          row.amount = Math.round(pkt.caratWeight * calculatedRate * 100) / 100;
         }
       }
     } else {
@@ -272,7 +317,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
       if (field === 'carats' || field === 'rate') {
         const carats = field === 'carats' ? Number(value) : (row.carats || 0);
         const rate = field === 'rate' ? Number(value) : (row.rate || 0);
-        row.amount = carats * rate;
+        row.amount = Math.round(carats * rate * 100) / 100;
       }
     }
 
@@ -316,6 +361,8 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
       challanDate,
       expectedReturnDate: expectedReturnDate || null,
       narration,
+      transactionCurrency,
+      exchangeRate,
       isManualBillNumber,
       challanNumber: isManualBillNumber ? challanNumber : previewVoucherNo,
       billNumber: isManualBillNumber ? challanNumber : previewVoucherNo,
@@ -429,11 +476,15 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
   if (showPrintPreview && activeCompany) {
     const selectedParty = parties.find(p => p.id === Number(partyId));
 
+    const totalAmt = items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
     const challanPrintData = {
       voucherNumber: challanNumber || previewVoucherNo,
       voucherDate: challanDate,
       expectedReturnDate,
       invoiceType: CHALLAN_PURPOSE_LABELS[purpose].toUpperCase(),
+      transactionCurrency,
+      exchangeRate,
+      totalAmountAlt: totalAmt * (exchangeRate || 90),
       party: selectedParty ? {
         accountName: selectedParty.accountName,
         city: selectedParty.city || city,
@@ -453,7 +504,7 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
           remarks: item.remarks || '',
         };
       }),
-      netAmount: items.reduce((sum, item) => sum + (Number(item.amount) || 0), 0),
+      netAmount: totalAmt,
     };
 
     return (
@@ -577,6 +628,25 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
           disabled={viewMode}
         />
 
+        <Select
+          label="Currency *"
+          value={transactionCurrency}
+          onChange={(val) => handleCurrencyChange(val as 'INR' | 'USD')}
+          options={[
+            { value: 'INR', label: 'INR (₹)' },
+            { value: 'USD', label: 'USD ($)' },
+          ]}
+          disabled={viewMode}
+        />
+
+        <Input
+          label="Exchange Rate ($1 = ₹) *"
+          type="number"
+          value={exchangeRate}
+          onChange={(e) => handleExchangeRateChange(Number(e.target.value))}
+          disabled={viewMode}
+        />
+
       </div>
 
       {/* Bill Number Config Row */}
@@ -620,17 +690,18 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
               <th style={{ padding: '8px 4px' }}>Description of Goods (Quality) *</th>
               <th style={{ padding: '8px 4px', width: '100px' }}>CARATS *</th>
               <th style={{ padding: '8px 4px', width: '80px' }}>Pieces</th>
-              <th style={{ padding: '8px 4px', width: '120px' }}>Price / CARAT</th>
-              <th style={{ padding: '8px 4px', width: '140px' }}>Total</th>
+              <th style={{ padding: '8px 4px', width: '140px' }}>Price / CARAT ({transactionCurrency === 'USD' ? '$' : '₹'})</th>
+              <th style={{ padding: '8px 4px', width: '160px' }}>Total ({transactionCurrency === 'USD' ? '$' : '₹'})</th>
               <th style={{ padding: '8px 4px' }}>Remarks</th>
               {!viewMode && <th style={{ padding: '8px 4px', width: '60px' }}>Action</th>}
             </tr>
           </thead>
           <tbody>
             {items.map((row, idx) => {
-              const availableForThisRow = row.stockPacketId
+              const rawList = row.stockPacketId
                 ? [...availablePackets, availablePackets.find(p => p.id === row.stockPacketId)].filter(Boolean) as StockPacketObj[]
                 : availablePackets;
+              const availableForThisRow = Array.from(new Map(rawList.map(p => [p.id, p])).values());
 
               return (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
@@ -641,9 +712,12 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
                         onChange={(val: string) => handleRowChange(idx, 'stockPacketId', val)}
                         options={availableForThisRow.map(p => {
                           const qName = p.quality?.qualityName || qualities.find(q => q.id === p.qualityId)?.qualityName || '';
+                          const curr = p.originalCurrency || (p.targetSaleRateCurrency as any) || (p.costPerCarat < 1000 ? 'USD' : 'INR');
+                          const rateVal = p.targetSaleRate || p.costPerCarat || 0;
+                          const rateTag = curr === 'USD' ? `$${rateVal}/ct` : `₹${rateVal}/ct`;
                           return {
                             value: String(p.id),
-                            label: qName ? `${p.stockIdNumber} (${qName})` : p.stockIdNumber,
+                            label: `${p.stockIdNumber} ${qName ? `(${qName})` : ''} — ${rateTag} [${curr}]`,
                           };
                         })}
                         placeholder="Select Packet"
@@ -691,7 +765,10 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
                   </td>
 
                   <td style={{ padding: '8px 4px', fontWeight: 600, color: 'var(--color-primary)' }}>
-                    ₹ {Number(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                    {transactionCurrency === 'USD'
+                      ? `$ ${Number(row.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                      : `₹ ${Number(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    }
                   </td>
 
                   <td style={{ padding: '8px 4px' }}>
@@ -723,7 +800,16 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
               <td style={{ padding: '12px 8px' }}>{totalPieces}</td>
               <td style={{ padding: '12px 8px' }}></td>
               <td style={{ padding: '12px 8px', color: 'var(--color-success)' }}>
-                ₹ {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                {transactionCurrency === 'USD' ? (
+                  <div>
+                    <span>$ {totalAmount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                      ₹ {(totalAmount * exchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} (@ ₹{exchangeRate})
+                    </div>
+                  </div>
+                ) : (
+                  <span>₹ {totalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                )}
               </td>
               <td style={{ padding: '12px 8px' }}></td>
               {!viewMode && <td></td>}

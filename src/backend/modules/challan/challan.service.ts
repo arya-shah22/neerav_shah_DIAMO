@@ -306,6 +306,9 @@ export class ChallanService {
           totalCarats,
           totalPieces,
           totalAmount,
+          transactionCurrency: (data.transactionCurrency === 'USD' || data.transactionCurrency === 'INR') ? data.transactionCurrency : 'INR',
+          exchangeRate: Number(data.exchangeRate) > 0 ? Number(data.exchangeRate) : 1,
+          totalAmountAlt: data.transactionCurrency === 'USD' ? Math.round(totalAmount * (Number(data.exchangeRate) || 90) * 100) / 100 : Math.round((totalAmount / (Number(data.exchangeRate) || 1)) * 100) / 100,
           narration: data.narration || null,
           status: 'ISSUED',
           createdBy: userId ?? null,
@@ -444,6 +447,11 @@ export class ChallanService {
           totalCarats,
           totalPieces,
           totalAmount,
+          transactionCurrency: (data.transactionCurrency === 'USD' || data.transactionCurrency === 'INR') ? data.transactionCurrency : challan.transactionCurrency,
+          exchangeRate: Number(data.exchangeRate) > 0 ? Number(data.exchangeRate) : Number(challan.exchangeRate),
+          totalAmountAlt: (data.transactionCurrency || challan.transactionCurrency) === 'USD'
+            ? Math.round(totalAmount * (Number(data.exchangeRate) || Number(challan.exchangeRate) || 90) * 100) / 100
+            : Math.round((totalAmount / (Number(data.exchangeRate) || Number(challan.exchangeRate) || 1)) * 100) / 100,
           narration: data.narration || null,
           updatedBy: userId ?? null,
           items: {

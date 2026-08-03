@@ -96,9 +96,20 @@ export const AnalyticsDashboardPage: React.FC = () => {
           size="sm"
           onClick={fetchAnalytics}
           disabled={loading}
-          style={{ background: 'rgba(255, 255, 255, 0.1)', color: '#fff', border: '1px solid rgba(255, 255, 255, 0.2)' }}
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '8px',
+            padding: '8px 16px',
+            background: 'rgba(255, 255, 255, 0.12)',
+            color: '#ffffff',
+            border: '1px solid rgba(255, 255, 255, 0.25)',
+            borderRadius: '8px',
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+          }}
         >
-          <RefreshCw size={14} className={loading ? 'spin' : ''} style={{ marginRight: '6px' }} />
+          <RefreshCw size={14} className={loading ? 'spin' : ''} />
           Refresh Analytics
         </Button>
       </div>

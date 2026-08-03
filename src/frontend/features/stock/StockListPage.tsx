@@ -59,6 +59,10 @@ export const StockListPage: React.FC = () => {
   const [qualityFilter, setQualityFilter] = useState<string>('');
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
 
+  // Temporary ephemeral INR preview state
+  const [showInrPreview, setShowInrPreview] = useState<boolean>(false);
+  const [inrRate, setInrRate] = useState<number>(83.25);
+
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
   const [showMonthFilter, setShowMonthFilter] = useState(false);
@@ -540,20 +544,40 @@ export const StockListPage: React.FC = () => {
     },
     {
       key: 'costPerCarat',
-      header: 'COST (₹/CT)',
-      render: (row) => `₹${Number(row.costPerCarat).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      header: 'COST ($/CT)',
+      render: (row) => `$${Number(row.costPerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
     },
+    ...(showInrPreview ? [{
+      key: 'costPerCaratInr',
+      header: `COST (₹/CT @ ${inrRate})`,
+      render: (row: IStockPacket) => (
+        <span style={{ color: '#b45309', fontWeight: 600, background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+          ₹{(Number(row.costPerCarat) * inrRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      ),
+    }] : []),
     {
       key: 'targetSaleRate',
-      header: 'TARGET RATE (₹/CT)',
+      header: 'TARGET RATE ($/CT)',
       render: (row) => row.targetSaleRate != null ? (
         <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-          ₹{Number(row.targetSaleRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          ${Number(row.targetSaleRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </span>
       ) : (
         <span style={{ opacity: 0.5 }}>—</span>
       ),
     },
+    ...(showInrPreview ? [{
+      key: 'targetSaleRateInr',
+      header: `TARGET (₹/CT @ ${inrRate})`,
+      render: (row: IStockPacket) => row.targetSaleRate != null ? (
+        <span style={{ color: '#047857', fontWeight: 600, background: '#d1fae5', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
+          ₹{(Number(row.targetSaleRate) * inrRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+        </span>
+      ) : (
+        <span style={{ opacity: 0.5 }}>—</span>
+      ),
+    }] : []),
     {
       key: 'currentStatus',
       header: 'STATUS',
@@ -811,7 +835,27 @@ export const StockListPage: React.FC = () => {
             Stock packets for {activeCompany?.companyName}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: showInrPreview ? '#fef3c7' : 'var(--color-surface)', border: `1px solid ${showInrPreview ? '#f59e0b' : 'var(--color-border)'}`, padding: '4px 8px', borderRadius: 'var(--radius-md)' }}>
+            <label style={{ fontSize: '12px', fontWeight: 600, color: showInrPreview ? '#92400e' : 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={showInrPreview}
+                onChange={(e) => setShowInrPreview(e.target.checked)}
+              />
+              Preview ₹ Rate
+            </label>
+            {showInrPreview && (
+              <input
+                type="number"
+                step="0.1"
+                value={inrRate}
+                onChange={(e) => setInrRate(Number(e.target.value) || 1)}
+                style={{ width: '70px', padding: '2px 4px', fontSize: '12px', border: '1px solid #f59e0b', borderRadius: '4px' }}
+                title="Temporary conversion rate for view only"
+              />
+            )}
+          </div>
           <Button variant="secondary" onClick={openExportModal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             Download Stock
           </Button>

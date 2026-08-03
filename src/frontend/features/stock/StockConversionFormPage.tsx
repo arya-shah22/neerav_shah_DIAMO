@@ -166,8 +166,16 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
   const [isFullConsumption, setIsFullConsumption] = useState(true);
   const [consumedCarats, setConsumedCarats] = useState(0);
   const [processingCost, setProcessingCost] = useState(0);
+  const [processingCurrency, setProcessingCurrency] = useState<'USD' | 'INR'>('INR');
+  const [processingExchangeRate, setProcessingExchangeRate] = useState<number>(83.25);
+  const [outputRateCurrency, setOutputRateCurrency] = useState<'USD' | 'INR'>('USD');
+  const [outputExchangeRate, setOutputExchangeRate] = useState<number>(83.25);
   const [narration, setNarration] = useState('');
   const [outputRows, setOutputRows] = useState<OutputRow[]>([emptyRow()]);
+
+  // View Mode Currency Preview Toggle
+  const [viewCurrency, setViewCurrency] = useState<'USD' | 'INR'>('INR');
+  const [viewExchangeRate, setViewExchangeRate] = useState<number>(83.25);
 
   // View Mode
   const [conversionDetails, setConversionDetails] = useState<IStockConversion | null>(null);
@@ -403,12 +411,39 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
               <p style={{ color: 'var(--color-text-secondary)' }}>{new Date(d.conversionDate).toLocaleDateString('en-IN')}</p>
             </div>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => navigate(`/inventory/stock-conversion/edit/${d.id}`)}
-          >
-            Edit Conversion
-          </Button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Temporary View Currency Toggle */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-surface)', padding: '6px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>View Currency:</span>
+              <select
+                value={viewCurrency}
+                onChange={(e) => setViewCurrency((e.target.value as 'USD' | 'INR') || 'INR')}
+                style={{ padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 700, background: 'var(--color-surface)' }}
+              >
+                <option value="INR">INR (₹)</option>
+                <option value="USD">USD ($)</option>
+              </select>
+              {viewCurrency === 'USD' ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Rate ($1=₹):</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={viewExchangeRate}
+                    onChange={(e) => setViewExchangeRate(Number(e.target.value) || 1)}
+                    style={{ width: '75px', padding: '3px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 600 }}
+                  />
+                </div>
+              ) : null}
+            </div>
+
+            <Button
+              variant="secondary"
+              onClick={() => navigate(`/inventory/stock-conversion/edit/${d.id}`)}
+            >
+              Edit Conversion
+            </Button>
+          </div>
         </div>
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 'var(--spacing-lg)' }}>
@@ -419,7 +454,12 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
               <div><strong>Packet:</strong> {d.sourcePacket?.stockIdNumber || '—'}</div>
               <div><strong>Quality:</strong> {d.sourceQuality?.qualityName || '—'}</div>
               <div><strong>Source Carats:</strong> {Number(d.sourceCarats).toFixed(3)} ct</div>
-              <div><strong>Rough Purchase Cost:</strong> ₹{Number(d.sourceCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div>
+                <strong>Rough Purchase Cost:</strong>{' '}
+                {viewCurrency === 'USD'
+                  ? `$${(Number(d.sourceCost) / viewExchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                  : `₹${Number(d.sourceCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+              </div>
               <div><strong>Consumption:</strong> {d.isFullConsumption ? 'Full' : `Partial (${Number(d.consumedCarats).toFixed(3)} ct used, ${Number(d.remainingCarats).toFixed(3)} ct remaining)`}</div>
             </div>
           </div>
@@ -430,34 +470,43 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div><strong>Total Output:</strong> {Number(d.totalOutputCarats).toFixed(3)} ct</div>
               <div><strong>Weight Loss:</strong> {Number(d.weightLoss).toFixed(3)} ct ({Number(d.lossPercentage).toFixed(2)}%)</div>
-              <div><strong>Job Work / Processing Cost:</strong> ₹{Number(d.processingCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+              <div>
+                <strong>Job Work / Processing Cost:</strong>{' '}
+                {viewCurrency === 'USD'
+                  ? `$${(Number(d.processingCost) / viewExchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+                  : `₹${Number(d.processingCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+              </div>
               {d.narration && <div><strong>Narration:</strong> {d.narration}</div>}
             </div>
           </div>
 
           {/* Lot Yield & Conversion Profit Analysis */}
           {(() => {
-            const totalInputCost = Number(d.sourceCost) + Number(d.processingCost);
-            const totalOutputValue = d.outputItems.reduce((sum, item) => {
+            const totalInputCostInr = Number(d.sourceCost) + Number(d.processingCost);
+            const totalOutputValueInr = d.outputItems.reduce((sum, item) => {
               const itemVal = item.targetSaleRate != null && Number(item.targetSaleRate) > 0
                 ? Number(item.carats) * Number(item.targetSaleRate)
                 : Number(item.totalCost);
               return sum + itemVal;
             }, 0);
-            const netProfit = totalOutputValue - totalInputCost;
-            const profitMarginPct = totalOutputValue > 0 ? (netProfit / totalOutputValue) * 100 : 0;
-            const isProfit = netProfit >= 0;
+            const netProfitInr = totalOutputValueInr - totalInputCostInr;
+            const profitMarginPct = totalOutputValueInr > 0 ? (netProfitInr / totalOutputValueInr) * 100 : 0;
+            const isProfit = netProfitInr >= 0;
+
+            const totalInputDisp = viewCurrency === 'USD' ? `$${(totalInputCostInr / viewExchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${totalInputCostInr.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            const totalOutputDisp = viewCurrency === 'USD' ? `$${(totalOutputValueInr / viewExchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${totalOutputValueInr.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+            const netProfitDisp = viewCurrency === 'USD' ? `$${(Math.abs(netProfitInr) / viewExchangeRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${Math.abs(netProfitInr).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
 
             return (
               <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-lg)', padding: '24px' }}>
                 <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>💎 Lot Yield & Profit Analysis</h2>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <div><strong>Total Input Investment:</strong> ₹{totalInputCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })} <span style={{ fontSize: '11px', opacity: 0.7 }}>(Rough + Job Work)</span></div>
-                  <div><strong>Total Output Valuation:</strong> ₹{totalOutputValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                  <div><strong>Total Input Investment:</strong> {totalInputDisp} <span style={{ fontSize: '11px', opacity: 0.7 }}>(Rough + Job Work)</span></div>
+                  <div><strong>Total Output Valuation:</strong> {totalOutputDisp}</div>
                   <div>
                     <strong>Net Conversion Profit:</strong>{' '}
                     <span style={{ color: isProfit ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
-                      {isProfit ? '+' : ''}₹{netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })} ({profitMarginPct.toFixed(2)}%)
+                      {isProfit ? '+' : '-'}{netProfitDisp} ({profitMarginPct.toFixed(2)}%)
                     </span>
                   </div>
                 </div>
@@ -472,15 +521,24 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid var(--color-border)' }}>
-                {['#', 'Packet ID', 'Quality', 'Carats', 'Pcs', 'Shape', 'Color', 'Clarity', 'Allocated Cost/Ct', 'Allocated Cost', 'Predicted Asking Rate', 'Target Valuation'].map((h) => (
+                {['#', 'Packet ID', 'Quality', 'Carats', 'Pcs', 'Shape', 'Color', 'Clarity', `Allocated Cost/${viewCurrency === 'USD' ? '$' : 'Ct'}`, `Allocated Cost (${viewCurrency === 'USD' ? '$' : '₹'})`, `Predicted Asking Rate (${viewCurrency === 'USD' ? '$/Ct' : '₹/Ct'})`, `Target Valuation (${viewCurrency === 'USD' ? '$' : '₹'})`].map((h) => (
                   <th key={h} style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {d.outputItems.map((item) => {
-                const targetRate = item.targetSaleRate != null && Number(item.targetSaleRate) > 0 ? Number(item.targetSaleRate) : Number(item.costPerCarat);
-                const targetVal = Number(item.carats) * targetRate;
+                const targetRateInr = item.targetSaleRate != null && Number(item.targetSaleRate) > 0 ? Number(item.targetSaleRate) : Number(item.costPerCarat);
+                const targetValInr = Number(item.carats) * targetRateInr;
+
+                const costPerCtDisp = viewCurrency === 'USD' ? Number(item.costPerCarat) / viewExchangeRate : Number(item.costPerCarat);
+                const totalCostDisp = viewCurrency === 'USD' ? Number(item.totalCost) / viewExchangeRate : Number(item.totalCost);
+                const targetRateDisp = viewCurrency === 'USD' ? targetRateInr / viewExchangeRate : targetRateInr;
+                const targetValDisp = viewCurrency === 'USD' ? targetValInr / viewExchangeRate : targetValInr;
+
+                const sym = viewCurrency === 'USD' ? '$' : '₹';
+                const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
+
                 return (
                   <tr key={item.id} style={{ borderBottom: '1px solid var(--color-border)' }}>
                     <td style={{ padding: '8px' }}>{item.rowNumber}</td>
@@ -495,10 +553,10 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                     <td style={{ padding: '8px' }}>{item.shape || '—'}</td>
                     <td style={{ padding: '8px' }}>{item.color || '—'}</td>
                     <td style={{ padding: '8px' }}>{item.clarity || '—'}</td>
-                    <td style={{ padding: '8px', color: 'var(--color-text-secondary)' }}>₹{Number(item.costPerCarat).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ padding: '8px', color: 'var(--color-text-secondary)' }}>₹{Number(item.totalCost).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ padding: '8px', fontWeight: 600, color: '#0284c7' }}>₹{targetRate.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                    <td style={{ padding: '8px', fontWeight: 700, color: 'var(--color-primary)' }}>₹{targetVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', color: 'var(--color-text-secondary)' }}>{sym}{costPerCtDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', color: 'var(--color-text-secondary)' }}>{sym}{totalCostDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', fontWeight: 600, color: '#0284c7' }}>{sym}{targetRateDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', fontWeight: 700, color: 'var(--color-primary)' }}>{sym}{targetValDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}</td>
                   </tr>
                 );
               })}
@@ -603,14 +661,33 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
         {/* ── OPTIONAL JOB WORK REF ──────────────────────── */}
         <div style={cardStyle}>
           <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px', color: 'var(--color-primary)' }}>Processing Details (Optional)</h2>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 1fr 1.5fr 2fr', gap: '16px', alignItems: 'flex-start' }}>
+            <Select
+              label="Processing Currency *"
+              value={processingCurrency}
+              onChange={(v) => setProcessingCurrency((v as 'USD' | 'INR') || 'INR')}
+              options={[
+                { value: 'INR', label: 'INR (₹)' },
+                { value: 'USD', label: 'USD ($)' },
+              ]}
+            />
             <Input
-              label="Processing / Labour Cost"
+              label={`Processing Cost (${processingCurrency === 'USD' ? '$' : '₹'})`}
               type="number"
               step="0.01"
               value={processingCost}
               onChange={(e) => setProcessingCost(Number(e.target.value))}
             />
+            {processingCurrency === 'USD' ? (
+              <Input
+                label="Exchange Rate ($1 = ₹) *"
+                type="number"
+                step="0.01"
+                value={processingExchangeRate}
+                onChange={(e) => setProcessingExchangeRate(Number(e.target.value) || 1)}
+                hint={`Cost in ₹: ₹${(processingCost * processingExchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+              />
+            ) : null}
             <Input
               label="Narration / Remarks"
               value={narration}
@@ -622,8 +699,33 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
 
         {/* ── OUTPUT ROWS ────────────────────────────────── */}
         <div style={cardStyle}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)' }}>Output Diamonds</h2>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '16px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+              <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, color: 'var(--color-primary)', margin: 0 }}>Output Diamonds</h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'var(--color-row-alt)', padding: '4px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)' }}>
+                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Target Rate Currency:</span>
+                <select
+                  value={outputRateCurrency}
+                  onChange={(e) => setOutputRateCurrency((e.target.value as 'USD' | 'INR') || 'USD')}
+                  style={{ padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 600, background: 'var(--color-surface)' }}
+                >
+                  <option value="USD">USD ($)</option>
+                  <option value="INR">INR (₹)</option>
+                </select>
+                {outputRateCurrency === 'USD' ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginLeft: '8px' }}>
+                    <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Rate ($1=₹):</span>
+                    <input
+                      type="number"
+                      step="0.01"
+                      value={outputExchangeRate}
+                      onChange={(e) => setOutputExchangeRate(Number(e.target.value) || 1)}
+                      style={{ width: '80px', padding: '4px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 600, background: 'var(--color-surface)' }}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            </div>
             <Button type="button" variant="secondary" onClick={handleAddRow} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
               <Plus size={16} /> Add Row
             </Button>
@@ -637,8 +739,10 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                   <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', minWidth: '220px' }}>Quality *</th>
                   <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '110px' }}>Carats *</th>
                   <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '90px' }}>Pieces</th>
-                  <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-accent)', textTransform: 'uppercase', minWidth: '180px' }}>Predicted Target Rate (₹/Ct) *</th>
-                  <th style={{ padding: '8px', textAlign: 'right', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '130px' }}>Target Valuation</th>
+                  <th style={{ padding: '8px', textAlign: 'left', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-accent)', textTransform: 'uppercase', minWidth: '180px' }}>
+                    Predicted Target Rate ({outputRateCurrency === 'USD' ? '$/Ct' : '₹/Ct'}) *
+                  </th>
+                  <th style={{ padding: '8px', textAlign: 'right', fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', width: '150px' }}>Target Valuation</th>
                   <th style={{ padding: '8px', width: '45px' }}></th>
                 </tr>
               </thead>
@@ -677,8 +781,13 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                       <td style={{ padding: '6px', width: '120px' }}>
                         <Input type="number" step="0.01" value={row.costPerCarat || ''} onChange={(e) => handleRowChange(idx, 'costPerCarat', Number(e.target.value))} placeholder="0" />
                       </td>
-                      <td style={{ padding: '6px', width: '130px', textAlign: 'right', fontWeight: 600, fontSize: '15px', color: 'var(--color-text-primary)' }}>
-                        ₹{Number(row.totalCost || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      <td style={{ padding: '6px', width: '150px', textAlign: 'right', fontWeight: 600, fontSize: '15px', color: 'var(--color-text-primary)' }}>
+                        {outputRateCurrency === 'USD' ? '$' : '₹'}{Number(row.totalCost || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        {outputRateCurrency === 'USD' && outputExchangeRate > 0 ? (
+                          <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                            (₹{(Number(row.totalCost || 0) * outputExchangeRate).toLocaleString('en-IN', { minimumFractionDigits: 2 })})
+                          </div>
+                        ) : null}
                       </td>
                       <td style={{ padding: '6px', width: '45px' }}>
                         <Button type="button" variant="ghost" onClick={() => handleRemoveRow(idx)} disabled={outputRows.length === 1}>

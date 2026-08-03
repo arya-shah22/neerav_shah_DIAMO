@@ -16,6 +16,7 @@ import { generateStockIdNumber, previewNextStockIdNumber } from '../../utils/sto
 import { DEFAULT_DIAMOND_SHAPES, mergeDiamondShapes } from '../../../shared/constants/diamond-shapes';
 
 import { syncStockMeasurements } from '../../../shared/utils/diamond-measurement';
+import { resolveHeaderAlias } from '../../../shared/constants/csv-header-map';
 
 type Tx = Parameters<Parameters<PrismaService['$transaction']>[0]>[0];
 
@@ -49,7 +50,7 @@ export class StockService {
   private readonly prisma!: PrismaService;
 
   async list(companyId: number, filters?: StockListFilters) {
-    return this.prisma.stockPacket.findMany({
+    const packets = await this.prisma.stockPacket.findMany({
       where: {
         companyId,
         isDeleted: false,
@@ -72,6 +73,32 @@ export class StockService {
       orderBy: [{ registrationDate: 'desc' }, { id: 'desc' }],
       include: STOCK_INCLUDE,
     });
+
+    const packetIds = packets.map((p) => p.id);
+    if (packetIds.length === 0) return packets;
+
+    const purchaseItems = await this.prisma.purchaseInvoiceItem.findMany({
+      where: { stockPacketId: { in: packetIds } },
+      select: {
+        stockPacketId: true,
+        purchaseInvoice: {
+          select: { transactionCurrency: true },
+        },
+      },
+    });
+
+    const originCurrencyMap = new Map<number, 'USD' | 'INR'>();
+    for (const item of purchaseItems) {
+      if (item.stockPacketId && item.purchaseInvoice?.transactionCurrency) {
+        originCurrencyMap.set(item.stockPacketId, item.purchaseInvoice.transactionCurrency as 'USD' | 'INR');
+      }
+    }
+
+    return packets.map((pkt) => ({
+      ...pkt,
+      originalCurrency: originCurrencyMap.get(pkt.id) || (pkt.targetSaleRateCurrency as any) || 'USD',
+      transactionCurrency: originCurrencyMap.get(pkt.id) || (pkt.targetSaleRateCurrency as any) || 'USD',
+    }));
   }
 
   async search(companyId: number, query: string, limit = 20) {
@@ -125,7 +152,22 @@ export class StockService {
       },
     });
     if (!packet) throw new BadRequestException('Stock packet not found');
-    return mapPacketWithMediaLinks(packet);
+
+    const purchaseItem = await this.prisma.purchaseInvoiceItem.findFirst({
+      where: { stockPacketId: id },
+      select: {
+        purchaseInvoice: { select: { transactionCurrency: true } },
+      },
+    });
+
+    const origCurr = purchaseItem?.purchaseInvoice?.transactionCurrency || (packet.targetSaleRateCurrency as any) || 'USD';
+
+    const mapped = mapPacketWithMediaLinks(packet);
+    return {
+      ...mapped,
+      originalCurrency: origCurr,
+      transactionCurrency: origCurr,
+    };
   }
 
   async previewStockId(companyId: number, financialYearId?: number) {
@@ -972,8 +1014,16 @@ export class StockService {
     const skipped: Array<{ row: number; stockId: string; reason: string }> = [];
 
     for (let index = 0; index < rows.length; index++) {
-      const row = rows[index];
-      const stockIdNumber = row.stockIdNumber?.trim();
+      const rawRow = rows[index];
+      // Normalize row keys using universal header alias map
+      const row: Record<string, any> = {};
+      for (const [key, val] of Object.entries(rawRow || {})) {
+        const alias = resolveHeaderAlias(key);
+        row[alias || key] = val;
+      }
+
+      const rawStockId = row.stockIdNumber || rawRow?.['Stock ID'] || rawRow?.['stockIdNumber'] || rawRow?.['Stock #'];
+      const stockIdNumber = rawStockId ? String(rawStockId).trim() : '';
       const rowNum = index + 2;
 
       if (!stockIdNumber) {

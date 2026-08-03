@@ -49,11 +49,13 @@ export interface IDashboardKpiSummary {
     receipts: number;
     payments: number;
     netBalance: number;
+    usdBalance?: number;
   };
   todayBank: {
     receipts: number;
     payments: number;
     netBalance: number;
+    usdBalance?: number;
   };
   businessSummary: {
     customerCount: number;

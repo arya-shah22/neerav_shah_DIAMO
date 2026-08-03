@@ -40,7 +40,9 @@ export const JVBookPage: React.FC = () => {
 
   // Cash and Bank balance states
   const [cashBalance, setCashBalance] = useState<number>(0);
+  const [cashUsdBalance, setCashUsdBalance] = useState<number>(0);
   const [bankBalance, setBankBalance] = useState<number>(0);
+  const [bankUsdBalance, setBankUsdBalance] = useState<number>(0);
 
   // Form states
   const [billNumber, setBillNumber] = useState('');
@@ -77,35 +79,43 @@ export const JVBookPage: React.FC = () => {
       const list = accs.data || [];
       setAccountsList(list);
 
-      // Fetch cash balance
+      // Fetch cash balances (INR & USD)
       const cashAccs = list.filter(a => {
         const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
         const name = a.accountName.toLowerCase();
         return groupName.includes('cash') || name.includes('cash');
       });
-      let cashSum = 0;
+      let cashInrSum = 0;
+      let cashUsdSum = 0;
       for (const cAcc of cashAccs) {
         const res = await getBalance({ companyId, cashBankAccountId: cAcc.id });
         if (res.success) {
-          cashSum += Number(res.data) || 0;
+          const isUsd = cAcc.accountName.toLowerCase().includes('usd');
+          if (isUsd) cashUsdSum += Number(res.data) || 0;
+          else cashInrSum += Number(res.data) || 0;
         }
       }
-      setCashBalance(cashSum);
+      setCashBalance(cashInrSum);
+      setCashUsdBalance(cashUsdSum);
 
-      // Fetch bank balance
+      // Fetch bank balances (INR & USD)
       const bankAccs = list.filter(a => {
         const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
         const name = a.accountName.toLowerCase();
         return groupName.includes('bank') || name.includes('bank') || name.includes('hdfc') || name.includes('icici') || name.includes('sbi') || name.includes('axis') || name.includes('kotak');
       });
-      let bankSum = 0;
+      let bankInrSum = 0;
+      let bankUsdSum = 0;
       for (const bAcc of bankAccs) {
         const res = await getBalance({ companyId, cashBankAccountId: bAcc.id });
         if (res.success) {
-          bankSum += Number(res.data) || 0;
+          const isUsd = bAcc.accountName.toLowerCase().includes('usd');
+          if (isUsd) bankUsdSum += Number(res.data) || 0;
+          else bankInrSum += Number(res.data) || 0;
         }
       }
-      setBankBalance(bankSum);
+      setBankBalance(bankInrSum);
+      setBankUsdBalance(bankUsdSum);
     }
   }, [companyId, refreshJournals, fetchAccounts, getBalance]);
 
@@ -495,8 +505,8 @@ export const JVBookPage: React.FC = () => {
         </div>
 
         {/* Cash and Bank Balances displayed side-by-side */}
-        <div style={{ display: 'flex', gap: '12px' }}>
-          {/* On-Hand Money (Cash) */}
+        <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
+          {/* On-Hand Money (Cash INR) */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -510,15 +520,37 @@ export const JVBookPage: React.FC = () => {
             <Wallet size={20} color="var(--color-primary)" />
             <div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                On-Hand (Cash)
+                On-Hand (Cash - INR)
               </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>
                 ₹ {cashBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
 
-          {/* In Bank Balance */}
+          {/* On-Hand Money (Cash USD) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <Wallet size={20} color="#10b981" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                On-Hand (Cash - USD)
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#10b981' }}>
+                $ {cashUsdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+
+          {/* In Bank (INR) Balance */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -532,10 +564,32 @@ export const JVBookPage: React.FC = () => {
             <Wallet size={20} color="var(--color-success)" />
             <div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                In Bank
+                In Bank (INR)
               </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-success)' }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-success)' }}>
                 ₹ {bankBalance.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+
+          {/* In Bank (USD) Balance */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <Wallet size={20} color="#06b6d4" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                In Bank (USD)
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#06b6d4' }}>
+                $ {bankUsdBalance.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
@@ -632,10 +686,16 @@ export const JVBookPage: React.FC = () => {
                 value={selectedBillId ? String(selectedBillId) : ''}
                 onChange={handleSelectBill}
                 disabled={!partyAccId}
-                options={pendingBills.map((b) => ({
-                  value: String(b.id),
-                  label: `${b.billNumber} (${new Date(b.billDate).toLocaleDateString('en-IN')}) — Unpaid: ₹${Number(b.outstandingAmount).toLocaleString('en-IN')}`
-                }))}
+                options={pendingBills.map((b) => {
+                  const isUsd = b.transactionCurrency === 'USD';
+                  const amt = Number(b.outstandingAmount);
+                  const exRate = Number(b.exchangeRate) || 90;
+                  const alt = b.outstandingAmountAlt ? Number(b.outstandingAmountAlt) : Math.round(amt * exRate);
+                  const text = isUsd
+                    ? `${b.billNumber} (${new Date(b.billDate).toLocaleDateString('en-IN')}) — Unpaid: $${amt.toLocaleString('en-US', { minimumFractionDigits: 2 })} / ₹${alt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+                    : `${b.billNumber} (${new Date(b.billDate).toLocaleDateString('en-IN')}) — Unpaid: ₹${amt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
+                  return { value: String(b.id), label: text };
+                })}
                 placeholder={!partyAccId ? "Select Party first..." : (pendingBills.length === 0 ? "No pending bills found" : "Choose bill to adjust...")}
               />
 

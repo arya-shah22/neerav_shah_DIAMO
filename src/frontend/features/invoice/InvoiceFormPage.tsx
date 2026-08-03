@@ -41,6 +41,8 @@ interface IStockPacket {
   pieceCount: number;
   costPerCarat?: any;
   currentStatus: string;
+  originalCurrency?: 'USD' | 'INR';
+  transactionCurrency?: 'USD' | 'INR';
 }
 
 export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
@@ -159,6 +161,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     return `${prefix}-${year}-${padded}`;
   };
 
+  const { invoke: fetchLatestRate } = useIpc<any>('exchange-rate:latest');
+
   const { register, control, handleSubmit, watch, setValue } = useForm<InvoiceFormData>({
     resolver: zodResolver(invoiceSchema),
     defaultValues: {
@@ -169,6 +173,8 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       isManualBillNumber: false,
       billNumber: '',
       invoiceDate: new Date().toISOString().split('T')[0],
+      transactionCurrency: 'USD',
+      exchangeRate: 1,
       customerId: undefined,
       brokerId: null,
       brokeragePct: 0,
@@ -200,8 +206,55 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const watchedCgst = watch('totalCgst') || 0;
   const watchedSgst = watch('totalSgst') || 0;
   const watchedIgst = watch('totalIgst') || 0;
+  const watchedCurrency = watch('transactionCurrency');
+  const watchedExchangeRate = watch('exchangeRate') || 1;
+  const [prevCurrency, setPrevCurrency] = useState<'USD' | 'INR'>(watchedCurrency);
+  const [prevExchangeRate, setPrevExchangeRate] = useState<number>(watchedExchangeRate);
 
-  // Load parties, brokers, and qualities on mount
+  // Handle currency or exchange rate changes across selected stock items
+  useEffect(() => {
+    const exRate = Number(watchedExchangeRate) || 1;
+    if (exRate <= 0) return;
+
+    const currencyChanged = prevCurrency !== watchedCurrency;
+    const rateChanged = prevExchangeRate !== watchedExchangeRate;
+
+    if (!currencyChanged && !rateChanged) return;
+
+    const currentItems = watch('items') || [];
+    currentItems.forEach((it, idx) => {
+      const pktId = Number(it.stockPacketId);
+      const pkt = availablePackets.find((p) => p.id === pktId);
+
+      if (pkt) {
+        const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
+        const baseRate = isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0
+          ? Number((pkt as any).targetSaleRate)
+          : Number(pkt.costPerCarat || 0);
+
+        let finalRate = baseRate;
+        if (pktCurrency === 'USD' && watchedCurrency === 'INR') {
+          finalRate = Math.round((baseRate * exRate) * 100) / 100;
+        } else if (pktCurrency === 'INR' && watchedCurrency === 'USD') {
+          finalRate = Math.round((baseRate / exRate) * 100) / 100;
+        }
+        setValue(`items.${idx}.rate`, finalRate);
+      } else {
+        // Fallback for non-packet manual items on currency toggle
+        const currentRate = Number(it.rate) || 0;
+        if (currencyChanged && currentRate > 0) {
+          if (prevCurrency === 'USD' && watchedCurrency === 'INR') {
+            setValue(`items.${idx}.rate`, Math.round((currentRate * exRate) * 100) / 100);
+          } else if (prevCurrency === 'INR' && watchedCurrency === 'USD') {
+            setValue(`items.${idx}.rate`, Math.round((currentRate / exRate) * 100) / 100);
+          }
+        }
+      }
+    });
+
+    setPrevCurrency(watchedCurrency);
+    setPrevExchangeRate(watchedExchangeRate);
+  }, [watchedCurrency, watchedExchangeRate, prevCurrency, prevExchangeRate, availablePackets, isSale, watch, setValue]);
   useEffect(() => {
     if (!companyId) return;
     if (activeFinancialYear) setValue('financialYearId', activeFinancialYear.id);
@@ -245,6 +298,13 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       }
       if (previewIdRes?.success && previewIdRes?.data) {
         setNextStockIdPreview(previewIdRes.data);
+      }
+
+      if (!isEditMode) {
+        const rateRes = await fetchLatestRate({ companyId });
+        if (rateRes?.success && rateRes.data?.exchangeRate) {
+          setValue('exchangeRate', rateRes.data.exchangeRate);
+        }
       }
 
       if (needReference && referenceType) {
@@ -307,6 +367,10 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         setValue('brokeragePct', Number(inv.brokeragePct) || 0);
         const dueDays = inv.dueDate ? Math.round((new Date(inv.dueDate).getTime() - new Date(inv.invoiceDate).getTime()) / (24 * 60 * 60 * 1000)) : 0;
         setValue('creditDays', dueDays);
+        setValue('transactionCurrency', (inv.transactionCurrency as any) || 'USD');
+        if (inv.exchangeRate && Number(inv.exchangeRate) > 0) {
+          setValue('exchangeRate', Number(inv.exchangeRate));
+        }
         setValue('totalCgst', Number(inv.totalCgst) || 0);
         setValue('totalSgst', Number(inv.totalSgst) || 0);
         setValue('totalIgst', Number(inv.totalIgst) || 0);
@@ -353,6 +417,10 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       setValue('customerId', matched.customerId);
       setValue('brokerId', matched.brokerId ?? null);
       setValue('brokeragePct', Number(matched.brokeragePct) || 0);
+      setValue('transactionCurrency', (matched.transactionCurrency as any) || 'USD');
+      if (matched.exchangeRate && Number(matched.exchangeRate) > 0) {
+        setValue('exchangeRate', Number(matched.exchangeRate));
+      }
       const dueDays = matched.dueDate ? Math.round((new Date(matched.dueDate).getTime() - new Date(matched.invoiceDate).getTime()) / (24 * 60 * 60 * 1000)) : 0;
       setValue('creditDays', dueDays);
       setValue('narration', `Ref: ${matched.voucherNumber}. `);
@@ -580,6 +648,21 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
 
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '16px', marginBottom: '24px' }}>
           <Input label="Brokerage %" type="number" step="0.01" {...register('brokeragePct', { valueAsNumber: true })} />
+          <FormSelect
+            control={control}
+            name="transactionCurrency"
+            label="Currency *"
+            options={[
+              { value: 'USD', label: 'USD ($)' },
+              { value: 'INR', label: 'INR (₹)' },
+            ]}
+          />
+          <Input
+            label={`Exchange Rate ($1 = ₹) ${watch('transactionCurrency') === 'USD' ? '*' : ''}`}
+            type="number"
+            step="0.0001"
+            {...register('exchangeRate', { valueAsNumber: true })}
+          />
         </div>
 
         <div style={{ borderTop: '1px solid var(--color-border)', margin: '24px 0' }} />
@@ -674,7 +757,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                       <Input type="number" step="0.01" {...register(`items.${index}.rate`, { valueAsNumber: true })} />
                     </td>
                     <td style={{ padding: '8px', textAlign: 'right', fontWeight: 600, fontSize: '14px', verticalAlign: 'middle' }}>
-                      ₹{(itemTotals[index]?.gross || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                      {watch('transactionCurrency') === 'USD' ? '$' : '₹'}{(itemTotals[index]?.gross || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
                     </td>
                     <td style={{ padding: '8px', textAlign: 'center', verticalAlign: 'middle' }}>
                       {fields.length > 1 && (
@@ -705,32 +788,63 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                   if (pkt) {
                                     setValue(`items.${index}.carats`, Number(pkt.caratWeight));
                                     setValue(`items.${index}.pieces`, Number(pkt.pieceCount));
-                                    if (isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0) {
-                                      setValue(`items.${index}.rate`, Number((pkt as any).targetSaleRate));
-                                    } else if (pkt.costPerCarat != null && Number(pkt.costPerCarat) > 0) {
-                                      setValue(`items.${index}.rate`, Number(pkt.costPerCarat));
+
+                                    const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
+
+                                    // Auto-switch invoice currency to packet's origin currency if this is the first packet being added
+                                    const existingPktIds = (watch('items') || []).map((it) => Number(it.stockPacketId)).filter((id) => id > 0);
+                                    if (isSale && pktCurrency && existingPktIds.length <= 1) {
+                                      setValue('transactionCurrency', pktCurrency as any);
                                     }
+
+                                    const invCurrency = watch('transactionCurrency') || pktCurrency || 'USD';
+                                    const exRate = Number(watch('exchangeRate')) || 1;
+
+                                    let baseRate = 0;
+                                    if (isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0) {
+                                      baseRate = Number((pkt as any).targetSaleRate);
+                                    } else if (pkt.costPerCarat != null && Number(pkt.costPerCarat) > 0) {
+                                      baseRate = Number(pkt.costPerCarat);
+                                    }
+
+                                    let finalRate = baseRate;
+                                    if (pktCurrency === 'USD' && invCurrency === 'INR') {
+                                      finalRate = Math.round((baseRate * exRate) * 100) / 100;
+                                    } else if (pktCurrency === 'INR' && invCurrency === 'USD') {
+                                      finalRate = Math.round((baseRate / (exRate > 0 ? exRate : 1)) * 100) / 100;
+                                    }
+
+                                    setValue(`items.${index}.rate`, finalRate);
                                   }
                                 }}
                               >
-                                <option value="">-- Choose Stock Packet --</option>
+                                 <option value="">-- Choose Stock Packet --</option>
                                 {availablePackets
                                   .filter((p) => p.qualityId === Number(watchedQualityId) && (['AVAILABLE', 'CREATED', 'PURCHASED'].includes(p.currentStatus) || p.id === Number(watch(`items.${index}.stockPacketId`))))
-                                  .map((p) => (
-                                    <option key={p.id} value={p.id}>
-                                      {p.stockIdNumber} ({Number(p.caratWeight).toFixed(3)} CTS — {p.pieceCount} Pcs)
-                                    </option>
-                                  ))}
+                                  .map((p) => {
+                                    const origCurr = p.originalCurrency || p.transactionCurrency || 'USD';
+                                    const currSym = origCurr === 'USD' ? '$' : '₹';
+                                    const baseRate = isSale && (p as any).targetSaleRate != null && Number((p as any).targetSaleRate) > 0 ? Number((p as any).targetSaleRate) : Number(p.costPerCarat || 0);
+                                    return (
+                                      <option key={p.id} value={p.id}>
+                                        {p.stockIdNumber} ({Number(p.caratWeight).toFixed(3)} CTS | {p.pieceCount} Pcs | {currSym}{baseRate.toLocaleString('en-US')}/ct [{origCurr}])
+                                      </option>
+                                    );
+                                  })}
                               </select>
                             </div>
                             {(() => {
                               const pktVal = watch(`items.${index}.stockPacketId`);
                               const pkt = availablePackets.find((p) => p.id === Number(pktVal));
-                              return pkt ? (
+                              if (!pkt) return null;
+                              const origCurr = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
+                              const currSym = origCurr === 'USD' ? '$' : '₹';
+                              const baseRate = isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0 ? Number((pkt as any).targetSaleRate) : Number(pkt.costPerCarat || 0);
+                              return (
                                 <span style={{ fontSize: '12px', color: 'var(--color-success)', fontWeight: 500, marginTop: '16px' }}>
-                                  Available: <strong>{Number(pkt.caratWeight).toFixed(3)} CTS</strong> / {pkt.pieceCount} Pcs
+                                  Available: <strong>{Number(pkt.caratWeight).toFixed(3)} CTS</strong> / {pkt.pieceCount} Pcs — Origin: <strong>{currSym}{baseRate.toLocaleString('en-US')}/ct ({origCurr})</strong>
                                 </span>
-                              ) : null;
+                              );
                             })()}
                           </div>
                         ) : (
@@ -843,7 +957,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                               <Input label="Table %" type="number" step="0.1" {...register(`items.${index}.tablePct`)} />
                               <Input label="Certificate Type" placeholder="e.g. GIA" {...register(`items.${index}.certificateType`)} />
                               <Input label="Certificate Number" placeholder="e.g. 12345" {...register(`items.${index}.certificateNumber`)} />
-                              <Input label="Target Rate (₹/ct) [Opt]" type="number" step="0.01" placeholder="Target asking price" {...register(`items.${index}.targetSaleRate`)} />
+                              <Input label={`Target Rate (${watch('transactionCurrency') === 'USD' ? '$' : '₹'}/ct) [Opt]`} type="number" step="0.01" placeholder="Target asking price" {...register(`items.${index}.targetSaleRate`)} />
                               <Input label="Image URL" placeholder="e.g. http://..." {...register(`items.${index}.imageLink`)} />
                               <Input label="Video URL" placeholder="e.g. http://..." {...register(`items.${index}.videoLink`)} />
                             </div>
@@ -964,114 +1078,121 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
           </div>
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', background: 'var(--color-row-alt)', padding: '16px', borderRadius: 'var(--radius-md)' }}>
             
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-              <span>Total Quantity:</span>
-              <span style={{ fontWeight: 600 }}>{totalQty.toFixed(2)}</span>
-            </div>
+            {(() => {
+              const currSymbol = watch('transactionCurrency') === 'USD' ? '$' : '₹';
+              return (
+                <>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                    <span>Total Quantity:</span>
+                    <span style={{ fontWeight: 600 }}>{totalQty.toFixed(2)}</span>
+                  </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-              <span>Total Carats:</span>
-              <span style={{ fontWeight: 600 }}>{totalCrts.toFixed(3)}</span>
-            </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                    <span>Total Carats:</span>
+                    <span style={{ fontWeight: 600 }}>{totalCrts.toFixed(3)}</span>
+                  </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-              <span>Gross Amount:</span>
-              <span style={{ fontWeight: 600 }}>₹{grossTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                    <span>Gross Amount:</span>
+                    <span style={{ fontWeight: 600 }}>{currSymbol}{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            {/* Add % and Less % Fields inside Summary Panel */}
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '13px' }}>Add %</span>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  {...register('addPct', { valueAsNumber: true })} 
-                  style={{ width: '60px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }} 
-                />
-              </div>
-              <span style={{ fontWeight: 500, fontSize: '13px' }}>+₹{calculatedAddValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  {/* Add % and Less % Fields inside Summary Panel */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '13px' }}>Add %</span>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        {...register('addPct', { valueAsNumber: true })} 
+                        style={{ width: '60px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }} 
+                      />
+                    </div>
+                    <span style={{ fontWeight: 500, fontSize: '13px' }}>+{currSymbol}{calculatedAddValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '13px' }}>Less %</span>
-                <input 
-                  type="number" 
-                  step="0.01" 
-                  {...register('lessPct', { valueAsNumber: true })} 
-                  style={{ width: '60px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }} 
-                />
-              </div>
-              <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--color-danger)' }}>-₹{calculatedLessValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '13px' }}>Less %</span>
+                      <input 
+                        type="number" 
+                        step="0.01" 
+                        {...register('lessPct', { valueAsNumber: true })} 
+                        style={{ width: '60px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }} 
+                      />
+                    </div>
+                    <span style={{ fontWeight: 500, fontSize: '13px', color: 'var(--color-danger)' }}>-{currSymbol}{calculatedLessValue.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-              <span>Taxable Value:</span>
-              <span>₹{taxableTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                    <span>Taxable Value:</span>
+                    <span>{currSymbol}{taxableTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '13px' }}>CGST</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('totalCgst', { valueAsNumber: true })}
-                  style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-                />
-              </div>
-              <span style={{ fontWeight: 500, fontSize: '13px' }}>₹{watchedCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '13px' }}>CGST</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        {...register('totalCgst', { valueAsNumber: true })}
+                        style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{watchedCgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '13px' }}>SGST</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('totalSgst', { valueAsNumber: true })}
-                  style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-                />
-              </div>
-              <span style={{ fontWeight: 500, fontSize: '13px' }}>₹{watchedSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '13px' }}>SGST</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        {...register('totalSgst', { valueAsNumber: true })}
+                        style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{watchedSgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '13px' }}>IGST</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  {...register('totalIgst', { valueAsNumber: true })}
-                  style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-                />
-              </div>
-              <span style={{ fontWeight: 500, fontSize: '13px' }}>₹{watchedIgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <span style={{ fontSize: '13px' }}>IGST</span>
+                      <input
+                        type="number"
+                        step="0.01"
+                        {...register('totalIgst', { valueAsNumber: true })}
+                        style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
+                      />
+                    </div>
+                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{watchedIgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-              <span>Round Off:</span>
-              <span>{roundOff >= 0 ? '+' : ''}₹{roundOff.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                    <span>Round Off:</span>
+                    <span>{roundOff >= 0 ? '+' : ''}{currSymbol}{roundOff.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', borderTop: '2px solid var(--color-accent)', paddingTop: '10px' }}>
-              <span>Net Total:</span>
-              <span>₹{netTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-            </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '16px', fontWeight: 700, color: 'var(--color-accent)', borderTop: '2px solid var(--color-accent)', paddingTop: '10px' }}>
+                    <span>Net Total:</span>
+                    <span>{currSymbol}{netTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                  </div>
 
-            {selectedBrokerObj && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px', borderTop: '1px dashed var(--color-border)', paddingTop: '8px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Broker:</span>
-                  <span style={{ fontWeight: 600 }}>{selectedBrokerObj.accountName}</span>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <span>Brokerage ({watchedBrokeragePct}%):</span>
-                  <span>₹{brokerageAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-                </div>
-              </div>
-            )}
+                  {selectedBrokerObj && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px', borderTop: '1px dashed var(--color-border)', paddingTop: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Broker:</span>
+                        <span style={{ fontWeight: 600 }}>{selectedBrokerObj.accountName}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span>Brokerage ({watchedBrokeragePct}%):</span>
+                        <span>{currSymbol}{brokerageAmount.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                      </div>
+                    </div>
+                  )}
+                </>
+              );
+            })()}
           </div>
         </div>
 

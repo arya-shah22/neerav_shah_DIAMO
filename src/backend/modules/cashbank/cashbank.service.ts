@@ -45,6 +45,34 @@ export class CashBankService {
       });
     }
 
+    const cashUsdExist = await this.prisma.account.findFirst({
+      where: {
+        companyId,
+        isDeleted: false,
+        accountName: 'Cash Account (USD)'
+      }
+    });
+
+    if (!cashUsdExist) {
+      let group = await this.prisma.accountGroup.findFirst({
+        where: { companyId, groupName: { contains: 'cash' } }
+      });
+      if (!group) {
+        group = await this.prisma.accountGroup.create({
+          data: { companyId, groupName: 'Cash Accounts', nature: 'ASSET' }
+        });
+      }
+      await this.prisma.account.create({
+        data: {
+          companyId,
+          accountGroupId: group.id,
+          accountName: 'Cash Account (USD)',
+          openingBalanceAmount: 0,
+          openingBalanceType: DebitCreditType.DEBIT
+        }
+      });
+    }
+
     // Bug #9/#16 fix: Use exact accountName match instead of contains
     const bankExist = await this.prisma.account.findFirst({
       where: {
@@ -68,6 +96,34 @@ export class CashBankService {
           companyId,
           accountGroupId: group.id,
           accountName: 'Bank Account',
+          openingBalanceAmount: 0,
+          openingBalanceType: DebitCreditType.DEBIT
+        }
+      });
+    }
+
+    const bankUsdExist = await this.prisma.account.findFirst({
+      where: {
+        companyId,
+        isDeleted: false,
+        accountName: 'Bank Account (USD)'
+      }
+    });
+
+    if (!bankUsdExist) {
+      let group = await this.prisma.accountGroup.findFirst({
+        where: { companyId, groupName: { contains: 'bank' } }
+      });
+      if (!group) {
+        group = await this.prisma.accountGroup.create({
+          data: { companyId, groupName: 'Bank Accounts', nature: 'ASSET' }
+        });
+      }
+      await this.prisma.account.create({
+        data: {
+          companyId,
+          accountGroupId: group.id,
+          accountName: 'Bank Account (USD)',
           openingBalanceAmount: 0,
           openingBalanceType: DebitCreditType.DEBIT
         }
@@ -438,6 +494,15 @@ export class CashBankService {
       throw new BadRequestException('Voucher amount must be greater than zero');
     }
 
+    const transactionCurrency = (data.transactionCurrency as any) || 'INR';
+    const exchangeRate = Number(data.exchangeRate) || 1.0;
+    const amountAlt = data.amountAlt ? Number(data.amountAlt) : Math.round(amount * exchangeRate * 100) / 100;
+    const paymentMode = data.paymentMode || null;
+    const chequeNumber = data.chequeNumber || null;
+    const chequeDate = data.chequeDate ? new Date(data.chequeDate) : null;
+    const utrNumber = data.utrNumber || null;
+    const transactionRef = data.transactionRef || null;
+
     const isManual = data.isManualBillNumber === true;
     const voucherNumber = isManual && data.billNumber
       ? String(data.billNumber)
@@ -484,6 +549,14 @@ export class CashBankService {
           amount, // This is the net cash physically paid / collected
           narration: JSON.stringify(parsedNarration),
           referenceBillNo,
+          transactionCurrency,
+          exchangeRate,
+          amountAlt,
+          paymentMode,
+          chequeNumber,
+          chequeDate,
+          utrNumber,
+          transactionRef,
         }
       });
 

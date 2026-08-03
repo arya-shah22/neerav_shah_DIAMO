@@ -38,7 +38,6 @@ export const LoanPage: React.FC = () => {
   const { invoke: repayLoan } = useIpc('loan:repay');
   const { invoke: writeOffLoan } = useIpc('loan:write-off');
   const { invoke: deleteLoan } = useIpc('loan:delete');
-  const { invoke: getOnHandMoney } = useIpc<number>('loan:onhand');
   const { invoke: generatePdf } = useIpc<{ pdfBase64: string }>('loan:pdf');
   const { invoke: getBalance } = useIpc<number>('cashbank:balance');
   const { invoke: fetchPreviewNo } = useIpc<string>('loan:preview-number');
@@ -50,7 +49,9 @@ export const LoanPage: React.FC = () => {
   const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [cashBankAccounts, setCashBankAccounts] = useState<IAccount[]>([]);
   const [onHandCash, setOnHandCash] = useState<number>(0);
+  const [cashUsdMoney, setCashUsdMoney] = useState<number>(0);
   const [bankMoney, setBankMoney] = useState<number>(0);
+  const [bankUsdMoney, setBankUsdMoney] = useState<number>(0);
 
   const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
   const [showMonthFilter, setShowMonthFilter] = useState(false);
@@ -87,6 +88,8 @@ export const LoanPage: React.FC = () => {
   const [partyId, setPartyId] = useState<string>('');
   const [cashBankAccountId, setCashBankAccountId] = useState<string>('');
   const [loanType, setLoanType] = useState<string>('GIVEN');
+  const [transactionCurrency, setTransactionCurrency] = useState<'INR' | 'USD'>('INR');
+  const [exchangeRate, setExchangeRate] = useState<number>(90.00);
   const [principalAmount, setPrincipalAmount] = useState<number>(0);
   const [interestRate, setInterestRate] = useState<number>(0);
   const [interestType, setInterestType] = useState<string>('SIMPLE');
@@ -116,23 +119,37 @@ export const LoanPage: React.FC = () => {
   // Load dependency data
   const loadData = useCallback(async () => {
     if (!companyId) return;
-    refreshLoans({ companyId });
+    await refreshLoans({ companyId });
 
-    const cashRes = await getOnHandMoney({ companyId });
-    if (cashRes.success) {
-      setOnHandCash(cashRes.data || 0);
-    }
-
-    // Fetch and sum all Bank Account balances
+    // Fetch and sum all Accounts (Cash INR, Cash USD, Bank INR, Bank USD)
     const accsRes = await fetchAccounts({ companyId });
     if (accsRes.success) {
       const allAccs = accsRes.data || [];
       const cb = allAccs.filter((a: IAccount) => {
         const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
-        return groupName.includes('cash') || groupName.includes('bank');
+        const name = a.accountName.toLowerCase();
+        return groupName.includes('cash') || groupName.includes('bank') || name.includes('cash') || name.includes('bank');
       });
       setCashBankAccounts(cb);
       setParties(allAccs);
+
+      const cashAccs = cb.filter((a: IAccount) => {
+        const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
+        const name = a.accountName.toLowerCase();
+        return groupName.includes('cash') || name.includes('cash');
+      });
+      let cashInrSum = 0;
+      let cashUsdSum = 0;
+      for (const cAcc of cashAccs) {
+        const res = await getBalance({ companyId, cashBankAccountId: cAcc.id });
+        if (res.success) {
+          const isUsd = cAcc.accountName.toLowerCase().includes('usd');
+          if (isUsd) cashUsdSum += Number(res.data) || 0;
+          else cashInrSum += Number(res.data) || 0;
+        }
+      }
+      setOnHandCash(cashInrSum);
+      setCashUsdMoney(cashUsdSum);
 
       const bankAccs = cb.filter((a: IAccount) => {
         const groupName = (a as any).accountGroup?.groupName?.toLowerCase() || '';
@@ -140,16 +157,20 @@ export const LoanPage: React.FC = () => {
         return groupName.includes('bank') || name.includes('bank');
       });
 
-      let bankSum = 0;
+      let bankInrSum = 0;
+      let bankUsdSum = 0;
       for (const bAcc of bankAccs) {
         const res = await getBalance({ companyId, cashBankAccountId: bAcc.id });
         if (res.success) {
-          bankSum += Number(res.data) || 0;
+          const isUsd = bAcc.accountName.toLowerCase().includes('usd');
+          if (isUsd) bankUsdSum += Number(res.data) || 0;
+          else bankInrSum += Number(res.data) || 0;
         }
       }
-      setBankMoney(bankSum);
+      setBankMoney(bankInrSum);
+      setBankUsdMoney(bankUsdSum);
     }
-  }, [companyId, refreshLoans, fetchAccounts, getOnHandMoney, getBalance]);
+  }, [companyId, refreshLoans, fetchAccounts, getBalance]);
 
   useEffect(() => {
     loadData();
@@ -189,7 +210,31 @@ export const LoanPage: React.FC = () => {
     setPreviewRepayable(principalAmount + interest);
   }, [principalAmount, interestRate, interestType, compoundingFrequency, durationMonths]);
 
-  // Select options
+  const currencyOptions = useMemo(() => [
+    { value: 'INR', label: 'INR (₹)' },
+    { value: 'USD', label: 'USD ($)' },
+  ], []);
+
+  const handleCurrencyChange = (newCurr: 'INR' | 'USD') => {
+    if (newCurr === transactionCurrency) return;
+    const rate = exchangeRate > 0 ? exchangeRate : 90;
+    if (newCurr === 'INR' && transactionCurrency === 'USD') {
+      if (principalAmount > 0) setPrincipalAmount(Number((principalAmount * rate).toFixed(2)));
+    } else if (newCurr === 'USD' && transactionCurrency === 'INR') {
+      if (principalAmount > 0) setPrincipalAmount(Number((principalAmount / rate).toFixed(2)));
+    }
+    setTransactionCurrency(newCurr);
+
+    // Auto handoff asset account based on selected currency
+    if (newCurr === 'USD') {
+      const usdAcc = cashBankAccounts.find(a => a.accountName.toLowerCase().includes('usd'));
+      if (usdAcc) setCashBankAccountId(String(usdAcc.id));
+    } else {
+      const inrAcc = cashBankAccounts.find(a => !a.accountName.toLowerCase().includes('usd'));
+      if (inrAcc) setCashBankAccountId(String(inrAcc.id));
+    }
+  };
+
   const loanTypeOptions = useMemo(() => [
     { value: 'GIVEN', label: 'Loan Given (Receivable)' },
     { value: 'TAKEN', label: 'Loan Taken (Payable)' },
@@ -229,8 +274,11 @@ export const LoanPage: React.FC = () => {
       return;
     }
 
-    if (loanType === 'GIVEN' && principalAmount > onHandCash) {
-      showToast(`Warning: Principal exceeds available on-hand cash (Available: ₹${onHandCash.toLocaleString('en-IN')})`, 'error');
+    const availableLimit = transactionCurrency === 'USD' ? cashUsdMoney : onHandCash;
+    const currSymbol = transactionCurrency === 'USD' ? '$' : '₹';
+
+    if (loanType === 'GIVEN' && principalAmount > availableLimit) {
+      showToast(`Warning: Principal exceeds available on-hand cash (Available: ${currSymbol}${availableLimit.toLocaleString(transactionCurrency === 'USD' ? 'en-US' : 'en-IN')})`, 'error');
       return;
     }
 
@@ -240,6 +288,9 @@ export const LoanPage: React.FC = () => {
       partyId: Number(partyId),
       cashBankAccountId: Number(cashBankAccountId),
       loanType,
+      transactionCurrency,
+      exchangeRate: transactionCurrency === 'USD' ? exchangeRate : 1.0,
+      principalAmountAlt: transactionCurrency === 'USD' ? Number((principalAmount * exchangeRate).toFixed(2)) : principalAmount,
       isManualBillNumber,
       billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
       principalAmount,
@@ -365,10 +416,10 @@ export const LoanPage: React.FC = () => {
       </span>
     )},
     { key: 'party.accountName', header: 'Party', width: '160px', render: (row) => row.party?.accountName || '—' },
-    { key: 'principalAmount', header: 'Principal', width: '120px', align: 'right', render: (row) => `₹${Number(row.principalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` },
+    { key: 'principalAmount', header: 'Principal', width: '120px', align: 'right', render: (row) => `${row.transactionCurrency === 'USD' ? '$' : '₹'} ${Number(row.principalAmount).toLocaleString(row.transactionCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}` },
     { key: 'interestRate', header: 'Rate', width: '70px', align: 'right', render: (row) => `${row.interestRate}%` },
-    { key: 'totalInterest', header: 'Interest', width: '110px', align: 'right', render: (row) => `₹${Number(row.totalInterest).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` },
-    { key: 'balanceRemaining', header: 'Balance', width: '120px', align: 'right', render: (row) => `₹${Number(row.balanceRemaining).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` },
+    { key: 'totalInterest', header: 'Interest', width: '110px', align: 'right', render: (row) => `${row.transactionCurrency === 'USD' ? '$' : '₹'} ${Number(row.totalInterest).toLocaleString(row.transactionCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}` },
+    { key: 'balanceRemaining', header: 'Balance', width: '120px', align: 'right', render: (row) => `${row.transactionCurrency === 'USD' ? '$' : '₹'} ${Number(row.balanceRemaining).toLocaleString(row.transactionCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}` },
     { key: 'status', header: 'Status', width: '90px', render: (row) => (
       <span style={{
         padding: '2px 8px',
@@ -463,8 +514,8 @@ export const LoanPage: React.FC = () => {
           </div>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          {/* On-Hand Money (Cash) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* On-Hand Money (Cash INR) */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -478,15 +529,37 @@ export const LoanPage: React.FC = () => {
             <Wallet size={20} color="var(--color-primary)" />
             <div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                On-Hand (Cash)
+                On-Hand (Cash - INR)
               </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)' }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>
                 ₹ {onHandCash.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
 
-          {/* In Bank Balance */}
+          {/* On-Hand Money (Cash USD) */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <Wallet size={20} color="#10b981" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                On-Hand (Cash - USD)
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#10b981' }}>
+                $ {cashUsdMoney.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+
+          {/* In Bank (INR) Balance */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -500,10 +573,32 @@ export const LoanPage: React.FC = () => {
             <Wallet size={20} color="var(--color-success)" />
             <div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                In Bank
+                In Bank (INR)
               </div>
-              <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-success)' }}>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-success)' }}>
                 ₹ {bankMoney.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              </div>
+            </div>
+          </div>
+
+          {/* In Bank (USD) Balance */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            background: 'var(--color-surface)',
+            padding: '10px 16px',
+            borderRadius: '8px',
+            border: '1px solid var(--color-border)',
+            boxShadow: 'var(--shadow-sm)'
+          }}>
+            <Wallet size={20} color="#06b6d4" />
+            <div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                In Bank (USD)
+              </div>
+              <div style={{ fontSize: '15px', fontWeight: 700, color: '#06b6d4' }}>
+                $ {bankUsdMoney.toLocaleString('en-US', { minimumFractionDigits: 2 })}
               </div>
             </div>
           </div>
@@ -548,12 +643,35 @@ export const LoanPage: React.FC = () => {
               </div>
             </div>
 
+            {/* Form Fields Grid */}
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+              gridTemplateColumns: 'repeat(4, 1fr)',
               gap: '16px',
               alignItems: 'end'
             }}>
+              {/* 1. Currency */}
+              <Select
+                label="Currency"
+                options={currencyOptions}
+                value={transactionCurrency}
+                onChange={(val) => handleCurrencyChange(val as 'INR' | 'USD')}
+                required
+              />
+
+              {/* 2. Exchange Rate (if USD) */}
+              {transactionCurrency === 'USD' && (
+                <Input
+                  type="number"
+                  step="0.01"
+                  label="Exchange Rate ($1 = ₹)"
+                  value={exchangeRate || ''}
+                  onChange={(e) => setExchangeRate(Number(e.target.value))}
+                  required
+                />
+              )}
+
+              {/* 3. Loan Direction */}
               <Select
                 label="Loan Direction"
                 options={loanTypeOptions}
@@ -562,6 +680,7 @@ export const LoanPage: React.FC = () => {
                 required
               />
 
+              {/* 4. Select Party Account */}
               <Select
                 label="Select Party Account"
                 options={partyOptions}
@@ -572,6 +691,7 @@ export const LoanPage: React.FC = () => {
                 required
               />
 
+              {/* 5. Cash / Bank Account */}
               <Select
                 label="Cash / Bank Account"
                 options={cashBankOptions}
@@ -582,6 +702,7 @@ export const LoanPage: React.FC = () => {
                 required
               />
 
+              {/* 6. Loan Date */}
               <Input
                 type="date"
                 label="Loan Date"
@@ -589,23 +710,18 @@ export const LoanPage: React.FC = () => {
                 onChange={(e) => setLoanDate(e.target.value)}
                 required
               />
-            </div>
 
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '16px',
-              alignItems: 'end'
-            }}>
+              {/* 7. Principal Amount */}
               <Input
                 type="number"
-                label="Principal Amount"
+                label={`Principal Amount (${transactionCurrency === 'USD' ? '$' : '₹'})`}
                 value={principalAmount || ''}
                 onChange={(e) => setPrincipalAmount(Number(e.target.value))}
                 required
                 error={isOverLimit ? 'Principal exceeds available cash' : undefined}
               />
 
+              {/* 8. Rate (Annual %) */}
               <Input
                 type="number"
                 step="0.01"
@@ -615,6 +731,7 @@ export const LoanPage: React.FC = () => {
                 required
               />
 
+              {/* 9. Interest Type */}
               <Select
                 label="Interest Type"
                 options={interestTypeOptions}
@@ -623,6 +740,7 @@ export const LoanPage: React.FC = () => {
                 required
               />
 
+              {/* 10. Duration (Months) */}
               <Input
                 type="number"
                 label="Duration (Months)"
@@ -630,41 +748,34 @@ export const LoanPage: React.FC = () => {
                 onChange={(e) => setDurationMonths(Number(e.target.value))}
                 required
               />
-            </div>
 
-            {isOverLimit && (
-              <p style={{ fontSize: '11px', color: 'var(--color-danger)', fontWeight: 600, margin: 0 }}>
-                ⚠️ Principal exceeds available Cash on Hand!
-              </p>
-            )}
-
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
-              gap: '16px',
-              alignItems: 'end'
-            }}>
-              {interestType === 'COMPOUND' ? (
+              {/* 11. Compounding Frequency (if COMPOUND) */}
+              {interestType === 'COMPOUND' && (
                 <Select
-                  label="Compounding Frequency *"
+                  label="Compounding Frequency"
                   options={frequencyOptions}
                   value={compoundingFrequency}
                   onChange={(val) => setCompoundingFrequency(val)}
                   required
                 />
-              ) : (
-                <div />
               )}
+            </div>
 
-              <div style={{ gridColumn: 'span 3' }}>
-                <Input
-                  type="text"
-                  label="Narration / Remarks"
-                  placeholder="Enter remarks"
-                  value={narration}
-                  onChange={(e) => setNarration(e.target.value)}
-                />
-              </div>
+            {isOverLimit && (
+              <p style={{ fontSize: '12px', color: 'var(--color-danger)', fontWeight: 600, margin: 0 }}>
+                ⚠️ Principal exceeds available Cash on Hand!
+              </p>
+            )}
+
+            {/* Narration Row */}
+            <div>
+              <Input
+                type="text"
+                label="Narration / Remarks"
+                placeholder="Enter custom narration note..."
+                value={narration}
+                onChange={(e) => setNarration(e.target.value)}
+              />
             </div>
 
             {/* Calculations Preview and Submit Row */}
@@ -681,28 +792,28 @@ export const LoanPage: React.FC = () => {
               <div style={{
                 background: 'var(--color-surface-hover)',
                 border: '1px solid var(--color-border)',
-                borderRadius: '6px',
-                padding: '12px',
+                borderRadius: '8px',
+                padding: '12px 18px',
                 display: 'flex',
                 gap: '24px',
                 flex: 1,
                 alignItems: 'center'
               }}>
                 <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                  Preview Calculation:
+                  Preview Calculation ({transactionCurrency}):
                 </div>
-                <div style={{ display: 'flex', gap: '20px', flex: 1, justifyContent: 'space-around' }}>
+                <div style={{ display: 'flex', gap: '24px', flex: 1, justifyContent: 'space-around' }}>
                   <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>
                     <span>Principal: </span>
-                    <span style={{ fontWeight: 600 }}>₹ {principalAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    <span style={{ fontWeight: 600 }}>{transactionCurrency === 'USD' ? '$' : '₹'} {principalAmount.toLocaleString(transactionCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div style={{ fontSize: '12px', color: 'var(--color-text)' }}>
                     <span>Interest: </span>
-                    <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>₹ {previewInterest.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    <span style={{ fontWeight: 600, color: 'var(--color-primary)' }}>{transactionCurrency === 'USD' ? '$' : '₹'} {previewInterest.toLocaleString(transactionCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                   <div style={{ fontSize: '13px', fontWeight: 700, color: 'var(--color-success)' }}>
                     <span>Repayable: </span>
-                    <span>₹ {previewRepayable.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                    <span>{transactionCurrency === 'USD' ? '$' : '₹'} {previewRepayable.toLocaleString(transactionCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}</span>
                   </div>
                 </div>
               </div>

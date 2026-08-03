@@ -53,6 +53,9 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
       voucherDate: row.challanDate,
       expectedReturnDate: row.expectedReturnDate,
       invoiceType: CHALLAN_PURPOSE_LABELS[purpose].toUpperCase(),
+      transactionCurrency: row.transactionCurrency || 'INR',
+      exchangeRate: row.exchangeRate || 90,
+      totalAmountAlt: row.totalAmountAlt || (Number(row.totalAmount || 0) * (row.exchangeRate || 90)),
       party: row.party ? {
         accountName: row.party.accountName,
         city: row.party.city,
@@ -244,7 +247,23 @@ export const ChallanListPage: React.FC<ListPageProps> = ({ purpose }) => {
     {
       key: 'totalAmount',
       header: 'TOTAL AMOUNT',
-      render: (row) => `₹ ${Number(row.totalAmount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`,
+      render: (row) => {
+        const amt = Number(row.totalAmount);
+        const curr = row.transactionCurrency || 'INR';
+        if (curr === 'USD') {
+          const rate = Number(row.exchangeRate) || 90;
+          const altInr = Number(row.totalAmountAlt) || (amt * rate);
+          return (
+            <div>
+              <span style={{ fontWeight: 600 }}>${amt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginLeft: '6px' }}>
+                (₹{altInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })})
+              </span>
+            </div>
+          );
+        }
+        return `₹ ${amt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+      },
     },
     {
       key: 'status',

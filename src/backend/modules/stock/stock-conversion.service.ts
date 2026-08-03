@@ -130,8 +130,12 @@ export class StockConversionService {
       totalOutputCarats += carats;
     }
 
+    if (!isFullConsumption && (data.consumedCarats == null || isNaN(Number(data.consumedCarats)) || Number(data.consumedCarats) <= 0)) {
+      throw new BadRequestException('Consumed carats must be greater than 0');
+    }
+
     const sourceCarats = Number(sourcePacket.caratWeight);
-    const consumedCarats = isFullConsumption ? sourceCarats : (Number(data.consumedCarats) || totalOutputCarats);
+    const consumedCarats = isFullConsumption ? sourceCarats : Number(data.consumedCarats);
 
     if (totalOutputCarats > consumedCarats) {
       throw new BadRequestException(`Total output carats (${totalOutputCarats.toFixed(3)}) cannot exceed consumed carats (${consumedCarats.toFixed(3)})`);
@@ -199,16 +203,23 @@ export class StockConversionService {
         const carats = Number(item.carats) || 0;
         const pieces = Number(item.pieces) || 1;
 
-        // Option 1: Calculate proportionate cost basis
+        // Option 1: Calculate proportionate cost basis or use explicit costPerCarat
         let allocatedItemCost = 0;
-        if (totalLotValuation > 0) {
+        let allocatedCostRate = 0;
+
+        if (item.costPerCarat != null && !isNaN(Number(item.costPerCarat)) && Number(item.costPerCarat) > 0) {
+          allocatedCostRate = Number(item.costPerCarat);
+          allocatedItemCost = carats * allocatedCostRate;
+        } else if (totalLotValuation > 0) {
           allocatedItemCost = totalInputInvestment * (valInfo.valuation / totalLotValuation);
+          allocatedCostRate = carats > 0 ? allocatedItemCost / carats : 0;
         } else if (totalOutputCarats > 0) {
           allocatedItemCost = totalInputInvestment * (carats / totalOutputCarats);
+          allocatedCostRate = carats > 0 ? allocatedItemCost / carats : 0;
         } else {
           allocatedItemCost = totalInputInvestment / (outputItems.length || 1);
+          allocatedCostRate = carats > 0 ? allocatedItemCost / carats : 0;
         }
-        const allocatedCostRate = carats > 0 ? allocatedItemCost / carats : 0;
         const targetAskingRate = valInfo.targetRate;
 
         // Determine stock ID for new packet
@@ -301,6 +312,7 @@ export class StockConversionService {
             costPerCarat: allocatedCostRate,
             totalCost: allocatedItemCost,
             targetSaleRate: targetAskingRate > 0 ? targetAskingRate : null,
+            targetSaleRateCurrency: item.targetSaleRateCurrency || sourcePacket.targetSaleRateCurrency || 'USD',
             currentStatus: StockStatus.AVAILABLE,
             currentOwnership: sourcePacket.currentOwnership,
             sourcePacketId,
@@ -472,6 +484,14 @@ export class StockConversionService {
     if (!conversion) throw new BadRequestException('Stock conversion not found');
 
     return this.prisma.$transaction(async (tx) => {
+      // 0. Verify no output packets have been SOLD
+      for (const item of conversion.outputItems) {
+        const outputPacket = await tx.stockPacket.findUnique({ where: { id: item.outputPacketId } });
+        if (outputPacket && outputPacket.currentStatus === StockStatus.SOLD) {
+          throw new BadRequestException(`Cannot delete conversion ${conversion.conversionNumber}: Output packet ${outputPacket.stockIdNumber} has already been SOLD.`);
+        }
+      }
+
       // 1. Delete output packets and their movements
       for (const item of conversion.outputItems) {
         await tx.stockMovement.deleteMany({
