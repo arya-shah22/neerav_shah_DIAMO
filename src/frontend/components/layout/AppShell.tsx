@@ -122,9 +122,12 @@ export const AppShell: React.FC = () => {
           className="content-area"
           style={{
             flex: 1,
-            overflow: 'auto',
+            overflowY: 'auto',
+            overflowX: 'hidden',
             background: 'var(--color-bg)',
             padding: 'var(--spacing-lg)',
+            contain: 'content',
+            willChange: 'scroll-position',
           }}
         >
           <Outlet />

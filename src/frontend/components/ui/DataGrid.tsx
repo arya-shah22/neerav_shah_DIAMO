@@ -153,7 +153,6 @@ export function DataGrid<T extends object>({
                     background: i % 2 === 1 ? 'var(--color-row-alt)' : 'var(--color-surface)',
                     borderBottom: '1px solid var(--color-border)',
                     cursor: onRowClick ? 'pointer' : 'default',
-                    transition: 'background var(--transition-fast)',
                   }}
                 >
                   {columns.map((col) => (

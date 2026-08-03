@@ -671,7 +671,10 @@ export class CashBankService {
           accountId: cashBankAccountId,
           voucherDate,
           debitCreditType: isReceipt ? DebitCreditType.DEBIT : DebitCreditType.CREDIT,
-          amount,
+          amount: amountAlt || amount,
+          originalCurrency: transactionCurrency || 'INR',
+          originalAmount: amount,
+          exchangeRate: exchangeRate || 1.0,
           sourceVoucherType: vType,
           sourceVoucherId: voucher.id,
           sourceBillNumber: voucherNumber,
@@ -683,6 +686,7 @@ export class CashBankService {
       const totalSettlementAmount = isCreditAdjustment 
         ? amount + adjustedNoteAmount 
         : amount - adjustedNoteAmount;
+      const totalSettlementAlt = (amountAlt || amount) + (adjustedNoteAmount * (exchangeRate || 1.0));
 
       await tx.generalLedgerEntry.create({
         data: {
@@ -690,7 +694,10 @@ export class CashBankService {
           accountId: partyId,
           voucherDate,
           debitCreditType: isReceipt ? DebitCreditType.CREDIT : DebitCreditType.DEBIT,
-          amount: totalSettlementAmount,
+          amount: totalSettlementAlt,
+          originalCurrency: transactionCurrency || 'INR',
+          originalAmount: totalSettlementAmount,
+          exchangeRate: exchangeRate || 1.0,
           sourceVoucherType: vType,
           sourceVoucherId: voucher.id,
           sourceBillNumber: voucherNumber,

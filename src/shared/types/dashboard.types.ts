@@ -20,12 +20,40 @@ export interface IDashboardKpiSummary {
     receivedToday: number;
     overdueAmount: number;
   };
+  receivablesInr?: {
+    total: number;
+    pending: number;
+    pendingCount: number;
+    doneReceived: number;
+    overdueAmount: number;
+  };
+  receivablesUsd?: {
+    total: number;
+    pending: number;
+    pendingCount: number;
+    doneReceived: number;
+    overdueAmount: number;
+  };
   payables: {
     total: number;
     pending: number;
     pendingCount: number;
     donePaid: number;
     paidToday: number;
+    overdueAmount: number;
+  };
+  payablesInr?: {
+    total: number;
+    pending: number;
+    pendingCount: number;
+    donePaid: number;
+    overdueAmount: number;
+  };
+  payablesUsd?: {
+    total: number;
+    pending: number;
+    pendingCount: number;
+    donePaid: number;
     overdueAmount: number;
   };
   stock: {

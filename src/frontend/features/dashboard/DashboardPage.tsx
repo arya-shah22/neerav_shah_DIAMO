@@ -29,6 +29,14 @@ const formatCurrency = (val: number) => {
   }).format(val || 0);
 };
 
+const formatUsd = (val: number) => {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(val || 0);
+};
+
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
   const { showToast } = useToast();
@@ -496,7 +504,7 @@ export const DashboardPage: React.FC = () => {
         gap: '16px',
       }}>
         
-        {/* Card 1: Receivables */}
+        {/* Card 1: Receivables (INR) */}
         <div
           onClick={() => navigate('/transactions/sales?filter=pending')}
           style={{
@@ -522,7 +530,7 @@ export const DashboardPage: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Accounts Receivable
+              Receivables (INR)
             </span>
             <div style={{ background: '#e0f2fe', padding: '6px', borderRadius: '8px', color: '#0284c7' }}>
               <ArrowUpRight size={16} />
@@ -531,25 +539,78 @@ export const DashboardPage: React.FC = () => {
 
           <div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              Total Receivable: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{isSalesPermitted ? formatCurrency(telemetry?.receivables.total || 0) : '₹***,***'}</span>
+              Total Billed: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{isSalesPermitted ? formatCurrency(telemetry?.receivablesInr?.total || telemetry?.receivables.total || 0) : '₹***,***'}</span>
             </div>
             <div style={{ fontSize: '22px', fontWeight: 800, color: '#0284c7', marginTop: '2px' }}>
-              {isSalesPermitted ? formatCurrency(telemetry?.receivables.pending || 0) : '₹***,***'} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
+              {isSalesPermitted ? formatCurrency(telemetry?.receivablesInr?.pending || telemetry?.receivables.pending || 0) : '₹***,***'} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
             </div>
             <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
-              Done Received: {isSalesPermitted ? formatCurrency(telemetry?.receivables.doneReceived || 0) : '₹***,***'}
+              Done Received: {isSalesPermitted ? formatCurrency(telemetry?.receivablesInr?.doneReceived || telemetry?.receivables.doneReceived || 0) : '₹***,***'}
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
-            <span>{isSalesPermitted ? `${telemetry?.receivables.pendingCount || 0} Open Invoices` : '*** Invoices'}</span>
-            <span style={{ color: telemetry?.receivables.overdueAmount ? '#dc2626' : 'inherit' }}>
-              Overdue: <strong>{isSalesPermitted ? formatCurrency(telemetry?.receivables.overdueAmount || 0) : '₹***,***'}</strong>
+            <span>{isSalesPermitted ? `${telemetry?.receivablesInr?.pendingCount || telemetry?.receivables.pendingCount || 0} Open Invoices` : '*** Invoices'}</span>
+            <span style={{ color: (telemetry?.receivablesInr?.overdueAmount || telemetry?.receivables.overdueAmount) ? '#dc2626' : 'inherit' }}>
+              Overdue: <strong>{isSalesPermitted ? formatCurrency(telemetry?.receivablesInr?.overdueAmount || 0) : '₹***,***'}</strong>
             </span>
           </div>
         </div>
 
-        {/* Card 2: Payables */}
+        {/* Card 2: Receivables (USD) */}
+        <div
+          onClick={() => navigate('/transactions/sales?filter=pending')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid #10b981',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0, 0, 0, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Receivables (USD)
+            </span>
+            <div style={{ background: '#d1fae5', padding: '6px', borderRadius: '8px', color: '#10b981' }}>
+              <DollarSign size={16} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Total Billed: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{isSalesPermitted ? formatUsd(telemetry?.receivablesUsd?.total || 0) : '$***,***'}</span>
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#10b981', marginTop: '2px' }}>
+              {isSalesPermitted ? formatUsd(telemetry?.receivablesUsd?.pending || 0) : '$***,***'} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              Done Received: {isSalesPermitted ? formatUsd(telemetry?.receivablesUsd?.doneReceived || 0) : '$***,***'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>{isSalesPermitted ? `${telemetry?.receivablesUsd?.pendingCount || 0} USD Invoices` : '*** Invoices'}</span>
+            <span style={{ color: telemetry?.receivablesUsd?.overdueAmount ? '#dc2626' : 'inherit' }}>
+              Overdue: <strong>{isSalesPermitted ? formatUsd(telemetry?.receivablesUsd?.overdueAmount || 0) : '$***,***'}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Card 3: Payables (INR) */}
         <div
           onClick={() => navigate('/transactions/purchases?filter=pending')}
           style={{
@@ -575,7 +636,7 @@ export const DashboardPage: React.FC = () => {
         >
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
-              Accounts Payable
+              Payables (INR)
             </span>
             <div style={{ background: '#fef3c7', padding: '6px', borderRadius: '8px', color: '#d97706' }}>
               <Wallet size={16} />
@@ -584,20 +645,73 @@ export const DashboardPage: React.FC = () => {
 
           <div>
             <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
-              Total Payable: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{isPurchasesPermitted ? formatCurrency(telemetry?.payables.total || 0) : '₹***,***'}</span>
+              Total Payable: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{isPurchasesPermitted ? formatCurrency(telemetry?.payablesInr?.total || telemetry?.payables.total || 0) : '₹***,***'}</span>
             </div>
             <div style={{ fontSize: '22px', fontWeight: 800, color: '#d97706', marginTop: '2px' }}>
-              {isPurchasesPermitted ? formatCurrency(telemetry?.payables.pending || 0) : '₹***,***'} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
+              {isPurchasesPermitted ? formatCurrency(telemetry?.payablesInr?.pending || telemetry?.payables.pending || 0) : '₹***,***'} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
             </div>
             <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
-              Done Paid: {isPurchasesPermitted ? formatCurrency(telemetry?.payables.donePaid || 0) : '₹***,***'}
+              Done Paid: {isPurchasesPermitted ? formatCurrency(telemetry?.payablesInr?.donePaid || telemetry?.payables.donePaid || 0) : '₹***,***'}
             </div>
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
-            <span>{isPurchasesPermitted ? `${telemetry?.payables.pendingCount || 0} Purchase Bills Due` : '*** Bills Due'}</span>
-            <span style={{ color: telemetry?.payables.overdueAmount ? '#dc2626' : 'inherit' }}>
-              Overdue: <strong>{isPurchasesPermitted ? formatCurrency(telemetry?.payables.overdueAmount || 0) : '₹***,***'}</strong>
+            <span>{isPurchasesPermitted ? `${telemetry?.payablesInr?.pendingCount || telemetry?.payables.pendingCount || 0} Bills Due` : '*** Bills Due'}</span>
+            <span style={{ color: (telemetry?.payablesInr?.overdueAmount || telemetry?.payables.overdueAmount) ? '#dc2626' : 'inherit' }}>
+              Overdue: <strong>{isPurchasesPermitted ? formatCurrency(telemetry?.payablesInr?.overdueAmount || 0) : '₹***,***'}</strong>
+            </span>
+          </div>
+        </div>
+
+        {/* Card 4: Payables (USD) */}
+        <div
+          onClick={() => navigate('/transactions/purchases?filter=pending')}
+          style={{
+            background: 'var(--color-surface)',
+            border: '1px solid var(--color-border)',
+            borderLeft: '4px solid #06b6d4',
+            borderRadius: '12px',
+            padding: '18px 20px',
+            cursor: 'pointer',
+            transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'translateY(-2px)';
+            e.currentTarget.style.boxShadow = '0 10px 20px -5px rgba(0, 0, 0, 0.08)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'translateY(0)';
+            e.currentTarget.style.boxShadow = 'none';
+          }}
+        >
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+              Payables (USD)
+            </span>
+            <div style={{ background: '#cffafe', padding: '6px', borderRadius: '8px', color: '#06b6d4' }}>
+              <DollarSign size={16} />
+            </div>
+          </div>
+
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Total Payable: <span style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{isPurchasesPermitted ? formatUsd(telemetry?.payablesUsd?.total || 0) : '$***,***'}</span>
+            </div>
+            <div style={{ fontSize: '22px', fontWeight: 800, color: '#06b6d4', marginTop: '2px' }}>
+              {isPurchasesPermitted ? formatUsd(telemetry?.payablesUsd?.pending || 0) : '$***,***'} <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>(Pending)</span>
+            </div>
+            <div style={{ fontSize: '11px', color: '#16a34a', fontWeight: 600, marginTop: '2px' }}>
+              Done Paid: {isPurchasesPermitted ? formatUsd(telemetry?.payablesUsd?.donePaid || 0) : '$***,***'}
+            </div>
+          </div>
+
+          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', borderTop: '1px solid var(--color-border)', paddingTop: '8px', color: 'var(--color-text-secondary)' }}>
+            <span>{isPurchasesPermitted ? `${telemetry?.payablesUsd?.pendingCount || 0} USD Bills Due` : '*** Bills Due'}</span>
+            <span style={{ color: telemetry?.payablesUsd?.overdueAmount ? '#dc2626' : 'inherit' }}>
+              Overdue: <strong>{isPurchasesPermitted ? formatUsd(telemetry?.payablesUsd?.overdueAmount || 0) : '$***,***'}</strong>
             </span>
           </div>
         </div>

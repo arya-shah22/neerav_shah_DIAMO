@@ -2155,15 +2155,18 @@ export class ReportService {
 
     const cashAccounts = accounts.filter(a => 
       a.accountGroup?.groupName.toLowerCase().includes('cash') || 
+      a.accountName.toLowerCase().includes('cash') ||
       a.accountGroup?.nature?.toLowerCase() === 'asset' && a.accountGroup?.groupName.toLowerCase().includes('hand')
     );
     const bankAccounts = accounts.filter(a => 
-      a.accountGroup?.groupName.toLowerCase().includes('bank')
+      a.accountGroup?.groupName.toLowerCase().includes('bank') ||
+      a.accountName.toLowerCase().includes('bank')
     );
 
     const computeBalance = async (accountId: number, limitDate: Date) => {
       const account = accounts.find(a => a.id === accountId);
       if (!account) return 0;
+      const isUsdAcc = account.accountName.toLowerCase().includes('usd');
 
       const prevEntries = await this.prisma.generalLedgerEntry.findMany({
         where: {
@@ -2178,7 +2181,10 @@ export class ReportService {
         : -Number(account.openingBalanceAmount || 0);
 
       for (const ent of prevEntries) {
-        const amt = Number(ent.amount || 0);
+        const amt = isUsdAcc
+          ? Number(ent.originalAmount || ent.amount || 0)
+          : Number(ent.amount || 0);
+
         if (ent.debitCreditType === 'DEBIT') {
           balance += amt;
         } else {
@@ -2188,25 +2194,43 @@ export class ReportService {
       return balance;
     };
 
-    // Calculate opening balances
-    let openingCash = 0;
-    let openingBank = 0;
+    // Calculate opening balances split by INR and USD
+    let openingCashInr = 0;
+    let openingCashUsd = 0;
     for (const a of cashAccounts) {
-      openingCash += await computeBalance(a.id, start);
-    }
-    for (const a of bankAccounts) {
-      openingBank += await computeBalance(a.id, start);
+      const isUsd = a.accountName.toLowerCase().includes('usd');
+      const bal = await computeBalance(a.id, start);
+      if (isUsd) openingCashUsd += bal;
+      else openingCashInr += bal;
     }
 
-    // Calculate closing balances
-    let closingCash = 0;
-    let closingBank = 0;
+    let openingBankInr = 0;
+    let openingBankUsd = 0;
+    for (const a of bankAccounts) {
+      const isUsd = a.accountName.toLowerCase().includes('usd');
+      const bal = await computeBalance(a.id, start);
+      if (isUsd) openingBankUsd += bal;
+      else openingBankInr += bal;
+    }
+
+    // Calculate closing balances split by INR and USD
+    let closingCashInr = 0;
+    let closingCashUsd = 0;
     const dayEndLimit = new Date(end.getTime() + 1); // lt next day
     for (const a of cashAccounts) {
-      closingCash += await computeBalance(a.id, dayEndLimit);
+      const isUsd = a.accountName.toLowerCase().includes('usd');
+      const bal = await computeBalance(a.id, dayEndLimit);
+      if (isUsd) closingCashUsd += bal;
+      else closingCashInr += bal;
     }
+
+    let closingBankInr = 0;
+    let closingBankUsd = 0;
     for (const a of bankAccounts) {
-      closingBank += await computeBalance(a.id, dayEndLimit);
+      const isUsd = a.accountName.toLowerCase().includes('usd');
+      const bal = await computeBalance(a.id, dayEndLimit);
+      if (isUsd) closingBankUsd += bal;
+      else closingBankInr += bal;
     }
 
     // Query all ledger entries on the selected date
@@ -2221,22 +2245,41 @@ export class ReportService {
       orderBy: { id: 'asc' }
     });
 
-    const transactions = dayEntries.map(e => ({
-      id: e.id,
-      voucherNumber: e.sourceBillNumber || '—',
-      voucherType: e.sourceVoucherType || 'JV',
-      voucherDate: e.voucherDate.toISOString().split('T')[0],
-      accountName: e.account?.accountName || 'Unknown Account',
-      debitCreditType: e.debitCreditType,
-      amount: Number(e.amount || 0),
-      narration: e.narration || ''
-    }));
+    const transactions = dayEntries.map(e => {
+      const isUsdAcc = e.account?.accountName?.toLowerCase().includes('usd');
+      const currency = e.originalCurrency || (isUsdAcc ? 'USD' : 'INR');
+      const origAmt = e.originalAmount !== null && e.originalAmount !== undefined
+        ? Number(e.originalAmount)
+        : Number(e.amount || 0);
+
+      return {
+        id: e.id,
+        voucherNumber: e.sourceBillNumber || '—',
+        voucherType: e.sourceVoucherType || 'JV',
+        voucherDate: e.voucherDate.toISOString().split('T')[0],
+        accountName: e.account?.accountName || 'Unknown Account',
+        debitCreditType: e.debitCreditType,
+        amount: Number(e.amount || 0),
+        originalCurrency: currency,
+        originalAmount: origAmt,
+        exchangeRate: e.exchangeRate ? Number(e.exchangeRate) : (currency === 'USD' ? 90.0 : 1.0),
+        narration: e.narration || ''
+      };
+    });
 
     return {
-      openingCash: Math.round(openingCash * 100) / 100,
-      openingBank: Math.round(openingBank * 100) / 100,
-      closingCash: Math.round(closingCash * 100) / 100,
-      closingBank: Math.round(closingBank * 100) / 100,
+      openingCash: Math.round(openingCashInr * 100) / 100,
+      openingCashInr: Math.round(openingCashInr * 100) / 100,
+      openingCashUsd: Math.round(openingCashUsd * 100) / 100,
+      openingBank: Math.round(openingBankInr * 100) / 100,
+      openingBankInr: Math.round(openingBankInr * 100) / 100,
+      openingBankUsd: Math.round(openingBankUsd * 100) / 100,
+      closingCash: Math.round(closingCashInr * 100) / 100,
+      closingCashInr: Math.round(closingCashInr * 100) / 100,
+      closingCashUsd: Math.round(closingCashUsd * 100) / 100,
+      closingBank: Math.round(closingBankInr * 100) / 100,
+      closingBankInr: Math.round(closingBankInr * 100) / 100,
+      closingBankUsd: Math.round(closingBankUsd * 100) / 100,
       transactions
     };
   }
@@ -2292,15 +2335,19 @@ export class ReportService {
     });
     const cashAccounts = accounts.filter(a => 
       a.accountGroup?.groupName.toLowerCase().includes('cash') || 
+      a.accountName.toLowerCase().includes('cash') ||
       a.accountGroup?.nature?.toLowerCase() === 'asset' && a.accountGroup?.groupName.toLowerCase().includes('hand')
     );
     const bankAccounts = accounts.filter(a => 
-      a.accountGroup?.groupName.toLowerCase().includes('bank')
+      a.accountGroup?.groupName.toLowerCase().includes('bank') ||
+      a.accountName.toLowerCase().includes('bank')
     );
 
     const computeBalance = async (accountId: number, limitDate: Date) => {
       const account = accounts.find(a => a.id === accountId);
       if (!account) return 0;
+      const isUsdAcc = account.accountName.toLowerCase().includes('usd');
+
       const prevEntries = await this.prisma.generalLedgerEntry.findMany({
         where: { companyId, accountId, voucherDate: { lt: limitDate } }
       });
@@ -2308,7 +2355,9 @@ export class ReportService {
         ? Number(account.openingBalanceAmount || 0) 
         : -Number(account.openingBalanceAmount || 0);
       for (const ent of prevEntries) {
-        const amt = Number(ent.amount || 0);
+        const amt = isUsdAcc
+          ? Number(ent.originalAmount || ent.amount || 0)
+          : Number(ent.amount || 0);
         if (ent.debitCreditType === 'DEBIT') balance += amt;
         else balance -= amt;
       }
@@ -2320,27 +2369,57 @@ export class ReportService {
       const dayEndNext = new Date(dStr + 'T23:59:59.999');
       dayEndNext.setMilliseconds(dayEndNext.getMilliseconds() + 1);
 
-      let openingCash = 0;
-      let openingBank = 0;
-      let closingCash = 0;
-      let closingBank = 0;
+      let openingCashInr = 0;
+      let openingCashUsd = 0;
+      let openingBankInr = 0;
+      let openingBankUsd = 0;
+
+      let closingCashInr = 0;
+      let closingCashUsd = 0;
+      let closingBankInr = 0;
+      let closingBankUsd = 0;
 
       for (const a of cashAccounts) {
-        openingCash += await computeBalance(a.id, dayStart);
-        closingCash += await computeBalance(a.id, dayEndNext);
+        const isUsd = a.accountName.toLowerCase().includes('usd');
+        const openBal = await computeBalance(a.id, dayStart);
+        const closeBal = await computeBalance(a.id, dayEndNext);
+        if (isUsd) {
+          openingCashUsd += openBal;
+          closingCashUsd += closeBal;
+        } else {
+          openingCashInr += openBal;
+          closingCashInr += closeBal;
+        }
       }
+
       for (const a of bankAccounts) {
-        openingBank += await computeBalance(a.id, dayStart);
-        closingBank += await computeBalance(a.id, dayEndNext);
+        const isUsd = a.accountName.toLowerCase().includes('usd');
+        const openBal = await computeBalance(a.id, dayStart);
+        const closeBal = await computeBalance(a.id, dayEndNext);
+        if (isUsd) {
+          openingBankUsd += openBal;
+          closingBankUsd += closeBal;
+        } else {
+          openingBankInr += openBal;
+          closingBankInr += closeBal;
+        }
       }
 
       results.push({
         dateStr: dStr,
         transactionCount: dateMap[dStr] || 0,
-        openingCash: Math.round(openingCash * 100) / 100,
-        openingBank: Math.round(openingBank * 100) / 100,
-        closingCash: Math.round(closingCash * 100) / 100,
-        closingBank: Math.round(closingBank * 100) / 100,
+        openingCash: Math.round(openingCashInr * 100) / 100,
+        openingCashInr: Math.round(openingCashInr * 100) / 100,
+        openingCashUsd: Math.round(openingCashUsd * 100) / 100,
+        openingBank: Math.round(openingBankInr * 100) / 100,
+        openingBankInr: Math.round(openingBankInr * 100) / 100,
+        openingBankUsd: Math.round(openingBankUsd * 100) / 100,
+        closingCash: Math.round(closingCashInr * 100) / 100,
+        closingCashInr: Math.round(closingCashInr * 100) / 100,
+        closingCashUsd: Math.round(closingCashUsd * 100) / 100,
+        closingBank: Math.round(closingBankInr * 100) / 100,
+        closingBankInr: Math.round(closingBankInr * 100) / 100,
+        closingBankUsd: Math.round(closingBankUsd * 100) / 100,
       });
     }
 

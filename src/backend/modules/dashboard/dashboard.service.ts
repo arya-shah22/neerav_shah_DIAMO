@@ -87,48 +87,118 @@ export class DashboardService {
       select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
     });
 
+    let totalBilledReceivablesInr = 0;
+    let pendingReceivablesInr = 0;
+    let pendingReceivableCountInr = 0;
+    let doneReceivedReceivablesInr = 0;
+    let overdueReceivablesInr = 0;
+
+    let totalBilledReceivablesUsd = 0;
+    let pendingReceivablesUsd = 0;
+    let pendingReceivableCountUsd = 0;
+    let doneReceivedReceivablesUsd = 0;
+    let overdueReceivablesUsd = 0;
+
+    let totalBilledPayablesInr = 0;
+    let pendingPayablesInr = 0;
+    let pendingPayableCountInr = 0;
+    let donePaidPayablesInr = 0;
+    let overduePayablesInr = 0;
+
+    let totalBilledPayablesUsd = 0;
+    let pendingPayablesUsd = 0;
+    let pendingPayableCountUsd = 0;
+    let donePaidPayablesUsd = 0;
+    let overduePayablesUsd = 0;
+
     // Process sale invoices for receivables
     saleInvoices.forEach((inv: any) => {
-      const exRate = inv.transactionCurrency === 'USD' ? (Number(inv.exchangeRate) || 1) : 1;
-      const net = Number(inv.netAmount || 0) * exRate;
-      const jama = Number(inv.jamaAmount || 0) * exRate;
+      const isUsd = inv.transactionCurrency === 'USD';
+      const exRate = isUsd ? (Number(inv.exchangeRate) || 1) : 1;
+      const netBase = Number(inv.netAmount || 0) * exRate;
+      const jamaBase = Number(inv.jamaAmount || 0) * exRate;
+      const netRaw = Number(inv.netAmount || 0);
+      const jamaRaw = Number(inv.jamaAmount || 0);
+
       const outstandingRaw = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
-        : Math.max(0, Number(inv.netAmount || 0) - Number(inv.jamaAmount || 0));
-      const outstanding = outstandingRaw * exRate;
+        : Math.max(0, netRaw - jamaRaw);
+      const outstandingBase = outstandingRaw * exRate;
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
 
       if (inv.invoiceType === 'SALE_INVOICE' || inv.invoiceType === 'SALE_DEBIT_NOTE') {
-        totalBilledReceivables += net;
-        doneReceivedReceivables += jama;
-        if (outstanding > 0 && outstandingBills.length === 0) {
-          pendingReceivables += outstanding;
+        totalBilledReceivables += netBase;
+        doneReceivedReceivables += jamaBase;
+
+        if (isUsd) {
+          totalBilledReceivablesUsd += netRaw;
+          doneReceivedReceivablesUsd += jamaRaw;
+          if (outstandingRaw > 0) {
+            pendingReceivablesUsd += outstandingRaw;
+            pendingReceivableCountUsd++;
+            if (isOverdue) overdueReceivablesUsd += outstandingRaw;
+          }
+        } else {
+          totalBilledReceivablesInr += netRaw;
+          doneReceivedReceivablesInr += jamaRaw;
+          if (outstandingRaw > 0) {
+            pendingReceivablesInr += outstandingRaw;
+            pendingReceivableCountInr++;
+            if (isOverdue) overdueReceivablesInr += outstandingRaw;
+          }
+        }
+
+        if (outstandingBase > 0 && outstandingBills.length === 0) {
+          pendingReceivables += outstandingBase;
           pendingReceivableCount++;
-          if (isOverdue) overdueReceivables += outstanding;
+          if (isOverdue) overdueReceivables += outstandingBase;
         }
       }
     });
 
     // Process purchase invoices for payables
     purchaseInvoices.forEach((inv: any) => {
-      const exRate = inv.transactionCurrency === 'USD' ? (Number(inv.exchangeRate) || 1) : 1;
-      const net = Number(inv.netAmount || 0) * exRate;
-      const jama = Number(inv.jamaAmount || 0) * exRate;
+      const isUsd = inv.transactionCurrency === 'USD';
+      const exRate = isUsd ? (Number(inv.exchangeRate) || 1) : 1;
+      const netBase = Number(inv.netAmount || 0) * exRate;
+      const jamaBase = Number(inv.jamaAmount || 0) * exRate;
+      const netRaw = Number(inv.netAmount || 0);
+      const jamaRaw = Number(inv.jamaAmount || 0);
+
       const outstandingRaw = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
-        : Math.max(0, Number(inv.netAmount || 0) - Number(inv.jamaAmount || 0));
-      const outstanding = outstandingRaw * exRate;
+        : Math.max(0, netRaw - jamaRaw);
+      const outstandingBase = outstandingRaw * exRate;
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
 
       if (inv.invoiceType === 'PURCHASE_INVOICE' || inv.invoiceType === 'PURCHASE_DEBIT_NOTE') {
-        totalBilledPayables += net;
-        donePaidPayables += jama;
-        if (outstanding > 0) {
-          pendingPayables += outstanding;
+        totalBilledPayables += netBase;
+        donePaidPayables += jamaBase;
+
+        if (isUsd) {
+          totalBilledPayablesUsd += netRaw;
+          donePaidPayablesUsd += jamaRaw;
+          if (outstandingRaw > 0) {
+            pendingPayablesUsd += outstandingRaw;
+            pendingPayableCountUsd++;
+            if (isOverdue) overduePayablesUsd += outstandingRaw;
+          }
+        } else {
+          totalBilledPayablesInr += netRaw;
+          donePaidPayablesInr += jamaRaw;
+          if (outstandingRaw > 0) {
+            pendingPayablesInr += outstandingRaw;
+            pendingPayableCountInr++;
+            if (isOverdue) overduePayablesInr += outstandingRaw;
+          }
+        }
+
+        if (outstandingBase > 0) {
+          pendingPayables += outstandingBase;
           pendingPayableCount++;
-          if (isOverdue) overduePayables += outstanding;
+          if (isOverdue) overduePayables += outstandingBase;
         }
       }
     });
@@ -378,6 +448,20 @@ export class DashboardService {
         receivedToday: cashReceiptsToday + bankReceiptsToday,
         overdueAmount: overdueReceivables,
       },
+      receivablesInr: {
+        total: totalBilledReceivablesInr,
+        pending: pendingReceivablesInr,
+        pendingCount: pendingReceivableCountInr,
+        doneReceived: doneReceivedReceivablesInr,
+        overdueAmount: overdueReceivablesInr,
+      },
+      receivablesUsd: {
+        total: totalBilledReceivablesUsd,
+        pending: pendingReceivablesUsd,
+        pendingCount: pendingReceivableCountUsd,
+        doneReceived: doneReceivedReceivablesUsd,
+        overdueAmount: overdueReceivablesUsd,
+      },
       payables: {
         total: totalBilledPayables,
         pending: pendingPayables,
@@ -385,6 +469,20 @@ export class DashboardService {
         donePaid: donePaidPayables,
         paidToday: cashPaymentsToday + bankPaymentsToday,
         overdueAmount: overduePayables,
+      },
+      payablesInr: {
+        total: totalBilledPayablesInr,
+        pending: pendingPayablesInr,
+        pendingCount: pendingPayableCountInr,
+        donePaid: donePaidPayablesInr,
+        overdueAmount: overduePayablesInr,
+      },
+      payablesUsd: {
+        total: totalBilledPayablesUsd,
+        pending: pendingPayablesUsd,
+        pendingCount: pendingPayableCountUsd,
+        donePaid: donePaidPayablesUsd,
+        overdueAmount: overduePayablesUsd,
       },
       stock: {
         totalCarats: Number(totalCarats.toFixed(2)),

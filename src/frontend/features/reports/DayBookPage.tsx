@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar, RefreshCw, Printer, ArrowLeft, Wallet, Building, Eye, Download, FileText } from 'lucide-react';
+import { Calendar, RefreshCw, Printer, ArrowLeft, Eye, Download, FileText } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
@@ -106,30 +106,58 @@ export const DayBookPage: React.FC = () => {
 
   // Day list grid columns
   const listColumns: Column<any>[] = [
-    { key: 'dateStr', header: 'DATE', sortable: true },
+    { key: 'dateStr', header: 'DATE', sortable: true, width: '110px' },
     { 
       key: 'openingCash', 
-      header: 'OPENING CASH', 
+      header: 'OPENING CASH (INR / USD)', 
       align: 'right',
-      render: (row) => renderAmount(row.openingCash)
+      render: (row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+          <span style={{ fontWeight: 600 }}>{renderAmount(row.openingCashInr ?? row.openingCash)}</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>
+            $ {(row.openingCashUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )
     },
     { 
       key: 'openingBank', 
-      header: 'OPENING BANK', 
+      header: 'OPENING BANK (INR / USD)', 
       align: 'right',
-      render: (row) => renderAmount(row.openingBank)
+      render: (row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+          <span style={{ fontWeight: 600 }}>{renderAmount(row.openingBankInr ?? row.openingBank)}</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#06b6d4' }}>
+            $ {(row.openingBankUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )
     },
     { 
       key: 'closingCash', 
-      header: 'CLOSING CASH', 
+      header: 'CLOSING CASH (INR / USD)', 
       align: 'right',
-      render: (row) => renderAmount(row.closingCash)
+      render: (row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+          <span style={{ fontWeight: 600 }}>{renderAmount(row.closingCashInr ?? row.closingCash)}</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#10b981' }}>
+            $ {(row.closingCashUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )
     },
     { 
       key: 'closingBank', 
-      header: 'CLOSING BANK', 
+      header: 'CLOSING BANK (INR / USD)', 
       align: 'right',
-      render: (row) => renderAmount(row.closingBank)
+      render: (row) => (
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+          <span style={{ fontWeight: 600 }}>{renderAmount(row.closingBankInr ?? row.closingBank)}</span>
+          <span style={{ fontSize: '11px', fontWeight: 700, color: '#06b6d4' }}>
+            $ {(row.closingBankUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          </span>
+        </div>
+      )
     },
     { key: 'transactionCount', header: 'TRANSACTIONS', align: 'center' },
     {
@@ -146,19 +174,53 @@ export const DayBookPage: React.FC = () => {
 
   // Day detail grid columns
   const detailColumns: Column<any>[] = [
-    { key: 'voucherNumber', header: 'VOUCHER NO', sortable: true },
-    { key: 'voucherType', header: 'TYPE', sortable: true },
+    { key: 'voucherNumber', header: 'VOUCHER NO', sortable: true, width: '130px' },
+    { key: 'voucherType', header: 'TYPE', sortable: true, width: '100px' },
     { key: 'accountName', header: 'PARTICULARS', sortable: true },
     { 
-      key: 'debit', 
-      header: 'DEBIT (DR)', 
+      key: 'originalCurrency', 
+      header: 'CURRENCY', 
+      align: 'center',
+      width: '90px',
+      render: (row) => (
+        <span style={{
+          padding: '2px 6px',
+          borderRadius: '4px',
+          fontSize: '11px',
+          fontWeight: 700,
+          background: row.originalCurrency === 'USD' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+          color: row.originalCurrency === 'USD' ? '#10b981' : '#3b82f6'
+        }}>
+          {row.originalCurrency || 'INR'}
+        </span>
+      )
+    },
+    {
+      key: 'originalAmount',
+      header: 'ORIGINAL AMT',
       align: 'right',
+      width: '130px',
+      render: (row) => `${row.originalCurrency === 'USD' ? '$' : '₹'} ${Number(row.originalAmount || row.amount || 0).toLocaleString(row.originalCurrency === 'USD' ? 'en-US' : 'en-IN', { minimumFractionDigits: 2 })}`
+    },
+    {
+      key: 'exchangeRate',
+      header: 'EX. RATE',
+      align: 'right',
+      width: '100px',
+      render: (row) => row.originalCurrency === 'USD' ? `@ ₹${Number(row.exchangeRate || 90).toFixed(2)}` : '1.00'
+    },
+    { 
+      key: 'debit', 
+      header: 'DEBIT (DR - ₹)', 
+      align: 'right',
+      width: '140px',
       render: (row) => row.debitCreditType === 'DEBIT' ? `₹${row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
     },
     { 
       key: 'credit', 
-      header: 'CREDIT (CR)', 
+      header: 'CREDIT (CR - ₹)', 
       align: 'right',
+      width: '140px',
       render: (row) => row.debitCreditType === 'CREDIT' ? `₹${row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
     },
     { key: 'narration', header: 'NARRATION' }
@@ -255,7 +317,7 @@ export const DayBookPage: React.FC = () => {
       {/* Day Details View */}
       {activeDate && (
         <>
-          {/* Balance Cards */}
+          {/* Balance Cards Grid */}
           <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '16px' }}>
             <div style={{
               background: 'var(--color-surface)',
@@ -266,10 +328,14 @@ export const DayBookPage: React.FC = () => {
               flexDirection: 'column',
               gap: '8px'
             }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Opening Cash (On Hand)</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Wallet size={20} style={{ color: 'var(--color-primary)' }} />
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>{renderAmount(detailData?.openingCash)}</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening Cash (INR / USD)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                  ₹ {(detailData?.openingCashInr ?? detailData?.openingCash ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#10b981' }}>
+                  $ {(detailData?.openingCashUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
 
@@ -282,10 +348,14 @@ export const DayBookPage: React.FC = () => {
               flexDirection: 'column',
               gap: '8px'
             }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Opening Bank Balances</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Building size={20} style={{ color: 'var(--color-primary)' }} />
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>{renderAmount(detailData?.openingBank)}</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Opening Bank (INR / USD)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-success)' }}>
+                  ₹ {(detailData?.openingBankInr ?? detailData?.openingBank ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#06b6d4' }}>
+                  $ {(detailData?.openingBankUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
 
@@ -298,10 +368,14 @@ export const DayBookPage: React.FC = () => {
               flexDirection: 'column',
               gap: '8px'
             }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Closing Cash (On Hand)</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Wallet size={20} style={{ color: 'var(--color-accent)' }} />
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>{renderAmount(detailData?.closingCash)}</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Closing Cash (INR / USD)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)' }}>
+                  ₹ {(detailData?.closingCashInr ?? detailData?.closingCash ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#10b981' }}>
+                  $ {(detailData?.closingCashUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
 
@@ -314,10 +388,14 @@ export const DayBookPage: React.FC = () => {
               flexDirection: 'column',
               gap: '8px'
             }}>
-              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Closing Bank Balances</span>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <Building size={20} style={{ color: 'var(--color-accent)' }} />
-                <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text)' }}>{renderAmount(detailData?.closingBank)}</span>
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.04em' }}>Closing Bank (INR / USD)</span>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-success)' }}>
+                  ₹ {(detailData?.closingBankInr ?? detailData?.closingBank ?? 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: 700, color: '#06b6d4' }}>
+                  $ {(detailData?.closingBankUsd ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                </div>
               </div>
             </div>
           </div>
