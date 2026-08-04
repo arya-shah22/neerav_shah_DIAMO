@@ -47,6 +47,7 @@ export interface IStockPacket {
   shape: string | null;
   caratWeight: number;
   pieceCount: number;
+  piecesNotCounted?: boolean;
   color: string | null;
   clarity: string | null;
   cut: string | null;

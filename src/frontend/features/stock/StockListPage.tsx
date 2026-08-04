@@ -395,17 +395,28 @@ export const StockListPage: React.FC = () => {
       result = result.filter((s) => s.shape && selectedShapes.includes(s.shape.trim()));
     }
 
-    // 3. Carats range filter
+    // 3. Carats range filter (Evaluates average size per piece if pieceCount > 1 and piecesNotCounted is false)
+    const getEffectiveCarat = (s: IStockPacket) => {
+      const totalCarat = Number(s.caratWeight || 0);
+      const pcs = Number(s.pieceCount || 0);
+      const uncounted = s.piecesNotCounted === true || (s as any).piecesNotCounted === 'true';
+
+      if (!uncounted && pcs > 1) {
+        return totalCarat / pcs;
+      }
+      return totalCarat;
+    };
+
     if (minCarat.trim() !== '') {
       const min = parseFloat(minCarat);
       if (!isNaN(min)) {
-        result = result.filter((s) => Number(s.caratWeight) >= min);
+        result = result.filter((s) => getEffectiveCarat(s) >= min);
       }
     }
     if (maxCarat.trim() !== '') {
       const max = parseFloat(maxCarat);
       if (!isNaN(max)) {
-        result = result.filter((s) => Number(s.caratWeight) <= max);
+        result = result.filter((s) => getEffectiveCarat(s) <= max);
       }
     }
 
@@ -532,7 +543,24 @@ export const StockListPage: React.FC = () => {
     {
       key: 'caratWeight',
       header: 'CARATS',
-      render: (row) => Number(row.caratWeight).toFixed(3),
+      render: (row) => {
+        const wt = Number(row.caratWeight).toFixed(3);
+        const pcs = Number(row.pieceCount || 0);
+        const uncounted = row.piecesNotCounted === true || (row as any).piecesNotCounted === 'true';
+
+        if (!uncounted && pcs > 1) {
+          const avg = (Number(row.caratWeight) / pcs).toFixed(2);
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontWeight: 600 }}>{wt} Cts <span style={{ opacity: 0.7, fontSize: '11px' }}>({pcs} Pcs)</span></span>
+              <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 700 }}>
+                Avg: {avg} ct/pc
+              </span>
+            </div>
+          );
+        }
+        return `${wt} Cts`;
+      },
     },
     { key: 'color', header: 'COLOR', render: (row) => row.color ?? '—' },
     { key: 'clarity', header: 'CLARITY', render: (row) => row.clarity ?? '—' },

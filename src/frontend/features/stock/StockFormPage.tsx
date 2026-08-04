@@ -72,6 +72,7 @@ export const StockFormPage: React.FC = () => {
 
   const category = watch('category');
   const caratWeight = watch('caratWeight');
+  const pieceCount = watch('pieceCount');
   const costPerCarat = watch('costPerCarat');
   const currentStatus = watch('currentStatus');
 
@@ -417,6 +418,11 @@ export const StockFormPage: React.FC = () => {
                 error={errors.pieceCount?.message}
                 {...register('pieceCount', { valueAsNumber: true })}
               />
+              {!piecesNotCounted && pieceCount > 1 && caratWeight > 0 && (
+                <div style={{ marginTop: '4px', fontSize: '11px', fontWeight: 700, color: 'var(--color-accent)', background: 'rgba(59, 130, 246, 0.1)', padding: '3px 8px', borderRadius: '4px', display: 'inline-block' }}>
+                  ✨ Live Avg Size: {(caratWeight / pieceCount).toFixed(3)} ct/pc
+                </div>
+              )}
               <label style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', fontSize: 'var(--text-small)', cursor: 'pointer', userSelect: 'none' }}>
                 <input
                   type="checkbox"

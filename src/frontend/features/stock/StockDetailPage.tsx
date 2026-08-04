@@ -114,7 +114,16 @@ export const StockDetailPage: React.FC = () => {
     { label: 'Cut', value: packet.cut, category: 'Overview' },
     { label: 'Polish', value: packet.polish, category: 'Overview' },
     { label: 'Symmetry', value: packet.symmetry, category: 'Overview' },
-    { label: 'Pieces', value: packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount, category: 'Overview' },
+    { 
+      label: 'Pieces', 
+      value: (packet as any).piecesNotCounted || packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount, 
+      category: 'Overview' 
+    },
+    ...((packet as any).piecesNotCounted || packet.pieceCount <= 1 || !Number(packet.caratWeight) ? [] : [{
+      label: 'Average Weight',
+      value: `${(Number(packet.caratWeight) / packet.pieceCount).toFixed(3)} ct/pc`,
+      category: 'Overview'
+    }]),
     { label: 'Remarks', value: packet.currentLocation, category: 'Overview' },
 
     // Measurements & Certification
@@ -349,7 +358,22 @@ export const StockDetailPage: React.FC = () => {
               <DetailRow label="Cut" value={packet.cut} searchQuery={searchQuery} />
               <DetailRow label="Polish" value={packet.polish} searchQuery={searchQuery} />
               <DetailRow label="Symmetry" value={packet.symmetry} searchQuery={searchQuery} />
-              <DetailRow label="Pieces" value={packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount} searchQuery={searchQuery} />
+              <DetailRow 
+                label="Pieces" 
+                value={(packet as any).piecesNotCounted || packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount} 
+                searchQuery={searchQuery} 
+              />
+              {!(packet as any).piecesNotCounted && packet.pieceCount > 1 && Number(packet.caratWeight) > 0 && (
+                <DetailRow 
+                  label="Average Weight" 
+                  value={
+                    <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
+                      {(Number(packet.caratWeight) / packet.pieceCount).toFixed(3)} ct/pc
+                    </span>
+                  } 
+                  searchQuery={searchQuery} 
+                />
+              )}
               <DetailRow label="Remarks" value={packet.currentLocation} searchQuery={searchQuery} />
             </div>
           </div>

@@ -709,48 +709,55 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                       <Input type="number" step="0.001" {...register(`items.${index}.carats`, { valueAsNumber: true })} />
                     </td>
                     <td style={{ padding: '8px', verticalAlign: 'middle' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                        <div style={{ flex: 1 }}>
-                          <Input
-                            type="number"
-                            disabled={!!watch(`items.${index}.isPiecesUncounted`)}
-                            placeholder={watch(`items.${index}.isPiecesUncounted`) ? 'None' : 'Pcs'}
-                            {...register(`items.${index}.pieces`, {
-                              valueAsNumber: true,
-                              setValueAs: (v) => (watch(`items.${index}.isPiecesUncounted`) ? null : (v ? Number(v) : null)),
-                            })}
-                          />
-                        </div>
-                        <label
-                          title="Check if pieces are uncountable"
-                          style={{
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '3px',
-                            fontSize: '11px',
-                            fontWeight: 500,
-                            color: watch(`items.${index}.isPiecesUncounted`) ? 'var(--color-accent)' : 'var(--color-text-secondary)',
-                            cursor: 'pointer',
-                            userSelect: 'none',
-                            whiteSpace: 'nowrap',
-                          }}
-                        >
-                          <input
-                            type="checkbox"
-                            {...register(`items.${index}.isPiecesUncounted`)}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setValue(`items.${index}.isPiecesUncounted`, checked);
-                              if (checked) {
-                                setValue(`items.${index}.pieces`, null as any);
-                              } else {
-                                setValue(`items.${index}.pieces`, 1);
-                              }
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <div style={{ flex: 1 }}>
+                            <Input
+                              type="number"
+                              disabled={!!watch(`items.${index}.isPiecesUncounted`)}
+                              placeholder={watch(`items.${index}.isPiecesUncounted`) ? 'None' : 'Pcs'}
+                              {...register(`items.${index}.pieces`, {
+                                valueAsNumber: true,
+                                setValueAs: (v) => (watch(`items.${index}.isPiecesUncounted`) ? null : (v ? Number(v) : null)),
+                              })}
+                            />
+                          </div>
+                          <label
+                            title="Check if pieces are uncountable"
+                            style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              color: watch(`items.${index}.isPiecesUncounted`) ? 'var(--color-accent)' : 'var(--color-text-secondary)',
+                              cursor: 'pointer',
+                              userSelect: 'none',
+                              whiteSpace: 'nowrap',
                             }}
-                            style={{ accentColor: 'var(--color-accent)', width: '13px', height: '13px', cursor: 'pointer' }}
-                          />
-                          N/A
-                        </label>
+                          >
+                            <input
+                              type="checkbox"
+                              {...register(`items.${index}.isPiecesUncounted`)}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setValue(`items.${index}.isPiecesUncounted`, checked);
+                                if (checked) {
+                                  setValue(`items.${index}.pieces`, null as any);
+                                } else {
+                                  setValue(`items.${index}.pieces`, 1);
+                                }
+                              }}
+                              style={{ accentColor: 'var(--color-accent)', width: '13px', height: '13px', cursor: 'pointer' }}
+                            />
+                            N/A
+                          </label>
+                        </div>
+                        {!watch(`items.${index}.isPiecesUncounted`) && Number(watch(`items.${index}.pieces`) || 0) > 1 && Number(watch(`items.${index}.carats`) || 0) > 0 && (
+                          <div style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 700, whiteSpace: 'nowrap', textAlign: 'left', paddingLeft: '2px' }}>
+                            Avg: {(Number(watch(`items.${index}.carats`)) / Number(watch(`items.${index}.pieces`))).toFixed(3)} ct/pc
+                          </div>
+                        )}
                       </div>
                     </td>
                     <td style={{ padding: '8px', verticalAlign: 'middle' }}>
