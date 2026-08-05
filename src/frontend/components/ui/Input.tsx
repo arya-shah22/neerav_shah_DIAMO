@@ -28,7 +28,7 @@ const SIZE_MAP = {
   lg: { height: '36px', fontSize: 'var(--text-body)' },
 };
 
-export const Input = forwardRef<HTMLInputElement, InputProps>(({
+export const Input = React.memo(forwardRef<HTMLInputElement, InputProps>(({
   type = 'text',
   label,
   error,
@@ -47,7 +47,6 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
   const s = SIZE_MAP[inputSize];
   const isNumber = type === 'number';
   const isPasswordType = type === 'password';
-  const [isFocused, setIsFocused] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
 
   // Dynamic input type for password visibility toggle
@@ -89,16 +88,16 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
             textAlign: isNumber ? 'right' : 'left',
             color: 'var(--color-text-primary)',
             background: props.disabled ? 'var(--color-disabled-bg)' : 'var(--color-surface)',
-            border: `1px solid ${hasError ? 'var(--color-danger)' : isFocused ? 'var(--color-accent)' : 'var(--color-border)'}`,
+            border: `1px solid ${hasError ? 'var(--color-danger)' : 'var(--color-border)'}`,
             borderRadius: 'var(--radius-sm)',
             outline: 'none',
             transition: 'border-color var(--transition-fast), box-shadow var(--transition-fast)',
-            boxShadow: !hasError && isFocused ? '0 0 0 2px var(--color-accent-light)' : 'none',
             width: '100%',
             ...style,
           }}
           onFocus={(e) => {
-            setIsFocused(true);
+            e.currentTarget.style.borderColor = hasError ? 'var(--color-danger)' : 'var(--color-accent)';
+            e.currentTarget.style.boxShadow = hasError ? 'none' : '0 0 0 2px var(--color-accent-light)';
             onFocus?.(e);
           }}
           onWheel={(e) => {
@@ -110,7 +109,8 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
             onWheel?.(e);
           }}
           onBlur={(e) => {
-            setIsFocused(false);
+            e.currentTarget.style.borderColor = hasError ? 'var(--color-danger)' : 'var(--color-border)';
+            e.currentTarget.style.boxShadow = 'none';
             onBlur?.(e);
           }}
           {...props}
@@ -139,34 +139,24 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(({
               outline: 'none',
             }}
           >
-            {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+            {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
           </button>
         )}
       </div>
 
-      {/* Error Message */}
+      {/* Error or Hint Text */}
       {hasError && (
-        <span style={{
-          fontSize: 'var(--text-small)',
-          color: 'var(--color-danger)',
-          lineHeight: 'var(--line-small)',
-        }}>
+        <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-danger)', marginTop: '2px' }}>
           {error}
         </span>
       )}
-
-      {/* Hint */}
-      {hint && !hasError && (
-        <span style={{
-          fontSize: 'var(--text-small)',
-          color: 'var(--color-text-muted)',
-          lineHeight: 'var(--line-small)',
-        }}>
+      {!hasError && hint && (
+        <span style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
           {hint}
         </span>
       )}
     </div>
   );
-});
+}));
 
 Input.displayName = 'Input';

@@ -111,10 +111,11 @@ export const DashboardPage: React.FC = () => {
   // Fetch live telemetry
   const fetchTelemetry = useCallback(async () => {
     if (!companyId) return;
+    const fyId = activeFinancialYear?.companyId === companyId ? activeFinancialYear.id : undefined;
     try {
       const res = await getTelemetry({
         companyId,
-        financialYearId: activeFinancialYear?.id,
+        financialYearId: fyId,
         userId: user?.id,
       });
       if (res.success && res.data) {
@@ -123,7 +124,7 @@ export const DashboardPage: React.FC = () => {
     } catch (err) {
       console.error('Failed to load dashboard telemetry:', err);
     }
-  }, [companyId, activeFinancialYear?.id, user?.id, getTelemetry]);
+  }, [companyId, activeFinancialYear, user?.id, getTelemetry]);
 
   // Initial load, window focus listener, and 15-second background auto-refresh for live entries
   useEffect(() => {

@@ -423,6 +423,11 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'job:get', (payload) => jobController.handleGet(payload));
   ipcHandle(ipcMain, 'job:preview-number', (payload) => jobController.handlePreviewNumber(payload));
   ipcHandle(ipcMain, 'job:create', (payload) => jobController.handleCreate(payload));
+  ipcHandle(ipcMain, 'job:create-unified', (payload) => jobController.handleCreateUnified(payload));
+  ipcHandle(ipcMain, 'job:update-unified', (payload) => jobController.handleUpdateUnified(payload));
+  ipcHandle(ipcMain, 'job:receive-bill', (payload) => jobController.handleReceiveAndBill(payload));
+  ipcHandle(ipcMain, 'job:cancel', (payload) => jobController.handleCancel(payload));
+  ipcHandle(ipcMain, 'job:generate-pdf', (payload) => jobController.handleGeneratePdf(payload));
   ipcHandle(ipcMain, 'job:delete', (payload) => jobController.handleDelete(payload));
 
   // ─── Phase 8: Accounting (JV) ─────────────────────────────

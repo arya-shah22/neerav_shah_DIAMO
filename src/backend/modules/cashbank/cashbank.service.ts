@@ -238,6 +238,69 @@ export class CashBankService {
   }
 
   /**
+   * Helper to fetch outstanding Job Work tickets for a customer/subcontractor
+   */
+  async listUnpaidJobs(companyId: number, partyId: number, isReceipt: boolean) {
+    const whereCondition: any = {
+      companyId,
+      isDeleted: false,
+      status: { in: [VoucherStatus.POSTED] },
+    };
+
+    if (isReceipt) {
+      whereCondition.partyId = partyId;
+    } else {
+      whereCondition.subcontractorPartyId = partyId;
+    }
+
+    const jobVouchers = await this.prisma.jobVoucher.findMany({
+      where: whereCondition,
+      orderBy: { voucherDate: 'asc' },
+    });
+
+    const list = [];
+    for (const jv of jobVouchers) {
+      const voucherNum = jv.voucherNumber || jv.billNumber;
+
+      const settlements = await this.prisma.cashBankVoucher.findMany({
+        where: {
+          companyId,
+          partyId,
+          referenceBillNo: voucherNum,
+          isDeleted: false,
+        },
+      });
+
+      const totalPaid = settlements.reduce((sum, s) => sum + Number(s.amount), 0);
+      const originalAmount = isReceipt
+        ? Number(jv.netAmount || jv.totalAmount)
+        : Number(jv.contractorExpenseTotal);
+
+      const outstandingAmount = Math.max(0, originalAmount - totalPaid);
+
+      if (outstandingAmount > 0) {
+        list.push({
+          id: jv.id,
+          companyId: jv.companyId,
+          financialYearId: jv.financialYearId,
+          invoiceType: (isReceipt ? 'JOB_WORK_INCOME' : 'JOB_WORK_EXPENSE') as any,
+          voucherNumber: voucherNum,
+          billNumber: voucherNum,
+          invoiceDate: jv.voucherDate,
+          status: jv.status,
+          netAmount: originalAmount,
+          outstandingAmount,
+          jamaAmount: totalPaid,
+          customerId: partyId,
+          transactionCurrency: jv.transactionCurrency || 'INR',
+          exchangeRate: Number(jv.exchangeRate) || 1.0,
+        });
+      }
+    }
+    return list;
+  }
+
+  /**
    * Fetch outstanding purchase invoices for a supplier
    */
   async listUnpaidPurchases(companyId: number, supplierId: number) {
@@ -257,7 +320,8 @@ export class CashBankService {
     const normalizedPurchases = purchases.map((p: any) => ({ ...p, customerId: p.supplierId }));
 
     const jvs = await this.listUnpaidJVs(companyId, supplierId, false);
-    return [...normalizedPurchases, ...jvs];
+    const jobs = await this.listUnpaidJobs(companyId, supplierId, false);
+    return [...normalizedPurchases, ...jvs, ...jobs];
   }
 
   /**
@@ -277,7 +341,8 @@ export class CashBankService {
     });
 
     const jvs = await this.listUnpaidJVs(companyId, customerId, true);
-    return [...sales, ...jvs];
+    const jobs = await this.listUnpaidJobs(companyId, customerId, true);
+    return [...sales, ...jvs, ...jobs];
   }
 
   /**
@@ -343,21 +408,40 @@ export class CashBankService {
     });
     if (!account) return 0;
 
+    const isUsdAccount = (account as any).currency === 'USD' || account.accountName.toLowerCase().includes('usd');
     const opening = Number(account.openingBalanceAmount) || 0;
     const isOpeningDebit = account.openingBalanceType === DebitCreditType.DEBIT;
 
-    const debits = await this.prisma.generalLedgerEntry.aggregate({
-      where: { companyId, accountId: cashBankAccountId, debitCreditType: DebitCreditType.DEBIT },
-      _sum: { amount: true }
-    });
+    let totalDebits = 0;
+    let totalCredits = 0;
 
-    const credits = await this.prisma.generalLedgerEntry.aggregate({
-      where: { companyId, accountId: cashBankAccountId, debitCreditType: DebitCreditType.CREDIT },
-      _sum: { amount: true }
-    });
+    if (isUsdAccount) {
+      const glEntries = await this.prisma.generalLedgerEntry.findMany({
+        where: { companyId, accountId: cashBankAccountId },
+        select: { debitCreditType: true, amount: true, originalAmount: true }
+      });
+      for (const e of glEntries) {
+        const val = e.originalAmount !== null && e.originalAmount !== undefined ? Number(e.originalAmount) : Number(e.amount);
+        if (e.debitCreditType === DebitCreditType.DEBIT) {
+          totalDebits += val;
+        } else {
+          totalCredits += val;
+        }
+      }
+    } else {
+      const debits = await this.prisma.generalLedgerEntry.aggregate({
+        where: { companyId, accountId: cashBankAccountId, debitCreditType: DebitCreditType.DEBIT },
+        _sum: { amount: true }
+      });
 
-    const totalDebits = Number(debits._sum.amount) || 0;
-    const totalCredits = Number(credits._sum.amount) || 0;
+      const credits = await this.prisma.generalLedgerEntry.aggregate({
+        where: { companyId, accountId: cashBankAccountId, debitCreditType: DebitCreditType.CREDIT },
+        _sum: { amount: true }
+      });
+
+      totalDebits = Number(debits._sum.amount) || 0;
+      totalCredits = Number(credits._sum.amount) || 0;
+    }
 
     let balance = isOpeningDebit ? (opening + totalDebits - totalCredits) : (-opening + totalDebits - totalCredits);
     return balance;
@@ -601,6 +685,29 @@ export class CashBankService {
               data: { jamaAmount: nextJama, outstandingAmount: nextOutstanding, paymentStatus: nextStatus }
             });
           }
+        }
+
+        // Also sync outstandingBill table if matching billNumber exists
+        const ob = await tx.outstandingBill.findFirst({
+          where: {
+            companyId,
+            OR: [
+              { billNumber: referenceBillNo },
+              { billNumber: { contains: referenceBillNo } }
+            ]
+          }
+        });
+        if (ob) {
+          const nextAllocated = Number(ob.allocatedAmount || 0) + totalSettlementApplied;
+          const nextOutstanding = Math.max(0, Number(ob.originalAmount) - nextAllocated);
+          let nextStatus: PaymentStatus = PaymentStatus.PARTIAL;
+          if (nextOutstanding <= 0) nextStatus = PaymentStatus.PAID;
+          else if (nextAllocated === 0) nextStatus = PaymentStatus.UNPAID;
+
+          await tx.outstandingBill.update({
+            where: { id: ob.id },
+            data: { allocatedAmount: nextAllocated, outstandingAmount: nextOutstanding, status: nextStatus }
+          });
         }
       }
 

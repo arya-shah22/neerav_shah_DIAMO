@@ -20,7 +20,7 @@ import { StockConversionListPage } from './features/stock/StockConversionListPag
 import { StockConversionFormPage } from './features/stock/StockConversionFormPage';
 import { InvoiceListPage, InvoiceFormPage, InvoiceViewPage } from './features/invoice';
 import { ChallanListPage, ChallanFormPage } from './features/challan';
-import { JobListPage, JobFormPage } from './features/job';
+import { JobWorkBillingPage, JobWorkFormPage } from './features/job';
 import { JVBookPage } from './features/journal';
 import { CashBankPage } from './features/cashbook';
 import { LoanPage } from './features/loan/LoanPage';
@@ -205,14 +205,11 @@ const App: React.FC = () => {
                 <Route path="/transactions/orders/purchases/:id" element={<ChallanFormPage purpose="PURCHASE_ORDER" viewMode />} />
                 <Route path="/transactions/orders/purchases/:id/edit" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
 
-                {/* Stage 8: Job Book (Income & Expenses) */}
-                <Route path="/transactions/jobs/income" element={<JobListPage jobType="JOB_INCOME" />} />
-                <Route path="/transactions/jobs/income/new" element={<JobFormPage jobType="JOB_INCOME" />} />
-                <Route path="/transactions/jobs/income/view/:id" element={<JobFormPage jobType="JOB_INCOME" viewMode />} />
-
-                <Route path="/transactions/jobs/expense" element={<JobListPage jobType="JOB_EXPENSE" />} />
-                <Route path="/transactions/jobs/expense/new" element={<JobFormPage jobType="JOB_EXPENSE" />} />
-                <Route path="/transactions/jobs/expense/view/:id" element={<JobFormPage jobType="JOB_EXPENSE" viewMode />} />
+                {/* Unified Job Work Billing & Margin Engine */}
+                <Route path="/transactions/jobs/billing" element={<JobWorkBillingPage />} />
+                <Route path="/transactions/jobs/new" element={<JobWorkFormPage />} />
+                <Route path="/transactions/jobwork/new" element={<JobWorkFormPage />} />
+                <Route path="/transactions/challans/job-work" element={<JobWorkFormPage />} />
 
                 {/* Phase 8: Accounting (JV Book) */}
                 <Route path="/vouchers/journal" element={<JVBookPage />} />

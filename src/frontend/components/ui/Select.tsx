@@ -250,7 +250,8 @@ export const Select: React.FC<SelectProps> = ({
         position: 'fixed',
         top: `${dropdownPos.top}px`,
         left: `${dropdownPos.left}px`,
-        width: `${dropdownPos.width}px`,
+        minWidth: `${dropdownPos.width}px`,
+        maxWidth: '540px',
         background: 'var(--color-surface)',
         border: '1px solid var(--color-border)',
         borderRadius: 'var(--radius-md)',
@@ -327,17 +328,20 @@ export const Select: React.FC<SelectProps> = ({
         ) : (
           filteredOptionsWithCreatable.map((option, i) => (
             <div
-              key={option.value}
+              key={`${option.value}-${i}`}
               role="option"
               aria-selected={String(option.value) === selectedValue}
               onMouseDown={(e) => e.preventDefault()}
               onClick={() => handleSelectOption(option)}
               onMouseEnter={() => setHighlightedIndex(i)}
               style={{
-                height: `${OPTION_HEIGHT_PX}px`,
+                minHeight: `${OPTION_HEIGHT_PX}px`,
+                padding: '6px var(--spacing-sm)',
+                lineHeight: '1.4',
+                wordBreak: 'break-word',
+                whiteSpace: 'normal',
                 display: 'flex',
                 alignItems: 'center',
-                padding: '0 var(--spacing-sm)',
                 fontSize: 'var(--text-label)',
                 cursor: 'pointer',
                 background: String(option.value) === selectedValue

@@ -7,7 +7,7 @@ import React, { useEffect, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
-type ModalSize = 'sm' | 'md' | 'lg';
+type ModalSize = 'sm' | 'md' | 'lg' | 'xl' | 'full';
 
 interface ModalProps {
   isOpen: boolean;
@@ -24,6 +24,8 @@ const SIZE_MAP: Record<ModalSize, string> = {
   sm: '400px',
   md: '640px',
   lg: '960px',
+  xl: '1140px',
+  full: '95vw',
 };
 
 export const Modal: React.FC<ModalProps> = ({

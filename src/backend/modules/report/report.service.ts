@@ -1,6 +1,6 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
-import { DebitCreditType } from '@prisma/client';
+import { DebitCreditType, VoucherStatus } from '@prisma/client';
 
 @Injectable()
 export class ReportService {
@@ -617,6 +617,37 @@ export class ReportService {
       });
       // Normalize supplierId -> customerId for consistent processing
       invoices = invoices.map((inv: any) => ({ ...inv, customerId: inv.supplierId }));
+
+      // Include unpaid Job Work Subcontractor Payables
+      const jobVouchers = await this.prisma.jobVoucher.findMany({
+        where: {
+          companyId,
+          isDeleted: false,
+          subcontractorPartyId: { in: accountIds },
+          status: { in: [VoucherStatus.POSTED] },
+        },
+        orderBy: { voucherDate: 'asc' },
+      });
+
+      for (const jv of jobVouchers) {
+        const voucherNum = jv.voucherNumber || jv.billNumber;
+        const settlements = await this.prisma.cashBankVoucher.findMany({
+          where: { companyId, partyId: jv.subcontractorPartyId!, referenceBillNo: voucherNum, isDeleted: false },
+        });
+        const totalPaid = settlements.reduce((s, c) => s + Number(c.amount), 0);
+        const originalAmount = Number(jv.contractorExpenseTotal);
+        const outstandingAmount = Math.max(0, originalAmount - totalPaid);
+        if (outstandingAmount > 0) {
+          invoices.push({
+            id: jv.id,
+            customerId: jv.subcontractorPartyId,
+            netAmount: originalAmount,
+            outstandingAmount,
+            invoiceDate: jv.voucherDate,
+            dueDate: jv.voucherDate,
+          });
+        }
+      }
     } else {
       invoices = await this.prisma.saleInvoice.findMany({
         where: {
@@ -628,6 +659,37 @@ export class ReportService {
         },
         orderBy: { invoiceDate: 'asc' },
       });
+
+      // Include unpaid Job Work Client Receivables
+      const jobVouchers = await this.prisma.jobVoucher.findMany({
+        where: {
+          companyId,
+          isDeleted: false,
+          partyId: { in: accountIds },
+          status: { in: [VoucherStatus.POSTED] },
+        },
+        orderBy: { voucherDate: 'asc' },
+      });
+
+      for (const jv of jobVouchers) {
+        const voucherNum = jv.voucherNumber || jv.billNumber;
+        const settlements = await this.prisma.cashBankVoucher.findMany({
+          where: { companyId, partyId: jv.partyId, referenceBillNo: voucherNum, isDeleted: false },
+        });
+        const totalPaid = settlements.reduce((s, c) => s + Number(c.amount), 0);
+        const originalAmount = Number(jv.netAmount || jv.totalAmount);
+        const outstandingAmount = Math.max(0, originalAmount - totalPaid);
+        if (outstandingAmount > 0) {
+          invoices.push({
+            id: jv.id,
+            customerId: jv.partyId,
+            netAmount: originalAmount,
+            outstandingAmount,
+            invoiceDate: jv.voucherDate,
+            dueDate: jv.voucherDate,
+          });
+        }
+      }
     }
 
     const today = new Date();

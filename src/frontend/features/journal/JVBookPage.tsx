@@ -191,6 +191,10 @@ export const JVBookPage: React.FC = () => {
     }
   };
 
+  // Multi-Currency state for JV Book
+  const [transactionCurrency, setTransactionCurrency] = useState<'INR' | 'USD'>('INR');
+  const [exchangeRate, setExchangeRate] = useState<number>(90);
+
   // Bill Adjustment / Kasar Settlement states
   const [isBillAdjustment, setIsBillAdjustment] = useState(false);
   const [pendingBills, setPendingBills] = useState<any[]>([]);
@@ -220,14 +224,22 @@ export const JVBookPage: React.FC = () => {
     });
   }, [companyId, partyAccountId, isBillAdjustment, fetchPendingBills]);
 
-  // When a bill is selected, auto-fill amount with its pending balance if amount is 0
+  // When a bill is selected, auto-fill amount with its pending balance and currency
   const handleSelectBill = (billIdStr: string) => {
     const bId = Number(billIdStr) || null;
     setSelectedBillId(bId);
     if (bId) {
       const target = pendingBills.find((b) => b.id === bId);
-      if (target && (!amount || amount === 0)) {
-        setAmount(Number(target.outstandingAmount) || 0);
+      if (target) {
+        if (target.transactionCurrency === 'USD') {
+          setTransactionCurrency('USD');
+          if (target.exchangeRate) setExchangeRate(Number(target.exchangeRate));
+        } else {
+          setTransactionCurrency('INR');
+        }
+        if (!amount || amount === 0) {
+          setAmount(Number(target.outstandingAmount) || 0);
+        }
       }
     }
   };
@@ -280,6 +292,8 @@ export const JVBookPage: React.FC = () => {
       drAccountId: finalDr,
       crAccountId: finalCr,
       amount,
+      transactionCurrency,
+      exchangeRate,
       isManualBillNumber,
       billNumber: isManualBillNumber ? billNumber : previewVoucherNo,
       outstandingBillId: isBillAdjustment ? selectedBillId : null,
@@ -664,6 +678,35 @@ export const JVBookPage: React.FC = () => {
             onChange={(e) => setVoucherDate(e.target.value)}
           />
 
+          {/* Currency Selector */}
+          <Select
+            label="Currency *"
+            value={transactionCurrency}
+            onChange={(val) => {
+              const newCurrency = val as 'INR' | 'USD';
+              const rate = exchangeRate > 0 ? exchangeRate : 90;
+              if (newCurrency === 'INR' && transactionCurrency === 'USD') {
+                if (amount > 0) setAmount(Number((amount * rate).toFixed(2)));
+              } else if (newCurrency === 'USD' && transactionCurrency === 'INR') {
+                if (amount > 0) setAmount(Number((amount / rate).toFixed(2)));
+              }
+              setTransactionCurrency(newCurrency);
+            }}
+            options={[
+              { value: 'INR', label: 'INR (₹)' },
+              { value: 'USD', label: 'USD ($)' },
+            ]}
+          />
+
+          {transactionCurrency === 'USD' && (
+            <Input
+              label="Exchange Rate (₹/$)"
+              type="number"
+              value={exchangeRate}
+              onChange={(e) => setExchangeRate(Number(e.target.value) || 1)}
+            />
+          )}
+
           {isBillAdjustment ? (
             <>
               {/* Party Selection in Bill Adjustment Mode */}
@@ -862,7 +905,16 @@ export const JVBookPage: React.FC = () => {
           <div>
             <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginRight: '8px' }}>Total Amount:</span>
             <span style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-primary)' }}>
-              ₹ {Number(amount + sgstAmt + cgstAmt + igstAmt - tdsAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              {transactionCurrency === 'USD' ? (
+                <>
+                  $ {Number(amount + sgstAmt + cgstAmt + igstAmt - tdsAmt).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginLeft: '8px' }}>
+                    (₹ {Number((amount + sgstAmt + cgstAmt + igstAmt - tdsAmt) * (exchangeRate || 90)).toLocaleString('en-IN', { minimumFractionDigits: 2 })})
+                  </span>
+                </>
+              ) : (
+                `₹ ${Number(amount + sgstAmt + cgstAmt + igstAmt - tdsAmt).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+              )}
             </span>
           </div>
           <Button variant="primary" type="submit">Save Voucher</Button>

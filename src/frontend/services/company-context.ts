@@ -14,7 +14,7 @@ import type { IFinancialYear } from '../features/financial-year/fy.types';
 export async function loadCompanyContext(
   preferredCompanyId?: number,
 ): Promise<{ company: ICompany | null; financialYear: IFinancialYear | null }> {
-  const { setCompanies, setActiveCompany, setActiveFinancialYear } = useCompanyStore.getState();
+  const { setCompanies } = useCompanyStore.getState();
 
   const companiesRes = await invokeIpc<ICompany[]>('company:list');
   if (!companiesRes.success || !companiesRes.data?.length) {
@@ -25,20 +25,24 @@ export async function loadCompanyContext(
   const companies = companiesRes.data;
   setCompanies(companies);
 
+  const defaultCompany = companies.find((c) => c.isDefault);
+  const preferredCompany = companies.find((c) => c.id === preferredCompanyId);
   const company =
-    companies.find((c) => c.id === preferredCompanyId) ||
-    companies.find((c) => c.isDefault) ||
-    companies[0];
-
-  setActiveCompany(company);
+    (preferredCompany && !preferredCompany.companyName.toLowerCase().includes('test company') && !preferredCompany.companyName.toLowerCase().includes('isolated'))
+      ? preferredCompany
+      : (defaultCompany || companies[0]);
 
   const fyRes = await invokeIpc<IFinancialYear[]>('fy:list', company.id);
-  if (!fyRes.success || !fyRes.data?.length) {
-    return { company, financialYear: null };
-  }
+  const financialYear = (fyRes.success && fyRes.data?.length)
+    ? (fyRes.data.find((fy) => fy.isActive) || fyRes.data[0])
+    : null;
 
-  const financialYear = fyRes.data.find((fy) => fy.isActive) || fyRes.data[0];
-  setActiveFinancialYear(financialYear);
+  useCompanyStore.setState({
+    companies,
+    activeCompany: company,
+    activeFinancialYear: financialYear,
+  });
+
   return { company, financialYear };
 }
 
@@ -46,16 +50,15 @@ export async function loadCompanyContext(
  * Switch active company and reload its financial years.
  */
 export async function switchCompany(company: ICompany): Promise<IFinancialYear | null> {
-  const { setActiveCompany, setActiveFinancialYear } = useCompanyStore.getState();
-  setActiveCompany(company);
-
   const fyRes = await invokeIpc<IFinancialYear[]>('fy:list', company.id);
-  if (!fyRes.success || !fyRes.data?.length) {
-    useCompanyStore.setState({ activeFinancialYear: null });
-    return null;
-  }
+  const financialYear = (fyRes.success && fyRes.data?.length)
+    ? (fyRes.data.find((fy) => fy.isActive) || fyRes.data[0])
+    : null;
 
-  const financialYear = fyRes.data.find((fy) => fy.isActive) || fyRes.data[0];
-  setActiveFinancialYear(financialYear);
+  useCompanyStore.setState({
+    activeCompany: company,
+    activeFinancialYear: financialYear,
+  });
+
   return financialYear;
 }

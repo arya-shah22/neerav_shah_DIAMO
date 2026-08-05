@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, Search, Check, X, ShieldAlert, ArrowLeft, FileText } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -717,18 +718,21 @@ export const LedgerBookPage: React.FC = () => {
       </div>
 
       {/* Party Selection Modal Dialog */}
-      {isModalOpen && (
+      {isModalOpen && createPortal(
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
+          right: 0,
+          bottom: 0,
           width: '100vw',
           height: '100vh',
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'rgba(15, 23, 42, 0.5)',
+          backdropFilter: 'blur(4px)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000,
+          zIndex: 9999,
         }}>
           <div style={{
             background: 'var(--color-surface)',
@@ -739,7 +743,7 @@ export const LedgerBookPage: React.FC = () => {
             display: 'flex',
             flexDirection: 'column',
             overflow: 'hidden',
-            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
           }}>
             
             {/* Modal Header */}
@@ -851,23 +855,26 @@ export const LedgerBookPage: React.FC = () => {
             </div>
 
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
       {/* Choose Print Destination Modal */}
-      {showPrintModal && (
+      {showPrintModal && createPortal(
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
+          right: 0,
+          bottom: 0,
           width: '100vw',
           height: '100vh',
-          background: 'rgba(15, 23, 42, 0.3)',
+          background: 'rgba(15, 23, 42, 0.5)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000,
+          zIndex: 9999,
         }}>
           <div style={{
             background: 'var(--color-surface)',
@@ -876,7 +883,7 @@ export const LedgerBookPage: React.FC = () => {
             padding: '28px',
             maxWidth: '420px',
             width: '100%',
-            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
             textAlign: 'center',
           }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '8px' }}>Choose Print Destination</h3>
@@ -934,22 +941,26 @@ export const LedgerBookPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
+
       {/* Page per Party Layout Prompt Modal */}
-      {showPagePartyModal && (
+      {showPagePartyModal && createPortal(
         <div style={{
           position: 'fixed',
           top: 0,
           left: 0,
+          right: 0,
+          bottom: 0,
           width: '100vw',
           height: '100vh',
-          background: 'rgba(15, 23, 42, 0.3)',
+          background: 'rgba(15, 23, 42, 0.5)',
           backdropFilter: 'blur(4px)',
           display: 'flex',
           justifyContent: 'center',
           alignItems: 'center',
-          zIndex: 1000,
+          zIndex: 9999,
         }}>
           <div style={{
             background: 'var(--color-surface)',
@@ -958,7 +969,7 @@ export const LedgerBookPage: React.FC = () => {
             padding: '28px',
             maxWidth: '420px',
             width: '100%',
-            boxShadow: '0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1)',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 8px 10px -6px rgba(0, 0, 0, 0.2)',
             textAlign: 'center',
           }}>
             <h3 style={{ fontSize: '18px', fontWeight: 700, color: 'var(--color-text-primary)', marginBottom: '8px' }}>Print Layout Style</h3>
@@ -1032,7 +1043,8 @@ export const LedgerBookPage: React.FC = () => {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
 
     </div>

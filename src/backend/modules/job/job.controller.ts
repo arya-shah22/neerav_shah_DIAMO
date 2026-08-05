@@ -47,10 +47,59 @@ export class JobController {
     }
   }
 
-  async handlePreviewNumber(payload: { companyId: number; financialYearId: number; type: JobType }) {
+  async handlePreviewNumber(payload: { companyId: number; financialYearId?: number; type?: JobType }) {
     try {
-      const data = await this.jobService.previewVoucherNumber(payload.companyId, payload.financialYearId, payload.type);
+      const companyId = Number(payload.companyId || 1);
+      const financialYearId = payload.financialYearId ? Number(payload.financialYearId) : undefined;
+      const type = payload.type || JobType.JOB_INCOME;
+      const data = await this.jobService.previewVoucherNumber(companyId, financialYearId, type);
       return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async handleCreateUnified(payload: { companyId: number; data: Record<string, any> }) {
+    try {
+      const data = await this.jobService.createUnifiedJobWork(payload.companyId, payload.data);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async handleUpdateUnified(payload: { companyId: number; id: number; data: Record<string, any> }) {
+    try {
+      const data = await this.jobService.updateUnifiedJobWork(payload.companyId, payload.id, payload.data);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async handleReceiveAndBill(payload: { companyId: number; id: number; data: Record<string, any> }) {
+    try {
+      const data = await this.jobService.receiveAndBillJobWork(payload.companyId, payload.id, payload.data);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async handleCancel(payload: { companyId: number; id: number }) {
+    try {
+      const data = await this.jobService.cancelUnifiedJobWork(payload.companyId, payload.id);
+      return { success: true, data };
+    } catch (e: any) {
+      return { success: false, error: e.message };
+    }
+  }
+
+  async handleGeneratePdf(payload: { companyId: number; id: number; mode?: 'CLIENT' | 'SUBCONTRACTOR' }) {
+    try {
+      const buffer = await this.jobService.generateJobWorkPdf(payload.companyId, payload.id, payload.mode || 'CLIENT');
+      const pdfBase64 = buffer.toString('base64');
+      return { success: true, data: { pdfBase64 } };
     } catch (e: any) {
       return { success: false, error: e.message };
     }

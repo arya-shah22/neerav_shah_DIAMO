@@ -33,8 +33,6 @@ export const PAGE_REGISTRY: PageEntry[] = [
   { uri: '/transactions/challans/job-work', label: 'Job Work Issue', category: 'Transactions' },
   { uri: '/transactions/orders/sales', label: 'Sales Order', category: 'Transactions' },
   { uri: '/transactions/orders/purchases', label: 'Purchase Order', category: 'Transactions' },
-  { uri: '/transactions/jobs/income', label: 'Job Income', category: 'Transactions' },
-  { uri: '/transactions/jobs/expense', label: 'Job Expense', category: 'Transactions' },
 
   // Vouchers
   { uri: '/vouchers/journal', label: 'Journal Voucher', category: 'Vouchers' },

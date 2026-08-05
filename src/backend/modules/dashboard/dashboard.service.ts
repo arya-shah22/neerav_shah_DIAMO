@@ -5,6 +5,7 @@
 
 import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
+import { VoucherStatus } from '@prisma/client';
 import { IDashboardKpiSummary, IBusinessAnalyticsData } from '../../../shared/types/dashboard.types';
 
 @Injectable()
@@ -20,9 +21,14 @@ export class DashboardService {
     // 1. User & Company Info
     const user = userId ? await this.prisma.user.findUnique({ where: { id: userId } }) : null;
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
-    const fy = financialYearId
+    let fy = financialYearId
       ? await this.prisma.financialYear.findUnique({ where: { id: financialYearId } })
-      : await this.prisma.financialYear.findFirst({ where: { companyId, isClosed: false }, orderBy: { fromDate: 'desc' } });
+      : null;
+
+    if (!fy || fy.companyId !== companyId) {
+      fy = (await this.prisma.financialYear.findFirst({ where: { companyId, isActive: true, isClosed: false } }))
+        || (await this.prisma.financialYear.findFirst({ where: { companyId, isClosed: false }, orderBy: { fromDate: 'asc' } }));
+    }
 
     const fyLabel = fy
       ? `${new Date(fy.fromDate).getFullYear()}-${new Date(fy.toDate).getFullYear().toString().slice(-2)}`
@@ -78,14 +84,61 @@ export class DashboardService {
     // Query outstanding sale invoices from sale_invoices table
     const saleInvoices = await this.prisma.saleInvoice.findMany({
       where: { companyId, isDeleted: false, status: { not: 'CANCELLED' } },
-      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
+      select: { voucherNumber: true, billNumber: true, invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
     });
 
     // Query outstanding purchase invoices from purchase_invoices table
     const purchaseInvoices = await this.prisma.purchaseInvoice.findMany({
       where: { companyId, isDeleted: false, status: { not: 'CANCELLED' } },
-      select: { invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
+      select: { voucherNumber: true, billNumber: true, invoiceType: true, outstandingAmount: true, netAmount: true, jamaAmount: true, dueDate: true, transactionCurrency: true, exchangeRate: true },
     });
+
+    // Query posted Job Vouchers for Job Work Receivables & Payables
+    const jobVouchers = await this.prisma.jobVoucher.findMany({
+      where: { companyId, isDeleted: false, status: VoucherStatus.POSTED },
+      select: {
+        id: true,
+        voucherNumber: true,
+        billNumber: true,
+        partyId: true,
+        subcontractorPartyId: true,
+        netAmount: true,
+        totalAmount: true,
+        contractorExpenseTotal: true,
+        transactionCurrency: true,
+        exchangeRate: true,
+        voucherDate: true,
+      },
+    });
+
+    const jobSettlements = await this.prisma.cashBankVoucher.findMany({
+      where: { companyId, isDeleted: false },
+      select: { partyId: true, referenceBillNo: true, amount: true },
+    });
+
+    const allJvAdjustments = await this.prisma.journalVoucher.findMany({
+      where: { companyId, isDeleted: false, status: VoucherStatus.POSTED },
+      select: { referenceId: true, totalDebit: true, transactionCurrency: true, exchangeRate: true }
+    });
+
+    const getJvSettlement = (billNumber: string | undefined, isUsd: boolean, exRate: number) => {
+      if (!billNumber) return 0;
+      let total = 0;
+      for (const j of allJvAdjustments) {
+        if (j.referenceId && (billNumber === j.referenceId || billNumber.includes(j.referenceId) || j.referenceId.includes(billNumber))) {
+          const jIsUsd = j.transactionCurrency === 'USD';
+          const jExRate = Number(j.exchangeRate) || 1.0;
+          const debitBase = Number(j.totalDebit);
+          if (isUsd) {
+            const valUsd = jIsUsd ? (debitBase / (jExRate || 1.0)) : (debitBase / (exRate || 1.0));
+            total += valUsd;
+          } else {
+            total += debitBase;
+          }
+        }
+      }
+      return total;
+    };
 
     let totalBilledReceivablesInr = 0;
     let pendingReceivablesInr = 0;
@@ -119,10 +172,12 @@ export class DashboardService {
       const jamaBase = Number(inv.jamaAmount || 0) * exRate;
       const netRaw = Number(inv.netAmount || 0);
       const jamaRaw = Number(inv.jamaAmount || 0);
+      const jvPaid = getJvSettlement(inv.voucherNumber || inv.billNumber, isUsd, exRate);
 
-      const outstandingRaw = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
+      const baseOutstanding = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
         : Math.max(0, netRaw - jamaRaw);
+      const outstandingRaw = Math.max(0, baseOutstanding - jvPaid);
       const outstandingBase = outstandingRaw * exRate;
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
@@ -133,7 +188,7 @@ export class DashboardService {
 
         if (isUsd) {
           totalBilledReceivablesUsd += netRaw;
-          doneReceivedReceivablesUsd += jamaRaw;
+          doneReceivedReceivablesUsd += jamaRaw + jvPaid;
           if (outstandingRaw > 0) {
             pendingReceivablesUsd += outstandingRaw;
             pendingReceivableCountUsd++;
@@ -141,7 +196,7 @@ export class DashboardService {
           }
         } else {
           totalBilledReceivablesInr += netRaw;
-          doneReceivedReceivablesInr += jamaRaw;
+          doneReceivedReceivablesInr += jamaRaw + jvPaid;
           if (outstandingRaw > 0) {
             pendingReceivablesInr += outstandingRaw;
             pendingReceivableCountInr++;
@@ -165,10 +220,12 @@ export class DashboardService {
       const jamaBase = Number(inv.jamaAmount || 0) * exRate;
       const netRaw = Number(inv.netAmount || 0);
       const jamaRaw = Number(inv.jamaAmount || 0);
+      const jvPaid = getJvSettlement(inv.voucherNumber || inv.billNumber, isUsd, exRate);
 
-      const outstandingRaw = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
+      const baseOutstanding = inv.outstandingAmount !== null && inv.outstandingAmount !== undefined
         ? Number(inv.outstandingAmount)
         : Math.max(0, netRaw - jamaRaw);
+      const outstandingRaw = Math.max(0, baseOutstanding - jvPaid);
       const outstandingBase = outstandingRaw * exRate;
       
       const isOverdue = inv.dueDate && new Date(inv.dueDate).getTime() < nowTime;
@@ -179,7 +236,7 @@ export class DashboardService {
 
         if (isUsd) {
           totalBilledPayablesUsd += netRaw;
-          donePaidPayablesUsd += jamaRaw;
+          donePaidPayablesUsd += jamaRaw + jvPaid;
           if (outstandingRaw > 0) {
             pendingPayablesUsd += outstandingRaw;
             pendingPayableCountUsd++;
@@ -187,7 +244,7 @@ export class DashboardService {
           }
         } else {
           totalBilledPayablesInr += netRaw;
-          donePaidPayablesInr += jamaRaw;
+          donePaidPayablesInr += jamaRaw + jvPaid;
           if (outstandingRaw > 0) {
             pendingPayablesInr += outstandingRaw;
             pendingPayableCountInr++;
@@ -199,6 +256,79 @@ export class DashboardService {
           pendingPayables += outstandingBase;
           pendingPayableCount++;
           if (isOverdue) overduePayables += outstandingBase;
+        }
+      }
+    });
+
+    // Process posted Job Vouchers for Receivables & Payables (both USD and INR)
+    jobVouchers.forEach((jv: any) => {
+      const isUsd = jv.transactionCurrency === 'USD';
+      const exRate = isUsd ? (Number(jv.exchangeRate) || 1) : 1;
+      const billNum = jv.voucherNumber || jv.billNumber;
+
+      // 1. Client Receivable (Party)
+      const clientTotalRaw = Number(jv.netAmount || jv.totalAmount || 0);
+      if (clientTotalRaw > 0) {
+        const clientSettled = jobSettlements
+          .filter((s: any) => s.partyId === jv.partyId && s.referenceBillNo === billNum)
+          .reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0) + getJvSettlement(billNum, isUsd, exRate);
+        const outstandingRaw = Math.max(0, clientTotalRaw - clientSettled);
+        const outstandingBase = outstandingRaw * exRate;
+
+        if (isUsd) {
+          totalBilledReceivablesUsd += clientTotalRaw;
+          doneReceivedReceivablesUsd += clientSettled;
+          if (outstandingRaw > 0) {
+            pendingReceivablesUsd += outstandingRaw;
+            pendingReceivableCountUsd++;
+          }
+        } else {
+          totalBilledReceivablesInr += clientTotalRaw;
+          doneReceivedReceivablesInr += clientSettled;
+          if (outstandingRaw > 0) {
+            pendingReceivablesInr += outstandingRaw;
+            pendingReceivableCountInr++;
+          }
+        }
+
+        if (outstandingBase > 0) {
+          totalBilledReceivables += clientTotalRaw * exRate;
+          doneReceivedReceivables += clientSettled * exRate;
+          pendingReceivables += outstandingBase;
+          pendingReceivableCount++;
+        }
+      }
+
+      // 2. Subcontractor Payable (Factory Vendor)
+      const contractorTotalRaw = Number(jv.contractorExpenseTotal || 0);
+      if (contractorTotalRaw > 0 && jv.subcontractorPartyId) {
+        const contractorSettled = jobSettlements
+          .filter((s: any) => s.partyId === jv.subcontractorPartyId && s.referenceBillNo === billNum)
+          .reduce((sum: number, s: any) => sum + Number(s.amount || 0), 0) + getJvSettlement(billNum, isUsd, exRate);
+        const outstandingRaw = Math.max(0, contractorTotalRaw - contractorSettled);
+        const outstandingBase = outstandingRaw * exRate;
+
+        if (isUsd) {
+          totalBilledPayablesUsd += contractorTotalRaw;
+          donePaidPayablesUsd += contractorSettled;
+          if (outstandingRaw > 0) {
+            pendingPayablesUsd += outstandingRaw;
+            pendingPayableCountUsd++;
+          }
+        } else {
+          totalBilledPayablesInr += contractorTotalRaw;
+          donePaidPayablesInr += contractorSettled;
+          if (outstandingRaw > 0) {
+            pendingPayablesInr += outstandingRaw;
+            pendingPayableCountInr++;
+          }
+        }
+
+        if (outstandingBase > 0) {
+          totalBilledPayables += contractorTotalRaw * exRate;
+          donePaidPayables += contractorSettled * exRate;
+          pendingPayables += outstandingBase;
+          pendingPayableCount++;
         }
       }
     });
@@ -294,6 +424,24 @@ export class DashboardService {
       _sum: { amount: true }
     });
 
+    const usdGlEntries = await this.prisma.generalLedgerEntry.findMany({
+      where: {
+        companyId,
+        account: {
+          OR: [
+            { accountName: { contains: 'USD' } },
+            { accountName: { contains: 'usd' } },
+          ]
+        }
+      },
+      select: {
+        accountId: true,
+        debitCreditType: true,
+        amount: true,
+        originalAmount: true,
+      }
+    });
+
     let finalCashNetBalance = 0;
     let finalCashUsdBalance = 0;
     let finalBankNetBalance = 0;
@@ -303,23 +451,36 @@ export class DashboardService {
       const opening = Number(acc.openingBalanceAmount || 0);
       const isOpeningDebit = acc.openingBalanceType === 'DEBIT';
 
-      const accountGL = glSums.filter((e: any) => e.accountId === acc.id);
-      const debitSum = Number(accountGL.find((e: any) => e.debitCreditType === 'DEBIT')?._sum?.amount || 0);
-      const creditSum = Number(accountGL.find((e: any) => e.debitCreditType === 'CREDIT')?._sum?.amount || 0);
+      const groupName = (acc.accountGroup?.groupName || '').toLowerCase();
+      const accName = (acc.accountName || '').toLowerCase();
+      const isUsd = accName.includes('usd') || (acc as any).currency === 'USD';
+
+      let debitSum = 0;
+      let creditSum = 0;
+
+      if (isUsd) {
+        const accUsdGles = usdGlEntries.filter((e: any) => e.accountId === acc.id);
+        for (const e of accUsdGles) {
+          const val = e.originalAmount !== null && e.originalAmount !== undefined ? Number(e.originalAmount) : Number(e.amount);
+          if (e.debitCreditType === 'DEBIT') debitSum += val;
+          else creditSum += val;
+        }
+      } else {
+        const accountGL = glSums.filter((e: any) => e.accountId === acc.id);
+        debitSum = Number(accountGL.find((e: any) => e.debitCreditType === 'DEBIT')?._sum?.amount || 0);
+        creditSum = Number(accountGL.find((e: any) => e.debitCreditType === 'CREDIT')?._sum?.amount || 0);
+      }
 
       const balance = isOpeningDebit ? (opening + debitSum - creditSum) : (-opening + debitSum - creditSum);
 
-      const groupName = (acc.accountGroup?.groupName || '').toLowerCase();
-      const accName = (acc.accountName || '').toLowerCase();
-
       if (groupName.includes('cash') || accName.includes('cash')) {
-        if (accName.includes('usd')) {
+        if (isUsd) {
           finalCashUsdBalance += balance;
         } else {
           finalCashNetBalance += balance;
         }
       } else if (groupName.includes('bank') || accName.includes('bank') || accName.includes('hdfc') || accName.includes('icici') || accName.includes('sbi') || accName.includes('axis') || accName.includes('kotak')) {
-        if (accName.includes('usd')) {
+        if (isUsd) {
           finalBankUsdBalance += balance;
         } else {
           finalBankNetBalance += balance;

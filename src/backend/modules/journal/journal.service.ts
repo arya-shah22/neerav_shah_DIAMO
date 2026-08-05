@@ -129,8 +129,139 @@ export class JournalService {
   async getPendingBillsByAccount(companyId: number, accountId: number) {
     if (!companyId || !accountId) return [];
 
-    // 1. Try OutstandingBill table
-    const bills = await this.prisma.outstandingBill.findMany({
+    const jvAdjustments = await this.prisma.journalVoucher.findMany({
+      where: { companyId, isDeleted: false, status: VoucherStatus.POSTED },
+      select: { referenceId: true, totalDebit: true }
+    });
+
+    const getJvPaid = (billNumber: string) => {
+      return jvAdjustments
+        .filter(j => j.referenceId && (billNumber === j.referenceId || billNumber.includes(j.referenceId) || j.referenceId.includes(billNumber)))
+        .reduce((sum, j) => sum + Number(j.totalDebit), 0);
+    };
+
+    const list: any[] = [];
+
+    // 1. Sale Invoices (Customer Receivables)
+    const sales = await this.prisma.saleInvoice.findMany({
+      where: {
+        companyId,
+        customerId: accountId,
+        isDeleted: false,
+        invoiceType: 'SALE_INVOICE' as any,
+        status: { in: ['SAVED' as any, 'APPROVED' as any] },
+        outstandingAmount: { gt: 0 }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+    for (const s of sales) {
+      const jvPaid = getJvPaid(s.voucherNumber);
+      const liveOut = Math.max(0, Number(s.outstandingAmount) - jvPaid);
+      if (liveOut > 0) {
+        list.push({
+          id: s.id,
+          companyId: s.companyId,
+          financialYearId: s.financialYearId,
+          invoiceType: 'SALE_INVOICE',
+          billNumber: s.voucherNumber,
+          billDate: s.invoiceDate,
+          status: s.status,
+          netAmount: Number(s.netAmount),
+          outstandingAmount: liveOut,
+          jamaAmount: Number(s.jamaAmount) + jvPaid,
+          customerId: s.customerId,
+          transactionCurrency: s.transactionCurrency || 'INR',
+          exchangeRate: Number(s.exchangeRate) || 1.0,
+          billType: 'DEBIT',
+          sourceVoucherType: VoucherType.SALE_INVOICE,
+          sourceVoucherId: s.id,
+        });
+      }
+    }
+
+    // 2. Purchase Invoices (Supplier Payables)
+    const purchases = await this.prisma.purchaseInvoice.findMany({
+      where: {
+        companyId,
+        supplierId: accountId,
+        isDeleted: false,
+        invoiceType: 'PURCHASE_INVOICE' as any,
+        status: { in: ['SAVED' as any, 'APPROVED' as any] },
+        outstandingAmount: { gt: 0 }
+      },
+      orderBy: { invoiceDate: 'asc' }
+    });
+    for (const p of purchases) {
+      const jvPaid = getJvPaid(p.voucherNumber);
+      const liveOut = Math.max(0, Number(p.outstandingAmount) - jvPaid);
+      if (liveOut > 0) {
+        list.push({
+          id: p.id,
+          companyId: p.companyId,
+          financialYearId: p.financialYearId,
+          invoiceType: 'PURCHASE_INVOICE',
+          billNumber: p.voucherNumber,
+          billDate: p.invoiceDate,
+          status: p.status,
+          netAmount: Number(p.netAmount),
+          outstandingAmount: liveOut,
+          jamaAmount: Number(p.jamaAmount) + jvPaid,
+          customerId: p.supplierId,
+          transactionCurrency: p.transactionCurrency || 'INR',
+          exchangeRate: Number(p.exchangeRate) || 1.0,
+          billType: 'CREDIT',
+          sourceVoucherType: VoucherType.PURCHASE_INVOICE,
+          sourceVoucherId: p.id,
+        });
+      }
+    }
+
+    // 3. Job Work Tickets (Client Income & Contractor Expense)
+    const jobVouchers = await this.prisma.jobVoucher.findMany({
+      where: {
+        companyId,
+        isDeleted: false,
+        status: VoucherStatus.POSTED,
+        OR: [
+          { partyId: accountId },
+          { subcontractorPartyId: accountId }
+        ]
+      },
+      orderBy: { voucherDate: 'asc' }
+    });
+    for (const jv of jobVouchers) {
+      const isClient = jv.partyId === accountId;
+      const vNum = jv.voucherNumber || jv.billNumber;
+      const settlements = await this.prisma.cashBankVoucher.findMany({
+        where: { companyId, partyId: accountId, referenceBillNo: vNum, isDeleted: false }
+      });
+      const totalPaid = settlements.reduce((sum, s) => sum + Number(s.amount), 0) + getJvPaid(vNum);
+      const origAmt = isClient ? Number(jv.netAmount || jv.totalAmount) : Number(jv.contractorExpenseTotal);
+      const liveOut = Math.max(0, origAmt - totalPaid);
+      if (liveOut > 0) {
+        list.push({
+          id: jv.id,
+          companyId: jv.companyId,
+          financialYearId: jv.financialYearId,
+          invoiceType: isClient ? 'JOB_WORK_INCOME' : 'JOB_WORK_EXPENSE',
+          billNumber: vNum,
+          billDate: jv.voucherDate,
+          status: jv.status,
+          netAmount: origAmt,
+          outstandingAmount: liveOut,
+          jamaAmount: totalPaid,
+          customerId: accountId,
+          transactionCurrency: jv.transactionCurrency || 'INR',
+          exchangeRate: Number(jv.exchangeRate) || 1.0,
+          billType: isClient ? 'DEBIT' : 'CREDIT',
+          sourceVoucherType: isClient ? 'JOB_WORK_INCOME' : 'JOB_WORK_EXPENSE',
+          sourceVoucherId: jv.id,
+        });
+      }
+    }
+
+    // 4. Standalone OutstandingBill table
+    const obBills = await this.prisma.outstandingBill.findMany({
       where: {
         companyId,
         accountId,
@@ -139,58 +270,24 @@ export class JournalService {
       },
       orderBy: { billDate: 'asc' }
     });
-
-    if (bills.length > 0) {
-      return bills;
+    for (const b of obBills) {
+      if (!list.some(x => x.billNumber === b.billNumber)) {
+        const jvPaid = getJvPaid(b.billNumber);
+        const liveOut = Math.max(0, Number(b.outstandingAmount) - jvPaid);
+        if (liveOut > 0) {
+          const exRate = Number(b.exchangeRate) || 1.0;
+          const liveAmountAlt = b.transactionCurrency === 'USD' ? Math.round(liveOut * exRate) : liveOut;
+          list.push({
+            ...b,
+            outstandingAmount: liveOut,
+            outstandingAmountAlt: liveAmountAlt,
+            status: liveOut < Number(b.originalAmount) ? PaymentStatus.PARTIAL : PaymentStatus.UNPAID
+          });
+        }
+      }
     }
 
-    // 2. Direct Fallback — Sale Invoices for Customer
-    const sales = await this.prisma.saleInvoice.findMany({
-      where: {
-        companyId,
-        customerId: accountId,
-        isDeleted: false,
-        status: { not: 'DRAFT' },
-        outstandingAmount: { gt: 0 }
-      },
-      orderBy: { invoiceDate: 'asc' }
-    });
-
-    if (sales.length > 0) {
-      return sales.map(s => ({
-        id: s.id,
-        billNumber: s.voucherNumber,
-        billDate: s.invoiceDate,
-        outstandingAmount: s.outstandingAmount,
-        originalAmount: s.netAmount,
-        billType: 'DEBIT',
-        sourceVoucherType: VoucherType.SALE_INVOICE,
-        sourceVoucherId: s.id,
-      }));
-    }
-
-    // 3. Direct Fallback — Purchase Invoices for Supplier
-    const purchases = await this.prisma.purchaseInvoice.findMany({
-      where: {
-        companyId,
-        supplierId: accountId,
-        isDeleted: false,
-        status: { not: 'DRAFT' },
-        outstandingAmount: { gt: 0 }
-      },
-      orderBy: { invoiceDate: 'asc' }
-    });
-
-    return purchases.map(p => ({
-      id: p.id,
-      billNumber: p.voucherNumber,
-      billDate: p.invoiceDate,
-      outstandingAmount: p.outstandingAmount,
-      originalAmount: p.netAmount,
-      billType: 'CREDIT',
-      sourceVoucherType: VoucherType.PURCHASE_INVOICE,
-      sourceVoucherId: p.id,
-    }));
+    return list;
   }
 
   /**
@@ -203,6 +300,11 @@ export class JournalService {
     const crAccountId = Number(data.crAccountId);
     const amount = Number(data.amount) || 0;
     const outstandingBillId = data.outstandingBillId ? Number(data.outstandingBillId) : null;
+
+    const transactionCurrency = (data.transactionCurrency as any) || 'INR';
+    const exchangeRate = Number(data.exchangeRate) || 1.0;
+    const isUsd = transactionCurrency === 'USD';
+    const amountBase = isUsd ? Math.round(amount * exchangeRate * 100) / 100 : amount;
 
     if (!drAccountId || !crAccountId) {
       throw new BadRequestException('Debit and Credit accounts must be selected');
@@ -230,12 +332,14 @@ export class JournalService {
 
     return this.prisma.$transaction(async (tx) => {
       let realOutstandingBillId: number | null = null;
+      let referenceBillNo: string | null = null;
       if (outstandingBillId) {
         const billExists = await tx.outstandingBill.findUnique({
           where: { id: outstandingBillId }
         });
         if (billExists) {
           realOutstandingBillId = outstandingBillId;
+          referenceBillNo = billExists.billNumber;
         }
       }
 
@@ -248,8 +352,11 @@ export class JournalService {
           voucherNumber,
           voucherDate,
           status: VoucherStatus.POSTED,
-          totalDebit: amount,
-          totalCredit: amount,
+          transactionCurrency,
+          exchangeRate,
+          totalDebit: amountBase,
+          totalCredit: amountBase,
+          referenceId: referenceBillNo,
           narration: narrationJson,
           lines: {
             create: [
@@ -257,14 +364,14 @@ export class JournalService {
                 rowNumber: 1,
                 accountId: drAccountId,
                 debitCreditType: DebitCreditType.DEBIT,
-                amount,
+                amount: amountBase,
                 narration: 'JV Debit Entry',
               },
               {
                 rowNumber: 2,
                 accountId: crAccountId,
                 debitCreditType: DebitCreditType.CREDIT,
-                amount,
+                amount: amountBase,
                 narration: 'JV Credit Entry',
                 outstandingBillId: realOutstandingBillId || undefined,
               }
@@ -282,7 +389,10 @@ export class JournalService {
           accountId: drAccountId,
           voucherDate,
           debitCreditType: 'DEBIT',
-          amount,
+          amount: amountBase,
+          originalCurrency: transactionCurrency,
+          originalAmount: amount,
+          exchangeRate,
           sourceVoucherType: 'JOURNAL_VOUCHER',
           sourceVoucherId: voucher.id,
           sourceBillNumber: voucherNumber,
@@ -297,7 +407,10 @@ export class JournalService {
           accountId: crAccountId,
           voucherDate,
           debitCreditType: 'CREDIT',
-          amount,
+          amount: amountBase,
+          originalCurrency: transactionCurrency,
+          originalAmount: amount,
+          exchangeRate,
           sourceVoucherType: 'JOURNAL_VOUCHER',
           sourceVoucherId: voucher.id,
           sourceBillNumber: voucherNumber,

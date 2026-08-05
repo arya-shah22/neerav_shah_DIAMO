@@ -573,6 +573,7 @@ model Account {
   cashBankVouchersAsBank     CashBankVoucher[]    @relation("BankOnCashBank")
   journalVoucherLines        JournalVoucherLine[]
   jobVouchersAsParty         JobVoucher[]         @relation("PartyOnJob")
+  jobVouchersAsSubcontractor JobVoucher[]         @relation("SubcontractorOnJob")
   generalLedgerEntries       GeneralLedgerEntry[]
   outstandingBills           OutstandingBill[]
   loansAsParty               Loan[]               @relation("LoanPartyRelation")
@@ -1166,13 +1167,34 @@ model JobVoucher {
   voucherDate     DateTime      @map("voucher_date") @db.Date
   status          VoucherStatus @default(DRAFT)
 
-  // Party (Job Worker)
-  partyId Int @map("party_id") @db.UnsignedInt
+  // Party (Customer & Factory Subcontractor)
+  partyId              Int  @map("party_id") @db.UnsignedInt
+  subcontractorPartyId Int? @map("subcontractor_party_id") @db.UnsignedInt
 
-  // Totals
-  totalCarats Decimal @default(0.000) @map("total_carats") @db.Decimal(12, 3)
-  totalAmount Decimal @default(0.00) @map("total_amount") @db.Decimal(18, 2)
-  narration   String? @db.Text
+  // Conversion & Service Details
+  serviceType           String?  @map("service_type") @db.VarChar(50)
+  inwardRoughCarats     Decimal? @default(0.000) @map("inward_rough_carats") @db.Decimal(12, 3)
+  inwardPieceCount      Int?     @default(1) @map("inward_piece_count") @db.UnsignedInt
+  outwardPolishedCarats Decimal? @map("outward_polished_carats") @db.Decimal(12, 3)
+  outwardPieceCount     Int?     @map("outward_piece_count") @db.UnsignedInt
+
+  // Financial Rates & Taxes
+  clientBilledRate       Decimal? @default(0.00) @map("client_billed_rate") @db.Decimal(18, 2)
+  contractorExpenseRate  Decimal? @default(0.00) @map("contractor_expense_rate") @db.Decimal(18, 2)
+  contractorExpenseTotal Decimal? @default(0.00) @map("contractor_expense_total") @db.Decimal(18, 2)
+  gstRate                Decimal? @default(0.00) @map("gst_rate") @db.Decimal(5, 2)
+  cgstAmount             Decimal? @default(0.00) @map("cgst_amount") @db.Decimal(18, 2)
+  sgstAmount             Decimal? @default(0.00) @map("sgst_amount") @db.Decimal(18, 2)
+  igstAmount             Decimal? @default(0.00) @map("igst_amount") @db.Decimal(18, 2)
+  netAmount              Decimal? @default(0.00) @map("net_amount") @db.Decimal(18, 2)
+
+  // Totals & Fulfillment
+  totalCarats         Decimal @default(0.000) @map("total_carats") @db.Decimal(12, 3)
+  totalAmount         Decimal @default(0.00) @map("total_amount") @db.Decimal(18, 2)
+  totalOutwardCarats  Decimal @default(0.000) @map("total_outward_carats") @db.Decimal(12, 3)
+  totalOutwardPieces  Int     @default(0) @map("total_outward_pieces") @db.UnsignedInt
+  isFullyCompleted    Boolean @default(false) @map("is_fully_completed")
+  narration           String? @db.Text
 
   // Currency
   transactionCurrency CurrencyCode @default(INR) @map("transaction_currency")
@@ -1192,9 +1214,10 @@ model JobVoucher {
   // Relations
   company       Company          @relation(fields: [companyId], references: [id])
   financialYear FinancialYear    @relation(fields: [financialYearId], references: [id])
-  party         Account          @relation("PartyOnJob", fields: [partyId], references: [id])
-  items         JobVoucherItem[]
-  costEntries   JobCostEntry[]
+  party              Account          @relation("PartyOnJob", fields: [partyId], references: [id])
+  subcontractorParty Account?         @relation("SubcontractorOnJob", fields: [subcontractorPartyId], references: [id])
+  items              JobVoucherItem[]
+  costEntries        JobCostEntry[]
 
   @@unique([companyId, financialYearId, billNumber], map: "UQ_job_vouchers_bill")
   @@index([companyId, voucherDate], map: "IX_job_vouchers_date")
