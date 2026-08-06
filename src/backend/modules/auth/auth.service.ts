@@ -67,6 +67,9 @@ export class AuthService {
       throw new UnauthorizedException('Invalid username or password');
     }
 
+    // Clean up stale sessions before creating a new one
+    await this.cleanupStaleSessions();
+
     const sessionToken = await this.createSession(user.id);
 
     await this.prisma.user.update({
@@ -180,6 +183,36 @@ export class AuthService {
       });
     } catch (error) {
       console.error('[AuthService] Failed to log user activity:', error);
+    }
+  }
+
+  /**
+   * Clean up stale sessions that have been inactive for more than 24 hours.
+   * Called during login to prevent ghost session accumulation.
+   */
+  async cleanupStaleSessions(maxInactiveHours: number = 24): Promise<number> {
+    try {
+      const cutoff = new Date(Date.now() - maxInactiveHours * 60 * 60 * 1000);
+
+      const result = await this.prisma.userSession.updateMany({
+        where: {
+          isActive: true,
+          lastActivityAt: { lt: cutoff },
+        },
+        data: {
+          isActive: false,
+          logoutAt: new Date(),
+        },
+      });
+
+      if (result.count > 0) {
+        console.log(`[AuthService] Cleaned up ${result.count} stale session(s) inactive since ${cutoff.toISOString()}`);
+      }
+
+      return result.count;
+    } catch (error) {
+      console.error('[AuthService] Failed to cleanup stale sessions:', error);
+      return 0;
     }
   }
 }

@@ -41,10 +41,10 @@ export const HealthDashboard: React.FC<HealthDashboardProps> = ({ companyId }) =
     }
   }, [companyId, getStatus]);
 
-  // Trigger auto refresh every 10 seconds
+  // Trigger auto refresh every 30 seconds (reduced from 10s to minimize DB load)
   useEffect(() => {
     loadData();
-    const interval = setInterval(loadData, 10000);
+    const interval = setInterval(loadData, 30000);
     return () => clearInterval(interval);
   }, [loadData]);
 

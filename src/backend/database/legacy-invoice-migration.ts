@@ -7,14 +7,21 @@ import { PrismaClient } from '@prisma/client';
 
 export async function migrateLegacyPurchaseInvoices(prisma: PrismaClient): Promise<void> {
   try {
+    // Fast check: count legacy records first (cheap query) before doing expensive findMany+include
+    const legacyCount = await prisma.saleInvoice.count({
+      where: {
+        invoiceType: { in: ['PURCHASE_INVOICE', 'PURCHASE_RETURN', 'PURCHASE_DEBIT_NOTE'] },
+      },
+    });
+
+    if (legacyCount === 0) return; // No legacy data — skip immediately
+
     const oldPurchases = await prisma.saleInvoice.findMany({
       where: {
         invoiceType: { in: ['PURCHASE_INVOICE', 'PURCHASE_RETURN', 'PURCHASE_DEBIT_NOTE'] },
       },
       include: { items: true },
     });
-
-    if (oldPurchases.length === 0) return;
 
     console.log(`[DataMigration] Migrating ${oldPurchases.length} legacy purchase invoice records...`);
 

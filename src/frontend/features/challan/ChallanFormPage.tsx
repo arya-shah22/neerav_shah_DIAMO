@@ -698,10 +698,14 @@ export const ChallanFormPage: React.FC<FormPageProps> = ({ purpose, viewMode = f
           </thead>
           <tbody>
             {items.map((row, idx) => {
+              const otherSelectedIds = items
+                .map((it, i) => i !== idx ? Number(it.stockPacketId) : 0)
+                .filter(id => id > 0);
               const rawList = row.stockPacketId
                 ? [...availablePackets, availablePackets.find(p => p.id === row.stockPacketId)].filter(Boolean) as StockPacketObj[]
                 : availablePackets;
-              const availableForThisRow = Array.from(new Map(rawList.map(p => [p.id, p])).values());
+              const availableForThisRow = Array.from(new Map(rawList.map(p => [p.id, p])).values())
+                .filter(p => !otherSelectedIds.includes(p.id));
 
               return (
                 <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>

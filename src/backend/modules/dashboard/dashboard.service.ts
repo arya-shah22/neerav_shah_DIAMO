@@ -121,20 +121,33 @@ export class DashboardService {
       select: { referenceId: true, totalDebit: true, transactionCurrency: true, exchangeRate: true }
     });
 
+    // Pre-build a Map of JV settlements indexed by referenceId for O(1) lookups
+    // instead of O(n*m) loop for every invoice
+    const jvSettlementMap = new Map<string, { totalDebitBase: number; isUsd: boolean; exRate: number }[]>();
+    for (const j of allJvAdjustments) {
+      if (!j.referenceId) continue;
+      const key = j.referenceId;
+      if (!jvSettlementMap.has(key)) {
+        jvSettlementMap.set(key, []);
+      }
+      jvSettlementMap.get(key)!.push({
+        totalDebitBase: Number(j.totalDebit),
+        isUsd: j.transactionCurrency === 'USD',
+        exRate: Number(j.exchangeRate) || 1.0,
+      });
+    }
+
     const getJvSettlement = (billNumber: string | undefined, isUsd: boolean, exRate: number) => {
       if (!billNumber) return 0;
+      const entries = jvSettlementMap.get(billNumber);
+      if (!entries) return 0;
       let total = 0;
-      for (const j of allJvAdjustments) {
-        if (j.referenceId && (billNumber === j.referenceId || billNumber.includes(j.referenceId) || j.referenceId.includes(billNumber))) {
-          const jIsUsd = j.transactionCurrency === 'USD';
-          const jExRate = Number(j.exchangeRate) || 1.0;
-          const debitBase = Number(j.totalDebit);
-          if (isUsd) {
-            const valUsd = jIsUsd ? (debitBase / (jExRate || 1.0)) : (debitBase / (exRate || 1.0));
-            total += valUsd;
-          } else {
-            total += debitBase;
-          }
+      for (const e of entries) {
+        if (isUsd) {
+          const valUsd = e.isUsd ? (e.totalDebitBase / (e.exRate || 1.0)) : (e.totalDebitBase / (exRate || 1.0));
+          total += valUsd;
+        } else {
+          total += e.totalDebitBase;
         }
       }
       return total;

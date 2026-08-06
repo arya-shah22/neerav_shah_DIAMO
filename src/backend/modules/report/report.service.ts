@@ -1,52 +1,14 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { DebitCreditType, VoucherStatus } from '@prisma/client';
+import { getOrCreateDefaultAccount } from '../../utils/default-account-helper';
 
 @Injectable()
 export class ReportService {
   @Inject(PrismaService)
   private readonly prisma!: PrismaService;
 
-  private async getOrCreateDefaultAccount(companyId: number, accountName: string, groupName: string): Promise<number> {
-    const existing = await this.prisma.account.findFirst({
-      where: { companyId, accountName, isDeleted: false },
-    });
-    if (existing) return existing.id;
 
-    const group = await this.prisma.accountGroup.findFirst({
-      where: { companyId, groupName, isDeleted: false },
-    });
-    if (!group) {
-      const newGroup = await this.prisma.accountGroup.create({
-        data: {
-          companyId,
-          groupName,
-          nature: groupName.includes('Sales') ? 'Income' : (groupName.includes('Purchase') ? 'Expense' : 'Assets'),
-        }
-      });
-      const created = await this.prisma.account.create({
-        data: {
-          companyId,
-          accountGroupId: newGroup.id,
-          accountName,
-          status: 'ACTIVE',
-          openingBalanceAmount: 0,
-        }
-      });
-      return created.id;
-    }
-
-    const created = await this.prisma.account.create({
-      data: {
-        companyId,
-        accountGroupId: group.id,
-        accountName,
-        status: 'ACTIVE',
-        openingBalanceAmount: 0,
-      },
-    });
-    return created.id;
-  }
 
   private async safeCreateGlEntry(data: any) {
     if (!data.accountId || !data.companyId) return;
@@ -77,11 +39,11 @@ export class ReportService {
         ...purchaseInvoicesForReconcile.map((p: any) => ({ ...p, customerId: p.supplierId })),
       ];
 
-      const salesLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Sales A/c', 'Sales Accounts');
-      const purchaseLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Purchase A/c', 'Purchase Accounts');
-      const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes');
-      const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes');
-      const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes');
+      const salesLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'Sales A/c', 'Sales Accounts');
+      const purchaseLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'Purchase A/c', 'Purchase Accounts');
+      const cgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'CGST Input/Output', 'Duties & Taxes');
+      const sgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'SGST Input/Output', 'Duties & Taxes');
+      const igstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'IGST Input/Output', 'Duties & Taxes');
 
       for (const inv of invoices) {
         if (!inv.customerId) continue;

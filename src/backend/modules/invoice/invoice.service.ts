@@ -8,7 +8,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { InvoiceStatus, PaymentStatus, InvoiceType, DebitCreditType, MovementType, StockStatus } from '@prisma/client';
 import { generateStockIdNumber } from '../../utils/stock-id-generator';
 import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
-import { DEFAULT_ACCOUNT_GROUPS } from '../account-group/default-groups';
+import { getOrCreateDefaultAccount } from '../../utils/default-account-helper';
 
 function cleanUpper(val: unknown): string | null {
   if (val == null) return null;
@@ -28,43 +28,7 @@ export class InvoiceService {
   @Inject(PrismaService)
   private readonly prisma!: PrismaService;
 
-  /**
-   * Helper to ensure standard default ledger accounts exist for the company
-   */
-  private async getOrCreateDefaultAccount(companyId: number, accountName: string, groupName: string): Promise<number> {
-    const existing = await this.prisma.account.findFirst({
-      where: { companyId, accountName, isDeleted: false },
-    });
-    if (existing) return existing.id;
 
-    let group = await this.prisma.accountGroup.findFirst({
-      where: { companyId, groupName, isDeleted: false },
-    });
-
-    if (!group) {
-      const defGroup = DEFAULT_ACCOUNT_GROUPS.find((g) => g.groupName.toLowerCase() === groupName.toLowerCase());
-      group = await this.prisma.accountGroup.create({
-        data: {
-          companyId,
-          groupName,
-          nature: defGroup?.nature || 'Liabilities',
-          isGlobal: true,
-          sortOrder: defGroup?.sortOrder || 30,
-        },
-      });
-    }
-
-    const created = await this.prisma.account.create({
-      data: {
-        companyId,
-        accountGroupId: group.id,
-        accountName,
-        status: 'ACTIVE',
-        openingBalanceAmount: 0,
-      },
-    });
-    return created.id;
-  }
 
   /**
    * Previews the next sequential voucher number without incrementing the DB sequence
@@ -339,12 +303,12 @@ export class InvoiceService {
 
     const salesOrPurchaseLedgerId =
       invoiceType === InvoiceType.SALE_INVOICE
-        ? await this.getOrCreateDefaultAccount(companyId, 'Sales A/c', 'Sales Accounts')
-        : await this.getOrCreateDefaultAccount(companyId, 'Purchase A/c', 'Purchase Accounts');
+        ? await getOrCreateDefaultAccount(this.prisma, companyId, 'Sales A/c', 'Sales Accounts')
+        : await getOrCreateDefaultAccount(this.prisma, companyId, 'Purchase A/c', 'Purchase Accounts');
 
-    const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes');
-    const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes');
-    const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes');
+    const cgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'CGST Input/Output', 'Duties & Taxes');
+    const sgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'SGST Input/Output', 'Duties & Taxes');
+    const igstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'IGST Input/Output', 'Duties & Taxes');
 
     const isPurchase = isPurchaseType(invoiceType);
 
@@ -1143,12 +1107,12 @@ export class InvoiceService {
 
     const salesOrPurchaseLedgerId =
       invoiceType === 'SALE_INVOICE' || invoiceType === 'SALE_DEBIT_NOTE' || invoiceType === 'SALE_RETURN'
-        ? await this.getOrCreateDefaultAccount(companyId, 'Sales A/c', 'Sales Accounts')
-        : await this.getOrCreateDefaultAccount(companyId, 'Purchase A/c', 'Purchase Accounts');
+        ? await getOrCreateDefaultAccount(this.prisma, companyId, 'Sales A/c', 'Sales Accounts')
+        : await getOrCreateDefaultAccount(this.prisma, companyId, 'Purchase A/c', 'Purchase Accounts');
 
-    const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes');
-    const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes');
-    const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes');
+    const cgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'CGST Input/Output', 'Duties & Taxes');
+    const sgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'SGST Input/Output', 'Duties & Taxes');
+    const igstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'IGST Input/Output', 'Duties & Taxes');
 
     return this.prisma.$transaction(async (tx) => {
       const companyQualities = await tx.quality.findMany({

@@ -19,6 +19,31 @@ interface CompanyState {
   reset: () => void;
 }
 
+// Debounced localStorage writer — batches writes every 500ms instead of on every setState
+const debouncedStorage = (() => {
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  let pending: string | null = null;
+
+  return {
+    getItem: (name: string): string | null => {
+      return localStorage.getItem(name);
+    },
+    setItem: (name: string, value: string): void => {
+      pending = value;
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(() => {
+        if (pending !== null) {
+          localStorage.setItem(name, pending);
+          pending = null;
+        }
+      }, 500);
+    },
+    removeItem: (name: string): void => {
+      localStorage.removeItem(name);
+    },
+  };
+})();
+
 export const useCompanyStore = create<CompanyState>()(
   persist(
     (set) => ({
@@ -40,6 +65,7 @@ export const useCompanyStore = create<CompanyState>()(
     }),
     {
       name: 'diamo-company',
+      storage: debouncedStorage as any,
       partialize: (state) => ({
         activeCompany: state.activeCompany,
         activeFinancialYear: state.activeFinancialYear,

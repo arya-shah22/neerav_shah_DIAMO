@@ -126,10 +126,10 @@ export const DashboardPage: React.FC = () => {
     }
   }, [companyId, activeFinancialYear, user?.id, getTelemetry]);
 
-  // Initial load, window focus listener, and 15-second background auto-refresh for live entries
+  // Initial load, window focus listener, and 60-second background auto-refresh for live entries
   useEffect(() => {
     fetchTelemetry();
-    const interval = setInterval(fetchTelemetry, 15000); // 15s auto-refresh
+    const interval = setInterval(fetchTelemetry, 60000); // 60s auto-refresh
     const handleFocus = () => fetchTelemetry();
     window.addEventListener('focus', handleFocus);
     return () => {

@@ -8,9 +8,47 @@ import { migrateLegacyPurchaseInvoices } from './legacy-invoice-migration';
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit, OnModuleDestroy {
+  // In-memory cache for audit settings per company (avoids 1 extra query per write)
+  private auditSettingsCache = new Map<number, { level: 'BASIC' | 'STANDARD' | 'DETAILED'; cachedAt: number }>();
+  private static AUDIT_CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  // Current user context for audit logging (set per-request by IPC handler)
+  private _currentUserId: number = 1;
+
+  setCurrentUserId(userId: number) {
+    this._currentUserId = userId;
+  }
+
+  getCurrentUserId(): number {
+    return this._currentUserId;
+  }
+
+  private async getAuditLevel(companyId: number): Promise<'BASIC' | 'STANDARD' | 'DETAILED'> {
+    const cached = this.auditSettingsCache.get(companyId);
+    const now = Date.now();
+    if (cached && (now - cached.cachedAt) < PrismaService.AUDIT_CACHE_TTL) {
+      return cached.level;
+    }
+
+    let level: 'BASIC' | 'STANDARD' | 'DETAILED' = 'STANDARD';
+    try {
+      const settingsRec = await this.systemSetting.findFirst({
+        where: { companyId, settingKey: 'AUDIT_SECURITY_SETTINGS' },
+      });
+      if (settingsRec && settingsRec.settingValue) {
+        level = (settingsRec.settingValue as any).auditLevel || 'STANDARD';
+      }
+    } catch {
+      // Fallback to STANDARD on error
+    }
+
+    this.auditSettingsCache.set(companyId, { level, cachedAt: now });
+    return level;
+  }
+
   constructor() {
     super({
-      log: ['query', 'info', 'warn', 'error'],
+      log: ['error'],
     });
 
     // Centralized Financial Year Period Lock Check & Database Audit Logging Middleware
@@ -92,72 +130,73 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       // Execute actual query first so we can capture the final state for 'create' and 'update'
       const result = await next(params);
 
-      // Now perform Audit Logging
+      // Now perform Audit Logging (non-blocking — fire and forget)
       if (params.model && transactionModels.includes(params.model) && isWrite) {
-        try {
-          // Resolve companyId
-          if (!companyId && result) {
-            companyId = result.companyId;
-          }
+        // Capture values for the async closure
+        const capturedCompanyId = companyId || result?.companyId || null;
+        const capturedExistingRecord = existingRecord;
+        const capturedResult = result;
+        const capturedUserId = this._currentUserId;
+        const capturedModel = params.model;
+        const capturedAction = params.action;
+        const capturedOverrideReason = params.args.data?.overrideReason || null;
 
-          // Fetch Audit settings for company
-          let auditLevel: 'BASIC' | 'STANDARD' | 'DETAILED' = 'STANDARD';
-          if (companyId) {
-            const settingsRec = await this.systemSetting.findFirst({
-              where: { companyId, settingKey: 'AUDIT_SECURITY_SETTINGS' },
-            });
-            if (settingsRec && settingsRec.settingValue) {
-              auditLevel = (settingsRec.settingValue as any).auditLevel || 'STANDARD';
-            }
-          }
+        // Fire-and-forget: don't await audit log write — it runs in the background
+        // so the main operation returns immediately
+        if (capturedCompanyId) {
+          setImmediate(async () => {
+            try {
+              const auditLevel = await this.getAuditLevel(capturedCompanyId);
 
-          // Action mapping
-          let action: 'CREATE' | 'UPDATE' | 'DELETE' = 'UPDATE';
-          if (params.action.startsWith('create')) {
-            action = 'CREATE';
-          } else if (params.action.startsWith('delete')) {
-            action = 'DELETE';
-          }
-
-          // Should log check
-          const shouldLog = 
-            auditLevel === 'DETAILED' ||
-            (auditLevel === 'STANDARD') ||
-            (auditLevel === 'BASIC' && action === 'CREATE');
-
-          if (shouldLog) {
-            let entityId = result?.id || existingRecord?.id || 0;
-            let beforeVal: any = null;
-            let afterVal: any = null;
-
-            if (auditLevel === 'DETAILED') {
-              beforeVal = existingRecord;
-              afterVal = action === 'DELETE' ? null : result;
-            } else {
-              const vNum = result?.voucherNumber || existingRecord?.voucherNumber || result?.billNumber || existingRecord?.billNumber;
-              if (vNum) {
-                afterVal = { voucherNumber: vNum };
+              // Action mapping
+              let action: 'CREATE' | 'UPDATE' | 'DELETE' = 'UPDATE';
+              if (capturedAction.startsWith('create')) {
+                action = 'CREATE';
+              } else if (capturedAction.startsWith('delete')) {
+                action = 'DELETE';
               }
-            }
 
-            // Write to AuditLog
-            await this.auditLog.create({
-              data: {
-                companyId,
-                entityType: params.model,
-                entityId,
-                action,
-                beforeValue: beforeVal,
-                afterValue: afterVal,
-                userId: 1, // Default fallback user
-                ipAddress: '127.0.0.1',
-                hostname: 'localhost',
-                overrideReason: params.args.data?.overrideReason || null,
+              // Should log check
+              const shouldLog =
+                auditLevel === 'DETAILED' ||
+                (auditLevel === 'STANDARD') ||
+                (auditLevel === 'BASIC' && action === 'CREATE');
+
+              if (shouldLog) {
+                const entityId = capturedResult?.id || capturedExistingRecord?.id || 0;
+                let beforeVal: any = null;
+                let afterVal: any = null;
+
+                if (auditLevel === 'DETAILED') {
+                  beforeVal = capturedExistingRecord;
+                  afterVal = action === 'DELETE' ? null : capturedResult;
+                } else {
+                  const vNum = capturedResult?.voucherNumber || capturedExistingRecord?.voucherNumber || capturedResult?.billNumber || capturedExistingRecord?.billNumber;
+                  if (vNum) {
+                    afterVal = { voucherNumber: vNum };
+                  }
+                }
+
+                // Write to AuditLog with real userId
+                await this.auditLog.create({
+                  data: {
+                    companyId: capturedCompanyId,
+                    entityType: capturedModel!,
+                    entityId,
+                    action,
+                    beforeValue: beforeVal,
+                    afterValue: afterVal,
+                    userId: capturedUserId,
+                    ipAddress: '127.0.0.1',
+                    hostname: 'localhost',
+                    overrideReason: capturedOverrideReason,
+                  }
+                });
               }
-            });
-          }
-        } catch (auditErr) {
-          console.error('Audit logging failed in Prisma middleware:', auditErr);
+            } catch (auditErr) {
+              console.error('Audit logging failed in Prisma middleware:', auditErr);
+            }
+          });
         }
       }
 
@@ -166,7 +205,26 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
   }
 
   async onModuleInit() {
-    await this.$connect();
+    // Retry connection with exponential backoff (handles MySQL startup delay)
+    const MAX_RETRIES = 3;
+    const BASE_DELAY_MS = 2000;
+
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        await this.$connect();
+        console.log(`[PrismaService] Database connected successfully${attempt > 1 ? ` (attempt ${attempt})` : ''}`);
+        break;
+      } catch (error) {
+        if (attempt === MAX_RETRIES) {
+          console.error(`[PrismaService] Failed to connect after ${MAX_RETRIES} attempts:`, error);
+          throw error;
+        }
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
+        console.warn(`[PrismaService] Connection attempt ${attempt} failed, retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+    }
+
     await migrateLegacyPurchaseInvoices(this);
   }
 

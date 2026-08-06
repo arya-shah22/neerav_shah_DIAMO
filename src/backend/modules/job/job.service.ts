@@ -6,6 +6,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { JobType, VoucherStatus, StockStatus } from '@prisma/client';
 import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { getOrCreateDefaultAccount } from '../../utils/default-account-helper';
 
 @Injectable()
 export class JobService {
@@ -57,39 +58,7 @@ export class JobService {
     return voucher;
   }
 
-  /**
-   * Helper to ensure standard default ledger accounts exist for the company
-   */
-  private async getOrCreateDefaultAccount(companyId: number, accountName: string, groupName: string, nature: string): Promise<number> {
-    const existing = await this.prisma.account.findFirst({
-      where: { companyId, accountName, isDeleted: false },
-    });
-    if (existing) return existing.id;
 
-    let group = await this.prisma.accountGroup.findFirst({
-      where: { companyId, groupName, isDeleted: false },
-    });
-    if (!group) {
-      group = await this.prisma.accountGroup.create({
-        data: {
-          companyId,
-          groupName,
-          nature,
-        }
-      });
-    }
-
-    const created = await this.prisma.account.create({
-      data: {
-        companyId,
-        accountGroupId: group.id,
-        accountName,
-        status: 'ACTIVE',
-        openingBalanceAmount: 0,
-      },
-    });
-    return created.id;
-  }
 
   /**
    * Generates a sequential voucher number for job vouchers
@@ -225,8 +194,8 @@ export class JobService {
     // Accounts for double entry GL postings
     const baseLedgerId =
       jobType === JobType.JOB_INCOME
-        ? await this.getOrCreateDefaultAccount(companyId, 'Job Processing Income', 'Direct Incomes', 'INCOME')
-        : await this.getOrCreateDefaultAccount(companyId, 'Job Processing Expense', 'Direct Expenses', 'EXPENSE');
+        ? await getOrCreateDefaultAccount(this.prisma, companyId, 'Job Processing Income', 'Direct Incomes', 'INCOME')
+        : await getOrCreateDefaultAccount(this.prisma, companyId, 'Job Processing Expense', 'Direct Expenses', 'EXPENSE');
 
     return this.prisma.$transaction(async (tx) => {
       const itemsList = Array.isArray(data.items) ? data.items : [];
@@ -597,11 +566,11 @@ export class JobService {
     const netClientTotal = clientTotal + cgst + sgst + igst;
 
     // Ledger account lookup
-    const incomeLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Job Processing Income', 'Job Work Income', 'INCOME');
-    const expenseLedgerId = await this.getOrCreateDefaultAccount(companyId, 'Job Processing Expense', 'Job Work Expense', 'EXPENSE');
-    const cgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'CGST Input/Output', 'Duties & Taxes', 'LIABILITY');
-    const sgstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'SGST Input/Output', 'Duties & Taxes', 'LIABILITY');
-    const igstLedgerId = await this.getOrCreateDefaultAccount(companyId, 'IGST Input/Output', 'Duties & Taxes', 'LIABILITY');
+    const incomeLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'Job Processing Income', 'Job Work Income', 'INCOME');
+    const expenseLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'Job Processing Expense', 'Job Work Expense', 'EXPENSE');
+    const cgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'CGST Input/Output', 'Duties & Taxes', 'LIABILITY');
+    const sgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'SGST Input/Output', 'Duties & Taxes', 'LIABILITY');
+    const igstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'IGST Input/Output', 'Duties & Taxes', 'LIABILITY');
 
     return this.prisma.$transaction(async (tx) => {
       // 1. Update Voucher

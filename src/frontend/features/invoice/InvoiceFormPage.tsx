@@ -11,7 +11,7 @@ import { invoiceSchema, InvoiceFormData } from './invoice.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { useCompanyStore } from '../../state/company-store';
-import { Button, Input, Combobox, FormSelect, useToast } from '../../components/ui';
+import { Button, Input, Combobox, FormSelect, Select, useToast } from '../../components/ui';
 import type { IInvoice, InvoiceType } from './invoice.types';
 
 interface FormPageProps {
@@ -780,65 +780,76 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                       <td colSpan={7} style={{ padding: '8px 16px 12px 16px' }}>
                         {isSale ? (
                           <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                            <div style={{ flex: 1, maxWidth: '300px' }}>
+                            <div style={{ flex: 1, maxWidth: '450px' }}>
                               <label style={{ fontSize: '11px', fontWeight: 600, display: 'block', marginBottom: '4px', color: 'var(--color-accent)' }}>
                                 Select Stock Packet *
                               </label>
-                              <select
-                                style={{ width: '100%', padding: '6px 10px', borderRadius: 'var(--radius-sm)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', fontSize: '13px', color: 'var(--color-primary)' }}
-                                value={watch(`items.${index}.stockPacketId`) || ''}
-                                onChange={(e) => {
-                                  const val = e.target.value;
-                                  const pktId = (val && val !== '' && val !== 'null') ? Number(val) : null;
-                                  setValue(`items.${index}.stockPacketId`, pktId as any);
-                                  const pkt = availablePackets.find((p) => p.id === pktId);
-                                  if (pkt) {
-                                    setValue(`items.${index}.carats`, Number(pkt.caratWeight));
-                                    setValue(`items.${index}.pieces`, Number(pkt.pieceCount));
+                              {(() => {
+                                const currentPktId = Number(watch(`items.${index}.stockPacketId`));
+                                const allSelectedPktIds = (watch('items') || [])
+                                  .map((it, i) => i !== index ? Number(it.stockPacketId) : 0)
+                                  .filter((id) => id > 0);
 
-                                    const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
-
-                                    // Auto-switch invoice currency to packet's origin currency if this is the first packet being added
-                                    const existingPktIds = (watch('items') || []).map((it) => Number(it.stockPacketId)).filter((id) => id > 0);
-                                    if (isSale && pktCurrency && existingPktIds.length <= 1) {
-                                      setValue('transactionCurrency', pktCurrency as any);
-                                    }
-
-                                    const invCurrency = watch('transactionCurrency') || pktCurrency || 'USD';
-                                    const exRate = Number(watch('exchangeRate')) || 1;
-
-                                    let baseRate = 0;
-                                    if (isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0) {
-                                      baseRate = Number((pkt as any).targetSaleRate);
-                                    } else if (pkt.costPerCarat != null && Number(pkt.costPerCarat) > 0) {
-                                      baseRate = Number(pkt.costPerCarat);
-                                    }
-
-                                    let finalRate = baseRate;
-                                    if (pktCurrency === 'USD' && invCurrency === 'INR') {
-                                      finalRate = Math.round((baseRate * exRate) * 100) / 100;
-                                    } else if (pktCurrency === 'INR' && invCurrency === 'USD') {
-                                      finalRate = Math.round((baseRate / (exRate > 0 ? exRate : 1)) * 100) / 100;
-                                    }
-
-                                    setValue(`items.${index}.rate`, finalRate);
-                                  }
-                                }}
-                              >
-                                 <option value="">-- Choose Stock Packet --</option>
-                                {availablePackets
-                                  .filter((p) => p.qualityId === Number(watchedQualityId) && (['AVAILABLE', 'CREATED', 'PURCHASED'].includes(p.currentStatus) || p.id === Number(watch(`items.${index}.stockPacketId`))))
+                                const packetOptions = availablePackets
+                                  .filter((p) =>
+                                    p.qualityId === Number(watchedQualityId) &&
+                                    (['AVAILABLE', 'CREATED', 'PURCHASED'].includes(p.currentStatus) || p.id === currentPktId) &&
+                                    !allSelectedPktIds.includes(p.id)
+                                  )
                                   .map((p) => {
                                     const origCurr = p.originalCurrency || p.transactionCurrency || 'USD';
                                     const currSym = origCurr === 'USD' ? '$' : '₹';
                                     const baseRate = isSale && (p as any).targetSaleRate != null && Number((p as any).targetSaleRate) > 0 ? Number((p as any).targetSaleRate) : Number(p.costPerCarat || 0);
-                                    return (
-                                      <option key={p.id} value={p.id}>
-                                        {p.stockIdNumber} ({Number(p.caratWeight).toFixed(3)} CTS | {p.pieceCount} Pcs | {currSym}{baseRate.toLocaleString('en-US')}/ct [{origCurr}])
-                                      </option>
-                                    );
-                                  })}
-                              </select>
+                                    return {
+                                      value: String(p.id),
+                                      label: `${p.stockIdNumber} (${Number(p.caratWeight).toFixed(3)} CTS | ${p.pieceCount} Pcs | ${currSym}${baseRate.toLocaleString('en-US')}/ct [${origCurr}])`,
+                                    };
+                                  });
+
+                                return (
+                                  <Select
+                                    value={currentPktId ? String(currentPktId) : ''}
+                                    placeholder="Search and Select Stock Packet..."
+                                    options={packetOptions}
+                                    onChange={(val: string) => {
+                                      const pktId = (val && val !== '' && val !== 'null') ? Number(val) : null;
+                                      setValue(`items.${index}.stockPacketId`, pktId as any);
+                                      const pkt = availablePackets.find((p) => p.id === pktId);
+                                      if (pkt) {
+                                        setValue(`items.${index}.carats`, Number(pkt.caratWeight));
+                                        setValue(`items.${index}.pieces`, Number(pkt.pieceCount));
+
+                                        const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
+
+                                        // Auto-switch invoice currency to packet's origin currency if this is the first packet being added
+                                        const existingPktIds = (watch('items') || []).map((it) => Number(it.stockPacketId)).filter((id) => id > 0);
+                                        if (isSale && pktCurrency && existingPktIds.length <= 1) {
+                                          setValue('transactionCurrency', pktCurrency as any);
+                                        }
+
+                                        const invCurrency = watch('transactionCurrency') || pktCurrency || 'USD';
+                                        const exRate = Number(watch('exchangeRate')) || 1;
+
+                                        let baseRate = 0;
+                                        if (isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0) {
+                                          baseRate = Number((pkt as any).targetSaleRate);
+                                        } else if (pkt.costPerCarat != null && Number(pkt.costPerCarat) > 0) {
+                                          baseRate = Number(pkt.costPerCarat);
+                                        }
+
+                                        let finalRate = baseRate;
+                                        if (pktCurrency === 'USD' && invCurrency === 'INR') {
+                                          finalRate = Math.round((baseRate * exRate) * 100) / 100;
+                                        } else if (pktCurrency === 'INR' && invCurrency === 'USD') {
+                                          finalRate = Math.round((baseRate / (exRate > 0 ? exRate : 1)) * 100) / 100;
+                                        }
+
+                                        setValue(`items.${index}.rate`, finalRate);
+                                      }
+                                    }}
+                                  />
+                                );
+                              })()}
                             </div>
                             {(() => {
                               const pktVal = watch(`items.${index}.stockPacketId`);

@@ -171,9 +171,13 @@ export const Select: React.FC<SelectProps> = ({
     const availableSpace = openAbove ? spaceAbove : spaceBelow;
     const maxHeight = Math.max(OPTION_HEIGHT_PX * 3, Math.min(listMaxHeight, availableSpace - searchHeight));
 
+    // Ensure dropdown stays within right boundary of screen
+    const maxLeft = window.innerWidth - rect.width - 16;
+    const left = Math.max(16, Math.min(rect.left, maxLeft));
+
     setDropdownPos({
       top: openAbove ? rect.top - maxHeight - searchHeight - 4 : rect.bottom + 4,
-      left: rect.left,
+      left,
       width: rect.width,
       maxHeight,
     });

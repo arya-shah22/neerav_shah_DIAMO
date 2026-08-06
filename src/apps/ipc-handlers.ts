@@ -33,6 +33,7 @@ import { NotificationController } from '../backend/modules/notification/notifica
 import { UserWorkspaceController } from '../backend/modules/user-workspace/workspace.controller';
 import { ExchangeRateController } from '../backend/modules/exchange-rate/exchange-rate.controller';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
+import { PrismaService } from '../backend/database/prisma.service';
 import type { IApiResponse } from '../shared/types/common.types';
 
 /** Wrap IPC handlers so Prisma Decimal/Date values are JSON-safe for Electron. */
@@ -41,8 +42,13 @@ function ipcHandle(
   channel: string,
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   handler: (...args: any[]) => Promise<IApiResponse | Record<string, unknown>>,
+  prismaService?: PrismaService,
 ): void {
   ipcMain.handle(channel, async (_event, ...args) => {
+    // Propagate userId to PrismaService for audit logging
+    if (prismaService && args[0] && typeof args[0] === 'object' && args[0].userId) {
+      prismaService.setCurrentUserId(args[0].userId);
+    }
     const result = await handler(...args);
     if (result && typeof result === 'object' && 'success' in result && result.success && 'data' in result && result.data !== undefined) {
       return { ...result, data: serializeForIpc(result.data) };
@@ -52,6 +58,7 @@ function ipcHandle(
 }
 
 export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationContext): void {
+  const prismaService = nestApp.get(PrismaService);
   const authController = nestApp.get(AuthController);
   const companyController = nestApp.get(CompanyController);
   const fyController = nestApp.get(FinancialYearController);
@@ -81,9 +88,12 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   const userWorkspaceController = nestApp.get(UserWorkspaceController);
   const exchangeRateController = nestApp.get(ExchangeRateController);
 
+  // Helper: wrap with prisma userId propagation for write-heavy channels
+  const p = prismaService;
+
   // ─── Dashboard ───────────────────────────────────────────
-  ipcHandle(ipcMain, 'dashboard:get-telemetry', (payload) => dashboardController.handleGetTelemetry(payload));
-  ipcHandle(ipcMain, 'dashboard:get-analytics', (payload) => dashboardController.handleGetAnalytics(payload));
+  ipcHandle(ipcMain, 'dashboard:get-telemetry', (payload) => dashboardController.handleGetTelemetry(payload), p);
+  ipcHandle(ipcMain, 'dashboard:get-analytics', (payload) => dashboardController.handleGetAnalytics(payload), p);
 
   // ─── Notifications ───────────────────────────────────────
   ipcHandle(ipcMain, 'notification:get-all', (payload) => notificationController.handleGetNotifications(payload));

@@ -254,14 +254,14 @@ export const AdminConsolePage: React.FC = () => {
     }
   }, [activeTab, loadUsers, loadActivityLogs]);
 
-  // Polling for metrics
+  // Polling for metrics (reduced from 10s to 30s to minimize DB load)
   useEffect(() => {
     const timer = setInterval(() => {
       loadMetrics();
       if (activeTab === 'staff') {
         loadUsers();
       }
-    }, 10000);
+    }, 30000);
     return () => clearInterval(timer);
   }, [loadMetrics, loadUsers, activeTab]);
 
