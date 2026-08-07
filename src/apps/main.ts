@@ -199,13 +199,22 @@ app.whenReady().then(async () => {
   try {
     const fs = require('fs');
     const userEnvPath = path.join(app.getPath('userData'), '.env');
-    if (fs.existsSync(userEnvPath)) {
-      require('dotenv').config({ path: userEnvPath });
-    } else {
-      require('dotenv').config();
+    if (!fs.existsSync(userEnvPath)) {
+      const defaultEnvContent = `# DIAMO ERP Configuration\nDATABASE_URL="mysql://root:password@127.0.0.1:3306/diamo_db"\nNODE_ENV="production"\n`;
+      try {
+        fs.writeFileSync(userEnvPath, defaultEnvContent, 'utf-8');
+      } catch (writeErr) {
+        console.error('[Main] Could not create default .env file:', writeErr);
+      }
     }
+    require('dotenv').config({ path: userEnvPath });
   } catch (err) {
     console.error('[Main] Failed to load .env file:', err);
+  }
+
+  // Mandatory Fallback: Ensure DATABASE_URL is always defined for Prisma Client
+  if (!process.env.DATABASE_URL) {
+    process.env.DATABASE_URL = 'mysql://root:password@127.0.0.1:3306/diamo_db';
   }
 
   if (app.isPackaged) {
