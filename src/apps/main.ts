@@ -219,10 +219,18 @@ app.whenReady().then(async () => {
       for (const dir of candidateDirs) {
         if (fs.existsSync(dir)) {
           const files = fs.readdirSync(dir);
-          const engineFile = files.find((f: string) => f.includes('query_engine') && (f.endsWith('.node') || f.endsWith('.dll') || f.endsWith('.so') || f.endsWith('.dylib')));
+          let engineFile: string | undefined;
+          if (process.platform === 'win32') {
+            engineFile = files.find((f: string) => f.includes('query_engine') && (f.includes('windows') || f.endsWith('.dll') || f.endsWith('.dll.node')));
+          } else if (process.platform === 'darwin') {
+            engineFile = files.find((f: string) => f.includes('query_engine') && f.includes('darwin'));
+          } else {
+            engineFile = files.find((f: string) => f.includes('query_engine') && (f.includes('linux') || f.includes('debian') || f.endsWith('.so') || f.endsWith('.so.node')));
+          }
+
           if (engineFile) {
             process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(dir, engineFile);
-            console.log(`[Main] Explicitly configured Prisma Query Engine at: ${process.env.PRISMA_QUERY_ENGINE_LIBRARY}`);
+            console.log(`[Main] Explicitly configured Prisma Query Engine (${process.platform}) at: ${process.env.PRISMA_QUERY_ENGINE_LIBRARY}`);
             break;
           }
         }
