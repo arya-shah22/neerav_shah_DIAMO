@@ -15,6 +15,7 @@ directories:
 files:
   - dist/**/*
   - node_modules/**/*
+  - node_modules/.prisma/**/*
   - package.json
 
 asarUnpack:
@@ -23,6 +24,8 @@ asarUnpack:
   - "**/*.dylib"
   - "**/*.so"
   - "**/query_engine*"
+  - "node_modules/.prisma/**/*"
+  - "node_modules/@prisma/**/*"
 
 mac:
   category: public.app-category.business

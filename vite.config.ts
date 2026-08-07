@@ -14,7 +14,7 @@ export default defineConfig({
           build: {
             outDir: 'dist/apps',
             rollupOptions: {
-              external: ['electron', '@prisma/client', '@nestjs/core', '@nestjs/common'],
+              external: ['electron', '@prisma/client', '.prisma/client', '.prisma', '@nestjs/core', '@nestjs/common'],
             },
           },
         },
