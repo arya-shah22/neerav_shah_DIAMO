@@ -98,6 +98,25 @@ export class MisReportService {
       }
     }
 
+    const movementItems = await (this.prisma as any).stockMovement.findMany({
+      where: {
+        stockPacket: { companyId },
+      },
+      select: {
+        stockPacketId: true,
+        carats: true,
+      },
+    });
+
+    const movementCaratsMap = new Map<number, number>();
+    for (const m of movementItems) {
+      if (m.stockPacketId && Number(m.carats || 0) > 0) {
+        if (!movementCaratsMap.has(m.stockPacketId)) {
+          movementCaratsMap.set(m.stockPacketId, Number(m.carats));
+        }
+      }
+    }
+
     const transformLogs = await (this.prisma as any).stockMovement.findMany({
       where: {
         stockPacket: { companyId },
@@ -142,13 +161,16 @@ export class MisReportService {
     };
 
     const qualityAggregatesMap = new Map<string, { qualityName: string; count: number; carats: number; totalValue: number }>();
+    const shapeMap = new Map<string, number>();
+    const clarityMap = new Map<string, number>();
 
     for (const p of allPackets) {
       const saleInfo = saleInfoMap.get(p.id);
       const purchaseInfo = purchaseInfoMap.get(p.id);
 
       const rawCarats = Number(p.caratWeight || 0);
-      const carats = rawCarats > 0 ? rawCarats : (saleInfo?.carats || purchaseInfo?.purchaseCarats || 0);
+      const movementCarats = movementCaratsMap.get(p.id) || 0;
+      const carats = rawCarats > 0 ? rawCarats : (saleInfo?.carats || purchaseInfo?.purchaseCarats || movementCarats || 0);
 
       const rawCost = Number(p.costPerCarat || 0);
       const costRate = rawCost > 0 ? rawCost : (purchaseInfo?.costRate || (saleInfo?.actualSaleRate || 0));
@@ -162,6 +184,13 @@ export class MisReportService {
       totalPieces += p.pieceCount || 0;
       totalValue += val;
       statusCounts[p.currentStatus] = (statusCounts[p.currentStatus] || 0) + 1;
+
+      // Shape & Clarity Concentration
+      const shapeName = p.shape?.trim() || 'Unspecified';
+      shapeMap.set(shapeName, (shapeMap.get(shapeName) || 0) + val);
+
+      const clarityName = p.clarity?.trim() || 'Unspecified';
+      clarityMap.set(clarityName, (clarityMap.get(clarityName) || 0) + val);
 
       const key = (p.currentStatus === 'HOLD' ? 'reserved'
                 : p.currentStatus === 'JOB_WORK' ? 'jobWork'
@@ -199,6 +228,20 @@ export class MisReportService {
       qRec.carats += carats;
       qRec.totalValue += val;
     }
+
+    const totalValForPct = totalValue || 1;
+
+    const shapeConcentration = Array.from(shapeMap.entries()).map(([name, value]) => ({
+      name,
+      value: Math.round(value * 100) / 100,
+      percentage: Math.round((value / totalValForPct) * 1000) / 10,
+    })).sort((a, b) => b.value - a.value);
+
+    const clarityConcentration = Array.from(clarityMap.entries()).map(([name, value]) => ({
+      name,
+      value: Math.round(value * 100) / 100,
+      percentage: Math.round((value / totalValForPct) * 1000) / 10,
+    })).sort((a, b) => b.value - a.value);
 
     const qualityAggregates = Array.from(qualityAggregatesMap.values()).map((q) => ({
       qualityName: q.qualityName,
@@ -238,6 +281,8 @@ export class MisReportService {
         statusCounts,
         statusBreakdown,
         ageing,
+        shapeConcentration,
+        clarityConcentration,
       },
       qualityAggregates,
       packets: filteredPackets.map((p) => {
