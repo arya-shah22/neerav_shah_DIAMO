@@ -88,6 +88,26 @@ export const StockReportPage: React.FC = () => {
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const [qualities, setQualities] = useState<IQuality[]>([]);
 
+  // Debounced search query to prevent lag on fast typing
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearchQuery(searchQuery);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  // Fetch qualities dropdown once per company
+  useEffect(() => {
+    if (!companyId) return;
+    fetchQualities({ companyId }).then((res) => {
+      if (res?.success && res.data) {
+        setQualities(res.data);
+      }
+    });
+  }, [companyId, fetchQualities]);
+
   const loadData = useCallback(async () => {
     if (!companyId) return;
     
@@ -97,16 +117,10 @@ export const StockReportPage: React.FC = () => {
       filters: {
         status: statusFilter || undefined,
         qualityId: qualityFilter ? Number(qualityFilter) : undefined,
-        search: searchQuery || undefined,
+        search: debouncedSearchQuery || undefined,
       }
     });
-
-    // Fetch qualities list for filter dropdown
-    const qList = await fetchQualities({ companyId });
-    if (qList.success && qList.data) {
-      setQualities(qList.data);
-    }
-  }, [companyId, statusFilter, qualityFilter, searchQuery, fetchStockReport, fetchQualities]);
+  }, [companyId, statusFilter, qualityFilter, debouncedSearchQuery, fetchStockReport]);
 
   useEffect(() => {
     loadData();
