@@ -88,13 +88,37 @@ export class MisReportService {
     let totalValue = 0;
 
     const statusCounts: Record<string, number> = {};
+    const statusBreakdown = {
+      available: { count: 0, carats: 0, value: 0 },
+      reserved: { count: 0, carats: 0, value: 0 },
+      jobWork: { count: 0, carats: 0, value: 0 },
+      transit: { count: 0, carats: 0, value: 0 },
+      sold: { count: 0, carats: 0, value: 0 },
+      returned: { count: 0, carats: 0, value: 0 },
+      damaged: { count: 0, carats: 0, value: 0 },
+      archived: { count: 0, carats: 0, value: 0 },
+    };
 
     for (const p of packets) {
       const carats = Number(p.caratWeight || 0);
+      const val = carats * Number(p.costPerCarat || 0);
       totalCarats += carats;
       totalPieces += p.pieceCount || 0;
-      totalValue += carats * Number(p.costPerCarat || 0);
+      totalValue += val;
       statusCounts[p.currentStatus] = (statusCounts[p.currentStatus] || 0) + 1;
+
+      const key = (p.currentStatus === 'HOLD' ? 'reserved'
+                : p.currentStatus === 'JOB_WORK' ? 'jobWork'
+                : p.currentStatus === 'SOLD' ? 'sold'
+                : p.currentStatus === 'RETURNED' ? 'returned'
+                : p.currentStatus === 'DAMAGED' ? 'damaged'
+                : p.currentStatus === 'ARCHIVED' ? 'archived'
+                : 'available') as keyof typeof statusBreakdown;
+      if (statusBreakdown[key]) {
+        statusBreakdown[key].count++;
+        statusBreakdown[key].carats += carats;
+        statusBreakdown[key].value += val;
+      }
     }
 
     return {
@@ -103,8 +127,13 @@ export class MisReportService {
         totalCarats: Math.round(totalCarats * 1000) / 1000,
         totalPieces,
         totalValue: Math.round(totalValue * 100) / 100,
+        totalValuation: Math.round(totalValue * 100) / 100,
+        activeValuation: Math.round((statusBreakdown.available.value + statusBreakdown.reserved.value + statusBreakdown.jobWork.value) * 100) / 100,
+        activePacketsCount: statusBreakdown.available.count + statusBreakdown.reserved.count + statusBreakdown.jobWork.count,
+        activeCarats: Math.round((statusBreakdown.available.carats + statusBreakdown.reserved.carats + statusBreakdown.jobWork.carats) * 1000) / 1000,
         avgRatePerCarat: totalCarats > 0 ? Math.round((totalValue / totalCarats) * 100) / 100 : 0,
         statusCounts,
+        statusBreakdown,
       },
       packets: packets.map((p) => {
         const carats = Number(p.caratWeight || 0);

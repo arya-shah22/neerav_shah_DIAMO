@@ -510,6 +510,17 @@ export const StockReportPage: React.FC = () => {
               const sym = viewCurrency === 'USD' ? '$' : '₹';
               const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
               const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+              const defaultItem = { count: 0, carats: 0, value: 0 };
+              const sb = {
+                available: reportData.summary?.statusBreakdown?.available ?? defaultItem,
+                reserved: reportData.summary?.statusBreakdown?.reserved ?? defaultItem,
+                jobWork: reportData.summary?.statusBreakdown?.jobWork ?? defaultItem,
+                transit: reportData.summary?.statusBreakdown?.transit ?? defaultItem,
+                sold: reportData.summary?.statusBreakdown?.sold ?? defaultItem,
+                returned: reportData.summary?.statusBreakdown?.returned ?? defaultItem,
+                damaged: reportData.summary?.statusBreakdown?.damaged ?? defaultItem,
+                archived: reportData.summary?.statusBreakdown?.archived ?? defaultItem,
+              };
 
               return (
                 <>
@@ -517,28 +528,28 @@ export const StockReportPage: React.FC = () => {
                     <strong>Total Packets:</strong> {reportData.summary.totalPackets} ({reportData.summary.totalCarats.toFixed(3)} Cts)
                   </div>
                   <div>
-                    <strong>Total Valuation:</strong> {sym}{(reportData.summary.totalValuation * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                    <strong>Total Valuation:</strong> {sym}{((reportData.summary.totalValuation || reportData.summary.totalValue || 0) * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
                   </div>
                   <div>
-                    <strong>Available Stock:</strong> {reportData.summary.statusBreakdown.available.count} Pkts ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.available.value * mult).toLocaleString(loc)})
+                    <strong>Available Stock:</strong> {sb.available.count} Pkts ({sb.available.carats.toFixed(3)} Cts | {sym}{(sb.available.value * mult).toLocaleString(loc)})
                   </div>
                   <div>
-                    <strong>Reserved / Hold:</strong> {reportData.summary.statusBreakdown.reserved.count} Pkts ({reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.reserved.value * mult).toLocaleString(loc)})
+                    <strong>Reserved / Hold:</strong> {sb.reserved.count} Pkts ({sb.reserved.carats.toFixed(3)} Cts | {sym}{(sb.reserved.value * mult).toLocaleString(loc)})
                   </div>
                   <div>
-                    <strong>In Job Work:</strong> {reportData.summary.statusBreakdown.jobWork.count} Pkts ({reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.jobWork.value * mult).toLocaleString(loc)})
+                    <strong>In Job Work:</strong> {sb.jobWork.count} Pkts ({sb.jobWork.carats.toFixed(3)} Cts | {sym}{(sb.jobWork.value * mult).toLocaleString(loc)})
                   </div>
                   <div>
-                    <strong>Transit / Created:</strong> {reportData.summary.statusBreakdown.transit.count} Pkts ({reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.transit.value * mult).toLocaleString(loc)})
+                    <strong>Transit / Created:</strong> {sb.transit.count} Pkts ({sb.transit.carats.toFixed(3)} Cts | {sym}{(sb.transit.value * mult).toLocaleString(loc)})
                   </div>
                   <div>
-                    <strong>Sold:</strong> {reportData.summary.statusBreakdown.sold.count} Pkts ({reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.sold.value * mult).toLocaleString(loc)})
+                    <strong>Sold:</strong> {sb.sold.count} Pkts ({sb.sold.carats.toFixed(3)} Cts | {sym}{(sb.sold.value * mult).toLocaleString(loc)})
                   </div>
                   <div>
-                    <strong>Returned:</strong> {reportData.summary.statusBreakdown.returned.count} Pkts ({reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.returned.value * mult).toLocaleString(loc)})
+                    <strong>Returned:</strong> {sb.returned.count} Pkts ({sb.returned.carats.toFixed(3)} Cts | {sym}{(sb.returned.value * mult).toLocaleString(loc)})
                   </div>
                   <div>
-                    <strong>Damaged:</strong> {reportData.summary.statusBreakdown.damaged.count} Pkts ({reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.damaged.value * mult).toLocaleString(loc)})
+                    <strong>Damaged:</strong> {sb.damaged.count} Pkts ({sb.damaged.carats.toFixed(3)} Cts | {sym}{(sb.damaged.value * mult).toLocaleString(loc)})
                   </div>
                 </>
               );
@@ -674,10 +685,21 @@ export const StockReportPage: React.FC = () => {
         const sym = viewCurrency === 'USD' ? '$' : '₹';
         const loc = viewCurrency === 'USD' ? 'en-US' : 'en-IN';
         const mult = viewCurrency === 'USD' ? 1 : exchangeRate;
+        const defaultItem = { count: 0, carats: 0, value: 0 };
+        const sb = {
+          available: reportData.summary?.statusBreakdown?.available ?? defaultItem,
+          reserved: reportData.summary?.statusBreakdown?.reserved ?? defaultItem,
+          jobWork: reportData.summary?.statusBreakdown?.jobWork ?? defaultItem,
+          transit: reportData.summary?.statusBreakdown?.transit ?? defaultItem,
+          sold: reportData.summary?.statusBreakdown?.sold ?? defaultItem,
+          returned: reportData.summary?.statusBreakdown?.returned ?? defaultItem,
+          damaged: reportData.summary?.statusBreakdown?.damaged ?? defaultItem,
+          archived: reportData.summary?.statusBreakdown?.archived ?? defaultItem,
+        };
 
-        const activeVal = (reportData.summary.activeValuation ?? (reportData.summary.statusBreakdown.available.value + reportData.summary.statusBreakdown.reserved.value + reportData.summary.statusBreakdown.jobWork.value)) * mult;
-        const availVal = reportData.summary.statusBreakdown.available.value * mult;
-        const cumVal = reportData.summary.totalValuation * mult;
+        const activeVal = (reportData.summary.activeValuation ?? (sb.available.value + sb.reserved.value + sb.jobWork.value)) * mult;
+        const availVal = sb.available.value * mult;
+        const cumVal = (reportData.summary.totalValuation ?? reportData.summary.totalValue ?? 0) * mult;
 
         return (
           <div className="no-print" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '16px' }}>
@@ -699,7 +721,7 @@ export const StockReportPage: React.FC = () => {
                 {sym}{activeVal.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
-                {(reportData.summary.activePacketsCount ?? (reportData.summary.statusBreakdown.available.count + reportData.summary.statusBreakdown.reserved.count + reportData.summary.statusBreakdown.jobWork.count))} Packets ({(reportData.summary.activeCarats ?? (reportData.summary.statusBreakdown.available.carats + reportData.summary.statusBreakdown.reserved.carats + reportData.summary.statusBreakdown.jobWork.carats)).toFixed(3)} Cts)
+                {(reportData.summary.activePacketsCount ?? (sb.available.count + sb.reserved.count + sb.jobWork.count))} Packets ({(reportData.summary.activeCarats ?? (sb.available.carats + sb.reserved.carats + sb.jobWork.carats)).toFixed(3)} Cts)
               </div>
               <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
                 (Active vault stock in Available + Hold + Job Work)
@@ -713,7 +735,7 @@ export const StockReportPage: React.FC = () => {
                 {sym}{availVal.toLocaleString(loc, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
               </div>
               <div style={{ fontSize: '11px', color: 'var(--color-text-primary)', fontWeight: 600, marginTop: '2px' }}>
-                {reportData.summary.statusBreakdown.available.count} Packets ({reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts)
+                {sb.available.count} Packets ({sb.available.carats.toFixed(3)} Cts)
               </div>
               <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '2px' }}>
                 (Stock strictly ready for immediate sale)
@@ -738,10 +760,10 @@ export const StockReportPage: React.FC = () => {
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Reserved / Hold</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#6366f1', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.reserved.count} Packets
+                {sb.reserved.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.reserved.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.reserved.carats.toFixed(3)} Cts | {sym}{(sb.reserved.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
 
@@ -749,60 +771,60 @@ export const StockReportPage: React.FC = () => {
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>In Job Work</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-warning)', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.jobWork.count} Packets
+                {sb.jobWork.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.jobWork.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.jobWork.carats.toFixed(3)} Cts | {sym}{(sb.jobWork.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Transit / Created</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#06b6d4', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.transit.count} Packets
+                {sb.transit.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.transit.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.transit.carats.toFixed(3)} Cts | {sym}{(sb.transit.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Sold</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#10b981', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.sold.count} Packets
+                {sb.sold.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.sold.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.sold.carats.toFixed(3)} Cts | {sym}{(sb.sold.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Returned</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#f59e0b', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.returned.count} Packets
+                {sb.returned.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.returned.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.returned.carats.toFixed(3)} Cts | {sym}{(sb.returned.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Damaged</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#ef4444', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.damaged.count} Packets
+                {sb.damaged.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.damaged.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.damaged.carats.toFixed(3)} Cts | {sym}{(sb.damaged.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
 
             <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '16px' }}>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Archived</span>
               <div style={{ fontSize: '20px', fontWeight: 700, color: '#6b7280', marginTop: '4px' }}>
-                {reportData.summary.statusBreakdown.archived.count} Packets
+                {sb.archived.count} Packets
               </div>
               <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
-                {reportData.summary.statusBreakdown.archived.carats.toFixed(3)} Cts | {sym}{(reportData.summary.statusBreakdown.archived.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
+                {sb.archived.carats.toFixed(3)} Cts | {sym}{(sb.archived.value * mult).toLocaleString(loc, { minimumFractionDigits: 2 })}
               </span>
             </div>
           </div>
