@@ -1128,17 +1128,19 @@ export const StockReportPage: React.FC = () => {
                     { label: '181-365 Days', key: 'days_181_365', color: '#fee2e2', barColor: '#ef4444' },
                     { label: '365+ Days', key: 'above_365', color: '#f3f4f6', barColor: '#6b7280' },
                   ].map((bracket, idx) => {
-                    const data = reportData.summary.ageing[bracket.key];
+                    const defaultAgeing = { count: 0, carats: 0, value: 0 };
+                    const ageingObj = reportData.summary?.ageing || {};
+                    const data = ageingObj[bracket.key as keyof typeof ageingObj] || defaultAgeing;
                     const rawVal = data?.value || 0;
                     const val = viewCurrency === 'USD' ? rawVal : rawVal * exchangeRate;
                     const sym = viewCurrency === 'USD' ? '$' : '₹';
                     
                     const maxVal = Math.max(
-                      reportData.summary.ageing.days_0_30?.value || 1,
-                      reportData.summary.ageing.days_31_90?.value || 1,
-                      reportData.summary.ageing.days_91_180?.value || 1,
-                      reportData.summary.ageing.days_181_365?.value || 1,
-                      reportData.summary.ageing.above_365?.value || 1
+                      ageingObj.days_0_30?.value || 1,
+                      ageingObj.days_31_90?.value || 1,
+                      ageingObj.days_91_180?.value || 1,
+                      ageingObj.days_181_365?.value || 1,
+                      ageingObj.above_365?.value || 1
                     );
                     const pctHeight = maxVal > 0 ? (rawVal / maxVal) * 100 : 0;
 

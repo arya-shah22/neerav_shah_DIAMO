@@ -99,6 +99,15 @@ export class MisReportService {
       archived: { count: 0, carats: 0, value: 0 },
     };
 
+    const now = new Date();
+    const ageing = {
+      days_0_30: { count: 0, carats: 0, value: 0 },
+      days_31_90: { count: 0, carats: 0, value: 0 },
+      days_91_180: { count: 0, carats: 0, value: 0 },
+      days_181_365: { count: 0, carats: 0, value: 0 },
+      above_365: { count: 0, carats: 0, value: 0 },
+    };
+
     for (const p of packets) {
       const carats = Number(p.caratWeight || 0);
       const val = carats * Number(p.costPerCarat || 0);
@@ -119,6 +128,19 @@ export class MisReportService {
         statusBreakdown[key].carats += carats;
         statusBreakdown[key].value += val;
       }
+
+      const regDate = p.registrationDate ? new Date(p.registrationDate) : new Date(p.createdAt);
+      const ageDays = Math.max(0, Math.floor((now.getTime() - regDate.getTime()) / (1000 * 60 * 60 * 24)));
+      const ageKey = (ageDays <= 30 ? 'days_0_30'
+                   : ageDays <= 90 ? 'days_31_90'
+                   : ageDays <= 180 ? 'days_91_180'
+                   : ageDays <= 365 ? 'days_181_365'
+                   : 'above_365') as keyof typeof ageing;
+      if (ageing[ageKey]) {
+        ageing[ageKey].count++;
+        ageing[ageKey].carats += carats;
+        ageing[ageKey].value += val;
+      }
     }
 
     return {
@@ -134,6 +156,7 @@ export class MisReportService {
         avgRatePerCarat: totalCarats > 0 ? Math.round((totalValue / totalCarats) * 100) / 100 : 0,
         statusCounts,
         statusBreakdown,
+        ageing,
       },
       packets: packets.map((p) => {
         const carats = Number(p.caratWeight || 0);
