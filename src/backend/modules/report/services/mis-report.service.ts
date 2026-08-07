@@ -40,7 +40,7 @@ export class MisReportService {
     // 2. Batch fetch sale items with select for sub-10ms performance
     const saleItems = await (this.prisma as any).saleInvoiceItem.findMany({
       where: {
-        stockPacketId: { not: null },
+        stockPacketId: { gt: 0 },
         saleInvoice: { companyId, isDeleted: false },
       },
       select: {
@@ -78,7 +78,7 @@ export class MisReportService {
     // 3. Batch fetch purchase items for fallback cost rates & carats
     const purchaseItems = await (this.prisma as any).purchaseInvoiceItem.findMany({
       where: {
-        stockPacketId: { not: null },
+        stockPacketId: { gt: 0 },
         purchaseInvoice: { companyId, isDeleted: false },
       },
       select: {
@@ -100,7 +100,7 @@ export class MisReportService {
 
     const transformLogs = await (this.prisma as any).stockMovement.findMany({
       where: {
-        stockPacketId: { not: null },
+        stockPacket: { companyId },
         movementType: { in: ['QUALITY_TRANSFORMATION', 'MANUAL_ADJUSTMENT'] as any[] },
       },
     });
