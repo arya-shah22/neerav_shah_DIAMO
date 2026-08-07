@@ -133,16 +133,16 @@ export const LedgerBookPage: React.FC = () => {
     setIsModalOpen(false);
   };
 
-  const columns: Column<ILedgerStatement>[] = [
+  const columns = useMemo<Column<ILedgerStatement>[]>(() => [
     {
       key: 'voucherDate',
       header: 'DATE',
-      render: (row) => new Date(row.voucherDate).toLocaleDateString('en-IN'),
+      render: (row) => (row.voucherDate ? new Date(row.voucherDate).toLocaleDateString('en-IN') : '—'),
     },
     {
       key: 'sourceVoucherType',
       header: 'VOUCHER TYPE',
-      render: (row) => row.sourceVoucherType.replace('_', ' '),
+      render: (row) => row.sourceVoucherType ? row.sourceVoucherType.replace('_', ' ') : '—',
     },
     {
       key: 'sourceBillNumber',
@@ -160,7 +160,7 @@ export const LedgerBookPage: React.FC = () => {
       align: 'right',
       render: (row) =>
         row.debitCreditType === 'DEBIT'
-          ? `₹${row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+          ? `₹${(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
           : '—',
     },
     {
@@ -169,7 +169,7 @@ export const LedgerBookPage: React.FC = () => {
       align: 'right',
       render: (row) =>
         row.debitCreditType === 'CREDIT'
-          ? `₹${row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+          ? `₹${(row.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
           : '—',
     },
     {
@@ -177,12 +177,12 @@ export const LedgerBookPage: React.FC = () => {
       header: 'BALANCE',
       align: 'right',
       render: (row) => (
-        <span style={{ fontWeight: 600, color: row.runningBalance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
-          ₹{Math.abs(row.runningBalance).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {row.runningBalance >= 0 ? 'Dr' : 'Cr'}
+        <span style={{ fontWeight: 600, color: (row.runningBalance || 0) >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}>
+          ₹{Math.abs(row.runningBalance || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })} {(row.runningBalance || 0) >= 0 ? 'Dr' : 'Cr'}
         </span>
       ),
     },
-  ];
+  ], []);
 
   if (!isReady) {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;

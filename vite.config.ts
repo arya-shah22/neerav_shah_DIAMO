@@ -44,5 +44,7 @@ export default defineConfig({
   root: '.',
   build: {
     outDir: 'dist/renderer',
+    minify: 'esbuild',
+    sourcemap: false,
   },
 });

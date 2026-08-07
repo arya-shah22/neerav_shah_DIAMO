@@ -402,15 +402,16 @@ export const getProfitLossPDFHtml = (plData: any, activeCompany: any, startDate:
 };
 
 export const getTrialBalanceCSV = (tbData: any) => {
-  const headers = ['ACCOUNT GROUP', 'DEBIT (Dr)', 'CREDIT (Cr)'];
+  const headers = ['ACCOUNT NAME', 'ACCOUNT GROUP', 'DEBIT (Dr)', 'CREDIT (Cr)'];
   const rows = (tbData.groups || []).map((row: any) => [
-    `"${row.groupName}"`,
-    row.debit,
-    row.credit
+    `"${row.accountName || ''}"`,
+    `"${row.groupName || ''}"`,
+    row.debit || 0,
+    row.credit || 0
   ]);
   
-  rows.push(['"Total Balance"', tbData.totalDebit, tbData.totalCredit]);
-  rows.push(['"Variance"', tbData.variance, '']);
+  rows.push(['"Total Balance"', '', tbData.totalDebit || 0, tbData.totalCredit || 0]);
+  rows.push(['"Variance"', '', tbData.variance || 0, '']);
 
   return [headers.join(','), ...rows.map((e: any) => e.join(','))].join('\n');
 };
@@ -749,17 +750,23 @@ export const getFundFlowPDFHtml = (ffData: any, activeCompany: any, startDate: s
 export const getStockReportCSV = (reportData: any, activeTab: 'REGISTER' | 'QUALITY' | 'PROFITABILITY') => {
   let rows: any[] = [];
   
+  const summary = reportData?.summary || {};
+  const totalVal = Number(summary.totalValuation ?? summary.totalValue ?? 0);
+  const totalCar = Number(summary.totalCarats ?? 0);
+  const totalPkts = summary.totalPackets ?? 0;
+  const sb = summary.statusBreakdown || {};
+
   // Add summary header lines
   rows.push(['STOCK REPORT SUMMARY']);
-  rows.push(['Total Packets', reportData.summary.totalPackets, `${reportData.summary.totalCarats.toFixed(3)} Cts`]);
-  rows.push(['Total Valuation', `₹${reportData.summary.totalValuation.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]);
-  rows.push(['Available Stock', `${reportData.summary.statusBreakdown.available.count} Pkts`, `${reportData.summary.statusBreakdown.available.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.available.value}`]);
-  rows.push(['Reserved / Hold', `${reportData.summary.statusBreakdown.reserved.count} Pkts`, `${reportData.summary.statusBreakdown.reserved.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.reserved.value}`]);
-  rows.push(['In Job Work', `${reportData.summary.statusBreakdown.jobWork.count} Pkts`, `${reportData.summary.statusBreakdown.jobWork.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.jobWork.value}`]);
-  rows.push(['Transit / Created', `${reportData.summary.statusBreakdown.transit.count} Pkts`, `${reportData.summary.statusBreakdown.transit.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.transit.value}`]);
-  rows.push(['Sold', `${reportData.summary.statusBreakdown.sold.count} Pkts`, `${reportData.summary.statusBreakdown.sold.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.sold.value}`]);
-  rows.push(['Returned', `${reportData.summary.statusBreakdown.returned.count} Pkts`, `${reportData.summary.statusBreakdown.returned.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.returned.value}`]);
-  rows.push(['Damaged', `${reportData.summary.statusBreakdown.damaged.count} Pkts`, `${reportData.summary.statusBreakdown.damaged.carats.toFixed(3)} Cts`, `₹${reportData.summary.statusBreakdown.damaged.value}`]);
+  rows.push(['Total Packets', totalPkts, `${totalCar.toFixed(3)} Cts`]);
+  rows.push(['Total Valuation', `₹${totalVal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`]);
+  rows.push(['Available Stock', `${sb.available?.count ?? 0} Pkts`, `${(sb.available?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.available?.value ?? 0}`]);
+  rows.push(['Reserved / Hold', `${sb.reserved?.count ?? 0} Pkts`, `${(sb.reserved?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.reserved?.value ?? 0}`]);
+  rows.push(['In Job Work', `${sb.jobWork?.count ?? 0} Pkts`, `${(sb.jobWork?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.jobWork?.value ?? 0}`]);
+  rows.push(['Transit / Created', `${sb.transit?.count ?? 0} Pkts`, `${(sb.transit?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.transit?.value ?? 0}`]);
+  rows.push(['Sold', `${sb.sold?.count ?? 0} Pkts`, `${(sb.sold?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.sold?.value ?? 0}`]);
+  rows.push(['Returned', `${sb.returned?.count ?? 0} Pkts`, `${(sb.returned?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.returned?.value ?? 0}`]);
+  rows.push(['Damaged', `${sb.damaged?.count ?? 0} Pkts`, `${(sb.damaged?.carats ?? 0).toFixed(3)} Cts`, `₹${sb.damaged?.value ?? 0}`]);
   rows.push([]); // Empty spacing line
   
   if (activeTab === 'REGISTER') {

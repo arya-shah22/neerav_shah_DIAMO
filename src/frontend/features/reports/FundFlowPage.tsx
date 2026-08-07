@@ -12,7 +12,15 @@ import { getFundFlowCSV } from '../../utils/reportExports';
 
 export const FundFlowPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const [startDate, setStartDate] = useState('');
+
+  const getDefaultStartDate = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const fyStartYear = today.getMonth() >= 3 ? currentYear : currentYear - 1;
+    return `${fyStartYear}-04-01`;
+  };
+
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
@@ -279,23 +287,23 @@ export const FundFlowPage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 600 }}>
                 <span>Opening Working Capital</span>
-                <span>{fmt(ffData.workingCapital.openingWorkingCapital)}</span>
+                <span>{fmt(ffData?.workingCapital?.openingWorkingCapital ?? ffData?.workingCapital?.start)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 600 }}>
                 <span>Closing Working Capital</span>
-                <span>{fmt(ffData.workingCapital.closingWorkingCapital)}</span>
+                <span>{fmt(ffData?.workingCapital?.closingWorkingCapital ?? ffData?.workingCapital?.end)}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '15px', fontWeight: 800, color: 'var(--color-primary)', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
                 <span>Net Increase/(Decrease) in WC</span>
-                <span style={{ color: ffData.workingCapital.change >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
-                  {fmt(ffData.workingCapital.change)}
+                <span style={{ color: (ffData?.workingCapital?.change ?? 0) >= 0 ? 'var(--color-success)' : 'var(--color-error)' }}>
+                  {fmt(ffData?.workingCapital?.change)}
                 </span>
               </div>
             </div>
 
             <h4 style={{ fontSize: '13px', fontWeight: 700, marginTop: '20px', color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Current Assets & Liabilities Breakdown</h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              {ffData.workingCapital.details.map((d: any, idx: number) => (
+              {(ffData?.workingCapital?.details || []).map((d: any, idx: number) => (
                 <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', padding: '8px 0', borderBottom: '1px dashed var(--color-border)' }}>
                   <div>
                     <span style={{ fontWeight: 600 }}>{d.accountName}</span>

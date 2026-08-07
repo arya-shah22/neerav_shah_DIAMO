@@ -26,10 +26,10 @@ async function testDayBookMultiCurrency() {
   console.log(`  - Opening Bank (INR): ₹${dayBook.openingBankInr} | USD: $${dayBook.openingBankUsd}`);
   console.log(`  - Closing Cash (INR): ₹${dayBook.closingCashInr} | USD: $${dayBook.closingCashUsd}`);
   console.log(`  - Closing Bank (INR): ₹${dayBook.closingBankInr} | USD: $${dayBook.closingBankUsd}`);
-  console.log(`  - Total Today Transactions: ${dayBook.transactions.length}`);
+  console.log(`  - Total Today Transactions: ${dayBook.entries.length}`);
 
-  if (dayBook.transactions.length > 0) {
-    const sample = dayBook.transactions[0];
+  if (dayBook.entries.length > 0) {
+    const sample = dayBook.entries[0];
     console.log(`  - Sample Transaction: ${sample.voucherNumber} (${sample.voucherType}) -> Original: ${sample.originalCurrency} ${sample.originalAmount} @ ${sample.exchangeRate}`);
   }
 

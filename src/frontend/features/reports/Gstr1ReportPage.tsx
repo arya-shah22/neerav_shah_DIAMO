@@ -3,7 +3,8 @@
 // Phase 11.5: GSTR-1 Return Filing (B2B, B2CL, B2CS, CDN, HSN, Doc Summary)
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
 import { Printer, Download, ArrowLeft, Calendar, RefreshCw } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -66,16 +67,20 @@ export const Gstr1ReportPage: React.FC = () => {
   const handleExportJSON = async () => {
     if (!companyId) return;
     try {
-      const jsonPayload = await window.api.invoke('report:gstr1-json', { companyId, startDate, endDate }) as any;
-      if (jsonPayload) {
-        const blob = new Blob([JSON.stringify(jsonPayload, null, 2)], { type: 'application/json' });
+      const res = await window.api.invoke('report:gstr1-json', { companyId, startDate, endDate }) as any;
+      const data = res?.data || res;
+      if (data) {
+        const payload = data.payload || data;
+        const filename = data.filename || `GSTR1_Offline_Payload_${startDate}_to_${endDate}.json`;
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement("a");
         link.setAttribute("href", url);
-        link.setAttribute("download", `GSTR1_Offline_Payload_${startDate}_to_${endDate}.json`);
+        link.setAttribute("download", filename);
         document.body.appendChild(link);
         link.click();
         document.body.removeChild(link);
+        URL.revokeObjectURL(url);
       }
     } catch (err: any) {
       console.error(err);
@@ -83,114 +88,171 @@ export const Gstr1ReportPage: React.FC = () => {
     }
   };
 
-  const b2bColumns: Column<any>[] = [
-    { key: 'ctin', header: 'CUSTOMER GSTIN', sortable: true },
-    { key: 'inum', header: 'INVOICE NO', sortable: true, render: (row) => row.inv?.[0]?.inum || '—' },
-    { key: 'idt', header: 'DATE', render: (row) => row.inv?.[0]?.idt || '—' },
+  const fmt = (v?: number) => (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
+  const b2bColumns = useMemo<Column<any>[]>(() => [
+    { key: 'gstin', header: 'CUSTOMER GSTIN', sortable: true, render: (row) => row.gstin || '—' },
+    { key: 'partyName', header: 'PARTY NAME', sortable: true, render: (row) => row.partyName || '—' },
+    { key: 'invoiceNumber', header: 'INVOICE NO', sortable: true, render: (row) => row.invoiceNumber || '—' },
+    { key: 'formattedDate', header: 'DATE', render: (row) => row.formattedDate || row.invoiceDate || '—' },
+    { key: 'placeOfSupply', header: 'POS STATE', align: 'center', render: (row) => row.placeOfSupply || '—' },
     { 
-      key: 'val', 
+      key: 'invoiceValue', 
       header: 'INVOICE VALUE', 
       align: 'right',
-      render: (row) => `₹${(row.inv?.[0]?.val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.invoiceValue)}`
     },
-    { key: 'pos', header: 'POS STATE', align: 'center', render: (row) => row.inv?.[0]?.pos || '—' },
     { 
-      key: 'txval', 
+      key: 'taxableValue', 
       header: 'TAXABLE AMT', 
       align: 'right',
-      render: (row) => `₹${(row.inv?.[0]?.itms?.[0]?.itm_det?.txval || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.taxableValue)}`
     },
     { 
-      key: 'tax', 
+      key: 'totalTax', 
       header: 'GST AMT', 
       align: 'right',
-      render: (row) => {
-        const det = row.inv?.[0]?.itms?.[0]?.itm_det;
-        const total = (det?.iamt || 0) + (det?.camt || 0) + (det?.samt || 0);
-        return `₹${total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`;
-      }
+      render: (row) => `₹${fmt(row.totalTax)}`
     },
-  ];
+  ], []);
 
-  const b2clColumns: Column<any>[] = [
-    { key: 'pos', header: 'POS STATE', align: 'center', sortable: true },
-    { key: 'inum', header: 'INVOICE NO', sortable: true, render: (row) => row.inv?.[0]?.inum || '—' },
-    { key: 'idt', header: 'DATE', render: (row) => row.inv?.[0]?.idt || '—' },
+  const b2clColumns = useMemo<Column<any>[]>(() => [
+    { key: 'invoiceNumber', header: 'INVOICE NO', sortable: true, render: (row) => row.invoiceNumber || '—' },
+    { key: 'formattedDate', header: 'DATE', render: (row) => row.formattedDate || row.invoiceDate || '—' },
+    { key: 'placeOfSupply', header: 'POS STATE', align: 'center', sortable: true, render: (row) => row.placeOfSupply || '—' },
     { 
-      key: 'val', 
+      key: 'invoiceValue', 
       header: 'INVOICE VALUE', 
       align: 'right',
-      render: (row) => `₹${(row.inv?.[0]?.val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.invoiceValue)}`
     },
     { 
-      key: 'txval', 
+      key: 'taxableValue', 
       header: 'TAXABLE AMT', 
       align: 'right',
-      render: (row) => `₹${(row.inv?.[0]?.itms?.[0]?.txval || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.taxableValue)}`
     },
-  ];
-
-  const b2csColumns: Column<any>[] = [
-    { key: 'pos', header: 'PLACE OF SUPPLY', sortable: true },
-    { key: 'inum', header: 'BILL NO', sortable: true },
-    { key: 'idt', header: 'DATE' },
     { 
-      key: 'val', 
+      key: 'igst', 
+      header: 'IGST AMT', 
+      align: 'right',
+      render: (row) => `₹${fmt(row.igst)}`
+    },
+  ], []);
+
+  const b2csColumns = useMemo<Column<any>[]>(() => [
+    { key: 'invoiceNumber', header: 'BILL NO', sortable: true, render: (row) => row.invoiceNumber || '—' },
+    { key: 'formattedDate', header: 'DATE', render: (row) => row.formattedDate || row.invoiceDate || '—' },
+    { key: 'type', header: 'TYPE', align: 'center', render: (row) => row.type || 'Intrastate' },
+    { key: 'placeOfSupply', header: 'POS STATE', align: 'center', sortable: true, render: (row) => row.placeOfSupply || '—' },
+    { 
+      key: 'invoiceValue', 
       header: 'BILL VALUE', 
       align: 'right',
-      render: (row) => `₹${row.val.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.invoiceValue)}`
     },
     { 
-      key: 'txval', 
+      key: 'taxableValue', 
       header: 'TAXABLE VALUE', 
       align: 'right',
-      render: (row) => `₹${row.txval.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.taxableValue)}`
     },
     { 
       key: 'igst', 
       header: 'IGST', 
       align: 'right',
-      render: (row) => row.igst > 0 ? `₹${row.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
+      render: (row) => (row.igst || 0) > 0 ? `₹${fmt(row.igst)}` : '—'
     },
     { 
       key: 'cgst_sgst', 
       header: 'CGST / SGST', 
       align: 'right',
-      render: (row) => row.cgst > 0 ? `₹${row.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
+      render: (row) => ((row.cgst || 0) + (row.sgst || 0)) > 0 ? `₹${fmt((row.cgst || 0) + (row.sgst || 0))}` : '—'
     },
-  ];
+  ], []);
 
-  const cdnColumns: Column<any>[] = [
-    { key: 'ctin', header: 'GSTIN / TYPE', render: (row) => row.ctin || row.typ || 'Unregistered' },
-    { key: 'nt_num', header: 'NOTE NO', render: (row) => row.nt?.[0]?.nt_num || row.nt_num || '—' },
-    { key: 'nt_dt', header: 'DATE', render: (row) => row.nt?.[0]?.nt_dt || row.nt_dt || '—' },
-    { key: 'ntty', header: 'TYPE', align: 'center', render: (row) => (row.nt?.[0]?.ntty || row.ntty) === 'C' ? 'Credit Note (Return)' : 'Debit Note' },
+  const cdnColumns = useMemo<Column<any>[]>(() => [
+    { key: 'gstin', header: 'GSTIN', render: (row) => row.gstin || 'URP' },
+    { key: 'partyName', header: 'PARTY NAME', render: (row) => row.partyName || '—' },
+    { key: 'noteNumber', header: 'NOTE NO', render: (row) => row.noteNumber || '—' },
+    { key: 'formattedDate', header: 'DATE', render: (row) => row.formattedDate || row.noteDate || '—' },
+    { key: 'noteTypeName', header: 'TYPE', align: 'center', render: (row) => row.noteTypeName || (row.noteType === 'C' ? 'Credit Note' : 'Debit Note') },
     { 
-      key: 'val', 
+      key: 'noteValue', 
       header: 'NOTE VALUE', 
       align: 'right',
-      render: (row) => `₹${(row.nt?.[0]?.val || row.val || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.noteValue)}`
     },
-  ];
-
-  const hsnColumns: Column<any>[] = [
-    { key: 'hsn_sc', header: 'HSN CODE', sortable: true },
-    { key: 'desc', header: 'DESCRIPTION' },
-    { key: 'uqc', header: 'UQC', align: 'center' },
-    { key: 'qty', header: 'TOTAL QUANTITY', align: 'right', render: (row) => `${row.qty.toFixed(3)} Cts` },
     { 
-      key: 'txval', 
+      key: 'taxableValue', 
       header: 'TAXABLE VALUE', 
       align: 'right',
-      render: (row) => `₹${row.txval.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.taxableValue)}`
+    },
+    { 
+      key: 'totalTax', 
+      header: 'TAX AMT', 
+      align: 'right',
+      render: (row) => `₹${fmt(row.totalTax)}`
+    },
+  ], []);
+
+  const hsnColumns = useMemo<Column<any>[]>(() => [
+    { key: 'hsnCode', header: 'HSN CODE', sortable: true },
+    { key: 'description', header: 'DESCRIPTION' },
+    { key: 'uqc', header: 'UQC', align: 'center' },
+    { key: 'totalCarats', header: 'TOTAL CARATS', align: 'right', render: (row) => `${(row.totalCarats || 0).toFixed(3)} Cts` },
+    { 
+      key: 'totalValue', 
+      header: 'TOTAL VALUE', 
+      align: 'right',
+      render: (row) => `₹${fmt(row.totalValue)}`
+    },
+    { 
+      key: 'taxableValue', 
+      header: 'TAXABLE VALUE', 
+      align: 'right',
+      render: (row) => `₹${fmt(row.taxableValue)}`
     },
     { 
       key: 'totalTax', 
       header: 'TOTAL TAX', 
       align: 'right',
-      render: (row) => `₹${((row.iamt || 0) + (row.camt || 0) + (row.samt || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.totalTax)}`
     },
-  ];
+  ], []);
+
+  const docColumns = useMemo<Column<any>[]>(() => [
+    { key: 'docType', header: 'DOCUMENT TYPE', render: (row) => row.docType || 'Invoices for Outward Supply' },
+    { key: 'from', header: 'FROM SERIAL', render: (row) => row.from || '—' },
+    { key: 'to', header: 'TO SERIAL', render: (row) => row.to || '—' },
+    { key: 'totalCount', header: 'TOTAL COUNT', align: 'center', render: (row) => row.totalCount || 0 },
+    { key: 'cancelledCount', header: 'CANCELLED COUNT', align: 'center', render: (row) => row.cancelledCount || 0 },
+    { key: 'netIssued', header: 'NET ISSUED', align: 'center', render: (row) => row.netIssued || 0 },
+  ], []);
+
+  const gridData = useMemo(() => {
+    if (!gstr1Data) return [];
+    switch (activeTab) {
+      case 'B2B': return gstr1Data.b2b || [];
+      case 'B2CL': return gstr1Data.b2cl || [];
+      case 'B2CS': return gstr1Data.b2cs || [];
+      case 'CDN': return gstr1Data.cdnr || [];
+      case 'HSN': return gstr1Data.hsnSummary || [];
+      case 'DOC': return gstr1Data.docSummary ? [gstr1Data.docSummary] : [];
+    }
+  }, [activeTab, gstr1Data]);
+
+  const gridColumns = useMemo(() => {
+    switch (activeTab) {
+      case 'B2B': return b2bColumns;
+      case 'B2CL': return b2clColumns;
+      case 'B2CS': return b2csColumns;
+      case 'CDN': return cdnColumns;
+      case 'HSN': return hsnColumns;
+      case 'DOC': return docColumns;
+    }
+  }, [activeTab, b2bColumns, b2clColumns, b2csColumns, cdnColumns, hsnColumns, docColumns]);
 
   const getTabCount = (tab: Gstr1Tab): number => {
     if (!gstr1Data) return 0;
@@ -198,9 +260,9 @@ export const Gstr1ReportPage: React.FC = () => {
       case 'B2B': return gstr1Data.b2b?.length || 0;
       case 'B2CL': return gstr1Data.b2cl?.length || 0;
       case 'B2CS': return gstr1Data.b2cs?.length || 0;
-      case 'CDN': return (gstr1Data.cdnr?.length || 0) + (gstr1Data.cdnur?.length || 0);
-      case 'HSN': return gstr1Data.hsn?.length || 0;
-      case 'DOC': return gstr1Data.docSummary?.totnum ? 1 : 0;
+      case 'CDN': return gstr1Data.cdnr?.length || 0;
+      case 'HSN': return gstr1Data.hsnSummary?.length || 0;
+      case 'DOC': return gstr1Data.docSummary?.totalCount ? 1 : 0;
     }
   };
 
@@ -210,18 +272,37 @@ export const Gstr1ReportPage: React.FC = () => {
 
   // ── Print Preview Mode ──
   if (showPrintPreview && activeCompany && gstr1Data) {
-    return (
-      <div id="print-preview-root" style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
+    return createPortal(
+      <div id="print-preview-root" style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        width: '100vw',
+        height: '100vh',
+        background: '#f1f5f9',
+        zIndex: 99999,
+        overflowY: 'auto',
+        padding: '32px 24px 64px 24px',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        boxSizing: 'border-box'
+      }}>
         <style dangerouslySetInnerHTML={{ __html: `
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
             body { background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
             .no-print { display: none !important; }
             #print-preview-root {
+              position: static !important;
               background: transparent !important;
               padding: 0 !important;
               margin: 0 !important;
-              min-height: auto !important;
+              width: auto !important;
+              height: auto !important;
+              overflow: visible !important;
             }
             .print-page {
               padding: 5mm 0 !important;
@@ -241,27 +322,38 @@ export const Gstr1ReportPage: React.FC = () => {
         <div className="no-print" style={{ 
           display: 'flex', 
           justifyContent: 'space-between', 
+          alignItems: 'center',
+          width: '100%',
+          maxWidth: '960px',
           marginBottom: '20px', 
           padding: '12px 24px', 
           background: 'var(--color-surface)', 
           border: '1px solid var(--color-border)', 
-          borderRadius: '8px' 
+          borderRadius: '8px',
+          boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+          boxSizing: 'border-box'
         }}>
           <Button variant="ghost" onClick={() => setShowPrintPreview(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ArrowLeft size={16} /> Back to Page
           </Button>
-          <Button variant="primary" onClick={triggerDirectPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Printer size={16} /> Print / Save PDF
-          </Button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <Button variant="ghost" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Download size={16} /> Export PDF
+            </Button>
+            <Button variant="primary" onClick={triggerDirectPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <Printer size={16} /> Print
+            </Button>
+          </div>
         </div>
 
         <div id="print-area" className="print-page" style={{
           background: '#ffffff',
           border: '1px solid var(--color-border)',
-          borderRadius: '4px',
+          borderRadius: '8px',
+          boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
           padding: '20mm',
-          width: '210mm',
-          margin: '0 auto',
+          width: '100%',
+          maxWidth: '960px',
           boxSizing: 'border-box',
           color: '#1e293b'
         }}>
@@ -299,6 +391,7 @@ export const Gstr1ReportPage: React.FC = () => {
               {activeTab === 'B2B' && (
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Customer GSTIN</th>
+                  <th style={{ textAlign: 'left', padding: '6px' }}>Party Name</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Invoice No</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Date</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Value</th>
@@ -309,18 +402,20 @@ export const Gstr1ReportPage: React.FC = () => {
               )}
               {activeTab === 'B2CL' && (
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
-                  <th style={{ textAlign: 'center', padding: '6px' }}>POS State</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Invoice No</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Date</th>
+                  <th style={{ textAlign: 'center', padding: '6px' }}>POS State</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Invoice Value</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Taxable Amt</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>IGST Amt</th>
                 </tr>
               )}
               {activeTab === 'B2CS' && (
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
-                  <th style={{ textAlign: 'center', padding: '6px' }}>POS State</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Bill No</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Date</th>
+                  <th style={{ textAlign: 'center', padding: '6px' }}>Type</th>
+                  <th style={{ textAlign: 'center', padding: '6px' }}>POS State</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Bill Value</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Taxable Amt</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>IGST</th>
@@ -329,24 +424,30 @@ export const Gstr1ReportPage: React.FC = () => {
               )}
               {activeTab === 'CDN' && (
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
-                  <th style={{ textAlign: 'left', padding: '6px' }}>GSTIN / Type</th>
+                  <th style={{ textAlign: 'left', padding: '6px' }}>GSTIN</th>
+                  <th style={{ textAlign: 'left', padding: '6px' }}>Party Name</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Note No</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Date</th>
                   <th style={{ textAlign: 'center', padding: '6px' }}>Type</th>
-                  <th style={{ textAlign: 'right', padding: '6px' }}>Value</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Note Value</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Taxable Value</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Tax Amt</th>
                 </tr>
               )}
               {activeTab === 'HSN' && (
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
                   <th style={{ textAlign: 'left', padding: '6px' }}>HSN</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>Description</th>
-                  <th style={{ textAlign: 'right', padding: '6px' }}>Quantity</th>
+                  <th style={{ textAlign: 'center', padding: '6px' }}>UQC</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Carats</th>
+                  <th style={{ textAlign: 'right', padding: '6px' }}>Total Value</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Taxable Value</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Total Tax</th>
                 </tr>
               )}
               {activeTab === 'DOC' && (
                 <tr style={{ background: '#f8fafc', borderBottom: '2px solid #0f172a', fontWeight: 700 }}>
+                  <th style={{ textAlign: 'left', padding: '6px' }}>Document Type</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>From Serial</th>
                   <th style={{ textAlign: 'left', padding: '6px' }}>To Serial</th>
                   <th style={{ textAlign: 'right', padding: '6px' }}>Total Count</th>
@@ -356,104 +457,80 @@ export const Gstr1ReportPage: React.FC = () => {
               )}
             </thead>
             <tbody>
-              {activeTab === 'B2B' && (gstr1Data.b2b || []).map((row: any, idx: number) => {
-                const det = row.inv?.[0]?.itms?.[0]?.itm_det;
-                const gstTotal = (det?.iamt || 0) + (det?.camt || 0) + (det?.samt || 0);
-                return (
-                  <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '6px' }}>{row.ctin}</td>
-                    <td style={{ padding: '6px' }}>{row.inv?.[0]?.inum}</td>
-                    <td style={{ padding: '6px' }}>{row.inv?.[0]?.idt}</td>
-                    <td style={{ textAlign: 'right', padding: '6px' }}>₹{(row.inv?.[0]?.val || 0).toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'center', padding: '6px' }}>{row.inv?.[0]?.pos}</td>
-                    <td style={{ textAlign: 'right', padding: '6px' }}>₹{(det?.txval || 0).toLocaleString('en-IN')}</td>
-                    <td style={{ textAlign: 'right', padding: '6px' }}>₹{gstTotal.toLocaleString('en-IN')}</td>
-                  </tr>
-                );
-              })}
+              {activeTab === 'B2B' && (gstr1Data.b2b || []).map((row: any, idx: number) => (
+                <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '6px' }}>{row.gstin || '—'}</td>
+                  <td style={{ padding: '6px' }}>{row.partyName || '—'}</td>
+                  <td style={{ padding: '6px' }}>{row.invoiceNumber}</td>
+                  <td style={{ padding: '6px' }}>{row.formattedDate || row.invoiceDate}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.invoiceValue)}</td>
+                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.placeOfSupply}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.taxableValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.totalTax)}</td>
+                </tr>
+              ))}
               {activeTab === 'B2CL' && (gstr1Data.b2cl || []).map((row: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.pos}</td>
-                  <td style={{ padding: '6px' }}>{row.inv?.[0]?.inum}</td>
-                  <td style={{ padding: '6px' }}>{row.inv?.[0]?.idt}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{(row.inv?.[0]?.val || 0).toLocaleString('en-IN')}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{(row.inv?.[0]?.itms?.[0]?.txval || 0).toLocaleString('en-IN')}</td>
+                  <td style={{ padding: '6px' }}>{row.invoiceNumber}</td>
+                  <td style={{ padding: '6px' }}>{row.formattedDate || row.invoiceDate}</td>
+                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.placeOfSupply}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.invoiceValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.taxableValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.igst)}</td>
                 </tr>
               ))}
               {activeTab === 'B2CS' && (gstr1Data.b2cs || []).map((row: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.pos}</td>
-                  <td style={{ padding: '6px' }}>{row.inum}</td>
-                  <td style={{ padding: '6px' }}>{row.idt}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{row.val.toLocaleString('en-IN')}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{row.txval.toLocaleString('en-IN')}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>{row.igst > 0 ? `₹${row.igst.toLocaleString('en-IN')}` : '—'}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>{row.cgst > 0 ? `₹${row.cgst.toLocaleString('en-IN')}` : '—'}</td>
+                  <td style={{ padding: '6px' }}>{row.invoiceNumber}</td>
+                  <td style={{ padding: '6px' }}>{row.formattedDate || row.invoiceDate}</td>
+                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.type}</td>
+                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.placeOfSupply}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.invoiceValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.taxableValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>{row.igst > 0 ? `₹${fmt(row.igst)}` : '—'}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>{((row.cgst || 0) + (row.sgst || 0)) > 0 ? `₹${fmt((row.cgst || 0) + (row.sgst || 0))}` : '—'}</td>
                 </tr>
               ))}
-              {activeTab === 'CDN' && [...(gstr1Data.cdnr || []), ...(gstr1Data.cdnur || [])].map((row: any, idx: number) => (
+              {activeTab === 'CDN' && (gstr1Data.cdnr || []).map((row: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '6px' }}>{row.ctin || row.typ || 'Unregistered'}</td>
-                  <td style={{ padding: '6px' }}>{row.nt?.[0]?.nt_num || row.nt_num}</td>
-                  <td style={{ padding: '6px' }}>{row.nt?.[0]?.nt_dt || row.nt_dt}</td>
-                  <td style={{ textAlign: 'center', padding: '6px' }}>{(row.nt?.[0]?.ntty || row.ntty) === 'C' ? 'Credit Note' : 'Debit Note'}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{(row.nt?.[0]?.val || row.val || 0).toLocaleString('en-IN')}</td>
+                  <td style={{ padding: '6px' }}>{row.gstin || 'URP'}</td>
+                  <td style={{ padding: '6px' }}>{row.partyName || '—'}</td>
+                  <td style={{ padding: '6px' }}>{row.noteNumber}</td>
+                  <td style={{ padding: '6px' }}>{row.formattedDate || row.noteDate}</td>
+                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.noteTypeName}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.noteValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.taxableValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.totalTax)}</td>
                 </tr>
               ))}
-              {activeTab === 'HSN' && (gstr1Data.hsn || []).map((row: any, idx: number) => (
+              {activeTab === 'HSN' && (gstr1Data.hsnSummary || []).map((row: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '6px', fontWeight: 600 }}>{row.hsn_sc}</td>
-                  <td style={{ padding: '6px' }}>{row.desc}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>{row.qty.toFixed(3)} Cts</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{row.txval.toLocaleString('en-IN')}</td>
-                  <td style={{ textAlign: 'right', padding: '6px', fontWeight: 600 }}>₹{((row.iamt || 0) + (row.camt || 0) + (row.samt || 0)).toLocaleString('en-IN')}</td>
+                  <td style={{ padding: '6px', fontWeight: 600 }}>{row.hsnCode}</td>
+                  <td style={{ padding: '6px' }}>{row.description}</td>
+                  <td style={{ textAlign: 'center', padding: '6px' }}>{row.uqc}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>{(row.totalCarats || 0).toFixed(3)} Cts</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.totalValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>₹{fmt(row.taxableValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '6px', fontWeight: 600 }}>₹{fmt(row.totalTax)}</td>
                 </tr>
               ))}
               {activeTab === 'DOC' && gstr1Data.docSummary && (
                 <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                  <td style={{ padding: '6px' }}>{gstr1Data.docSummary.docType || 'Invoices for Outward Supply'}</td>
                   <td style={{ padding: '6px' }}>{gstr1Data.docSummary.from}</td>
                   <td style={{ padding: '6px' }}>{gstr1Data.docSummary.to}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>{gstr1Data.docSummary.totnum}</td>
-                  <td style={{ textAlign: 'right', padding: '6px' }}>{gstr1Data.docSummary.cancel}</td>
-                  <td style={{ textAlign: 'right', padding: '6px', fontWeight: 600 }}>{gstr1Data.docSummary.net_issue}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>{gstr1Data.docSummary.totalCount}</td>
+                  <td style={{ textAlign: 'right', padding: '6px' }}>{gstr1Data.docSummary.cancelledCount}</td>
+                  <td style={{ textAlign: 'right', padding: '6px', fontWeight: 600 }}>{gstr1Data.docSummary.netIssued}</td>
                 </tr>
               )}
             </tbody>
           </table>
         </div>
-      </div>
+      </div>,
+      document.body
     );
   }
-
-  const getGridData = () => {
-    if (!gstr1Data) return [];
-    switch (activeTab) {
-      case 'B2B': return gstr1Data.b2b || [];
-      case 'B2CL': return gstr1Data.b2cl || [];
-      case 'B2CS': return gstr1Data.b2cs || [];
-      case 'CDN': return [...(gstr1Data.cdnr || []), ...(gstr1Data.cdnur || [])];
-      case 'HSN': return gstr1Data.hsn || [];
-      case 'DOC': return gstr1Data.docSummary ? [gstr1Data.docSummary] : [];
-    }
-  };
-
-  const getGridColumns = () => {
-    switch (activeTab) {
-      case 'B2B': return b2bColumns;
-      case 'B2CL': return b2clColumns;
-      case 'B2CS': return b2csColumns;
-      case 'CDN': return cdnColumns;
-      case 'HSN': return hsnColumns;
-      case 'DOC':
-        return [
-          { key: 'from', header: 'FROM SERIAL' },
-          { key: 'to', header: 'TO SERIAL' },
-          { key: 'totnum', header: 'TOTAL COUNT', align: 'center' },
-          { key: 'cancel', header: 'CANCELLED COUNT', align: 'center' },
-          { key: 'net_issue', header: 'NET ISSUED', align: 'center' },
-        ] as Column<any>[];
-    }
-  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
@@ -470,8 +547,8 @@ export const Gstr1ReportPage: React.FC = () => {
           <Button variant="ghost" onClick={handleExportJSON} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Download size={16} /> Portal JSON
           </Button>
-          <Button variant="ghost" onClick={handleExportPDF} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <Printer size={16} /> PDF
+          <Button variant="ghost" onClick={() => setShowPrintPreview(true)} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Printer size={16} /> Print / Preview
           </Button>
           <Button variant="primary" onClick={refreshReport} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <RefreshCw size={16} className={loading ? 'animate-spin' : ''} /> Refresh
@@ -553,8 +630,8 @@ export const Gstr1ReportPage: React.FC = () => {
       {/* Grid */}
       <div style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: '8px', padding: '20px' }}>
         <DataGrid
-          columns={getGridColumns()}
-          data={getGridData()}
+          columns={gridColumns}
+          data={gridData}
           keyField="id"
           loading={loading}
           emptyTitle="No Records Found"

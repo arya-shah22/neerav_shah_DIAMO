@@ -185,6 +185,9 @@ export class AccountService {
           where: { companyId: targetCoId, accountName: (data.accountName as string).trim(), isDeleted: false },
         });
         if (dup) {
+          if (!addAllFirms && targetCompanyIds.length === 0) {
+            throw new BadRequestException('Account name already exists');
+          }
           console.warn(`Account ${(data.accountName as string).trim()} already exists in company ${targetCoId}, skipping`);
           if (targetCoId === companyId) {
             primaryAccount = dup;

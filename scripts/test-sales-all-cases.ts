@@ -440,7 +440,9 @@ async function runSalesTests() {
       deletedInv?.isDeleted === true
     );
 
-    const glEntriesAfterDelete = await prisma.generalLedgerEntry.findMany({ where: { sourceVoucherId: inrSalesInv.id } });
+    const glEntriesAfterDelete = await prisma.generalLedgerEntry.findMany({ 
+      where: { sourceVoucherType: InvoiceType.SALE_INVOICE, sourceVoucherId: inrSalesInv.id } 
+    });
     recordResult('SL-CD-04', 'Financial Ledger Reversal cleans up double-entry ledger postings', 
       glEntriesAfterDelete.length === 0
     );

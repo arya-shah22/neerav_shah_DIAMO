@@ -12,7 +12,15 @@ import { getCashFlowCSV } from '../../utils/reportExports';
 
 export const CashFlowPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const [startDate, setStartDate] = useState('');
+
+  const getDefaultStartDate = () => {
+    const today = new Date();
+    const currentYear = today.getFullYear();
+    const fyStartYear = today.getMonth() >= 3 ? currentYear : currentYear - 1;
+    return `${fyStartYear}-04-01`;
+  };
+
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
 
@@ -74,9 +82,10 @@ export const CashFlowPage: React.FC = () => {
     return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company first.</p>;
   }
 
-  const fmt = (v: number) => {
-    const absVal = Math.abs(v).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-    return v < 0 ? `₹(${absVal})` : `₹${absVal}`;
+  const fmt = (v: number | undefined | null) => {
+    const val = typeof v === 'number' && !isNaN(v) ? v : 0;
+    const absVal = Math.abs(val).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return val < 0 ? `₹(${absVal})` : `₹${absVal}`;
   };
 
   // Render Print Preview Mode
@@ -270,7 +279,7 @@ export const CashFlowPage: React.FC = () => {
           <span style={{ fontSize: '13px', color: 'var(--color-text-secondary)' }}>To:</span>
           <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} style={{ width: '160px' }} />
         </div>
-        <Button variant="ghost" onClick={() => { setStartDate(''); setEndDate(new Date().toISOString().split('T')[0]); }} style={{ fontSize: '13px' }}>
+        <Button variant="ghost" onClick={() => { setStartDate(getDefaultStartDate()); setEndDate(new Date().toISOString().split('T')[0]); }} style={{ fontSize: '13px' }}>
           Clear
         </Button>
       </div>

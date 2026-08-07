@@ -3,8 +3,9 @@
 // Phase 11.6: GSTR-3B Monthly return details
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { Calendar, RefreshCw, Printer, ArrowLeft } from 'lucide-react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { createPortal } from 'react-dom';
+import { Calendar, RefreshCw, Printer, ArrowLeft, Download } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { Input, Button } from '../../components/ui';
@@ -24,7 +25,6 @@ export const Gstr3bReportPage: React.FC = () => {
   const [startDate, setStartDate] = useState(fyStart);
   const [endDate, setEndDate] = useState(todayStr);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
-  const [showPrintDialog, setShowPrintDialog] = useState(false);
 
   const { data, loading, invoke } = useIpc<any>('report:gstr3b-summary');
 
@@ -35,7 +35,7 @@ export const Gstr3bReportPage: React.FC = () => {
 
   useEffect(() => {
     fetchGstr3b();
-  }, [companyId, startDate, endDate]);
+  }, [companyId, startDate, endDate, fetchGstr3b]);
 
   const triggerDirectPrint = () => {
     setTimeout(() => {
@@ -43,22 +43,50 @@ export const Gstr3bReportPage: React.FC = () => {
     }, 100);
   };
 
-  const handlePrint = () => {
-    setShowPrintDialog(true);
+  const handleExportPDF = async () => {
+    setShowPrintPreview(true);
+    setTimeout(async () => {
+      try {
+        const res = await window.api.invoke('system:print-to-pdf', {
+          filename: `GSTR3B_Return_${startDate}_to_${endDate}.pdf`
+        }) as any;
+        if (res && !res.success && res.error !== 'Cancelled') {
+          alert(res.error || 'Failed to export PDF');
+        }
+      } catch (err: any) {
+        console.error(err);
+      } finally {
+        setShowPrintPreview(false);
+      }
+    }, 500);
   };
 
-  const renderAmount = (amount: number) => {
-    if (!amount) return '₹0.00';
-    return `₹${amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-  };
+  const renderAmount = useCallback((amount: number) => {
+    if (amount == null) return '₹0.00';
+    return `₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  }, []);
 
-  const table31Rows = data?.table31 ? [data.table31.a, data.table31.b, data.table31.c, data.table31.d, data.table31.e] : [];
-  const table4Rows = data?.table4 ? [
-    { ...data.table4.a1, section: '4(A) ITC Available' },
-    { ...data.table4.a3, section: '4(A) ITC Available' },
-    { ...data.table4.a5, section: '4(A) ITC Available' },
-    { ...data.table4.b, section: '4(B) ITC Reversed' }
-  ] : [];
+  const table31Rows = useMemo(() => {
+    if (!data?.table31) return [];
+    return [
+      data.table31.a,
+      data.table31.b,
+      data.table31.c,
+      data.table31.d,
+      data.table31.e
+    ].filter(Boolean);
+  }, [data?.table31]);
+
+  const table4Rows = useMemo(() => {
+    if (!data?.table4) return [];
+    return [
+      { ...data.table4.a1, section: '4(A) ITC Available' },
+      { ...data.table4.a3, section: '4(A) ITC Available' },
+      { ...data.table4.a5, section: '4(A) ITC Available' },
+      { ...data.table4.b, section: '4(B) ITC Reversed' },
+      { ...data.table4.c, section: '4(C) Net ITC Available' }
+    ].filter((r) => r && r.label);
+  }, [data?.table4]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
@@ -72,7 +100,10 @@ export const Gstr3bReportPage: React.FC = () => {
         </div>
 
         <div style={{ display: 'flex', gap: '8px' }}>
-          <Button variant="ghost" onClick={handlePrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <Button variant="ghost" onClick={handleExportPDF} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <Download size={16} /> Download PDF
+          </Button>
+          <Button variant="ghost" onClick={() => setShowPrintPreview(true)} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <Printer size={16} /> Print Return
           </Button>
           <Button variant="primary" onClick={fetchGstr3b} disabled={loading} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
@@ -224,17 +255,23 @@ export const Gstr3bReportPage: React.FC = () => {
       </div>
 
       {/* Print Preview Overlay */}
-      {showPrintPreview && activeCompany && data && (
+      {showPrintPreview && activeCompany && data && createPortal(
         <div id="print-preview-root" style={{
           position: 'fixed',
           top: 0,
           left: 0,
+          right: 0,
+          bottom: 0,
           width: '100vw',
           height: '100vh',
-          background: '#f8fafc',
-          zIndex: 9999,
+          background: '#f1f5f9',
+          zIndex: 99999,
           overflowY: 'auto',
-          padding: '24px'
+          padding: '32px 24px 64px 24px',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          boxSizing: 'border-box'
         }}>
           <style dangerouslySetInnerHTML={{ __html: `
             @media print {
@@ -266,43 +303,53 @@ export const Gstr3bReportPage: React.FC = () => {
           <div className="no-print" style={{
             display: 'flex',
             justifyContent: 'space-between',
-            maxWidth: '210mm',
-            margin: '0 auto 20px auto',
+            alignItems: 'center',
+            width: '100%',
+            maxWidth: '960px',
+            marginBottom: '20px',
             padding: '12px 24px',
             background: 'var(--color-surface)',
             border: '1px solid var(--color-border)',
-            borderRadius: '8px'
+            borderRadius: '8px',
+            boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
+            boxSizing: 'border-box'
           }}>
             <Button variant="ghost" onClick={() => setShowPrintPreview(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
               <ArrowLeft size={16} /> Back to Page
             </Button>
-            <Button variant="primary" onClick={triggerDirectPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Printer size={16} /> Print / Save PDF
-            </Button>
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <Button variant="ghost" onClick={handleExportPDF} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Download size={16} /> Export PDF
+              </Button>
+              <Button variant="primary" onClick={triggerDirectPrint} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <Printer size={16} /> Print
+              </Button>
+            </div>
           </div>
 
           <div id="print-area" className="print-page" style={{
             background: '#ffffff',
             border: '1px solid var(--color-border)',
-            borderRadius: '4px',
+            borderRadius: '8px',
+            boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
             padding: '20mm',
-            width: '210mm',
-            margin: '0 auto',
+            width: '100%',
+            maxWidth: '960px',
             boxSizing: 'border-box',
             color: '#1e293b'
           }}>
             {/* Header */}
-            <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '24px' }}>
-              <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, textTransform: 'uppercase', color: '#0f172a' }}>
+            <div style={{ borderBottom: '2px solid #0f172a', paddingBottom: '16px', marginBottom: '24px', textAlign: 'center' }}>
+              <h2 style={{ fontSize: '22px', fontWeight: 800, margin: 0, textTransform: 'uppercase', color: '#0f172a', textAlign: 'center' }}>
                 {activeCompany.companyName}
               </h2>
-              <p style={{ fontSize: '12px', color: '#475569', margin: '4px 0 0 0' }}>
+              <p style={{ fontSize: '12px', color: '#475569', margin: '4px 0 0 0', textAlign: 'center' }}>
                 GSTIN: {activeCompany.gstinNumber || 'Unregistered'} | Financial Year: {activeFinancialYear ? formatFinancialYearLabel(activeFinancialYear) : ''}
               </p>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '12px 0 0 0', color: 'var(--color-primary)' }}>
+              <h3 style={{ fontSize: '16px', fontWeight: 700, margin: '12px 0 0 0', color: 'var(--color-primary)', textAlign: 'center' }}>
                 GSTR-3B Consolidated Return Summary
               </h3>
-              <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0' }}>
+              <p style={{ fontSize: '12px', color: '#64748b', margin: '2px 0 0 0', textAlign: 'center' }}>
                 Period: {startDate} to {endDate}
               </p>
             </div>
@@ -401,75 +448,8 @@ export const Gstr3bReportPage: React.FC = () => {
             </div>
 
           </div>
-        </div>
-      )}
-      {/* Choose Print Destination Dialog */}
-      {showPrintDialog && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          width: '100vw',
-          height: '100vh',
-          background: 'rgba(15, 23, 42, 0.6)',
-          backdropFilter: 'blur(4px)',
-          display: 'flex',
-          justifyContent: 'center',
-          alignItems: 'center',
-          zIndex: 10000
-        }}>
-          <div style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '12px',
-            padding: '24px',
-            width: '400px',
-            boxShadow: 'var(--shadow-lg)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px'
-          }}>
-            <div>
-              <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-text)' }}>
-                Choose Print Destination
-              </h3>
-              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', marginTop: '8px', lineHeight: '1.5' }}>
-                Select "Preview on Screen" to see the copy first, or "System Print Dialog" to print directly.
-              </p>
-            </div>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-              <Button
-                variant="primary"
-                fullWidth
-                onClick={() => {
-                  setShowPrintDialog(false);
-                  setShowPrintPreview(true);
-                }}
-              >
-                Preview on Screen
-              </Button>
-              <Button
-                variant="secondary"
-                fullWidth
-                onClick={() => {
-                  setShowPrintDialog(false);
-                  triggerDirectPrint();
-                }}
-              >
-                System Print Dialog
-              </Button>
-              <Button
-                variant="ghost"
-                fullWidth
-                onClick={() => setShowPrintDialog(false)}
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </div>
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );

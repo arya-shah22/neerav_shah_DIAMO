@@ -59,8 +59,7 @@ export class CompanyService {
     });
     if (existingCode) {
       if (!existingCode.isDeleted) {
-        // If auto-generated collision occurs, generate a random suffix
-        data.companyCode = (data.companyCode.substring(0, 2) + Math.floor(Math.random() * 10)).toUpperCase();
+        throw new BadRequestException('Company code already exists');
       } else {
         await this.removeLegacyCompany(existingCode.id);
       }

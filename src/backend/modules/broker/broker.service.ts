@@ -106,6 +106,9 @@ export class BrokerService {
         where: { companyId: targetCoId, accountName, isDeleted: false },
       });
       if (dup) {
+        if (!addAllFirms && targetCompanyIds.length === 0) {
+          throw new BadRequestException('Broker name already exists');
+        }
         console.warn(`Broker "${accountName}" already exists in company ${targetCoId}, skipping creation`);
         if (targetCoId === companyId) {
           primaryAccount = dup;

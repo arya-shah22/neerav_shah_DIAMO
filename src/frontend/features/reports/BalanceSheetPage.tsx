@@ -163,10 +163,10 @@ export const BalanceSheetPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Capital & Reserves</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                  {bsData.capital.map((c: any, i: number) => (
+                  {(bsData?.capital || []).map((c: any, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{c.groupName}</span>
-                      <span>₹{c.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span>₹{(c.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   ))}
                 </div>
@@ -174,17 +174,17 @@ export const BalanceSheetPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Liabilities</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                  {bsData.liabilities.map((l: any, i: number) => (
+                  {(bsData?.liabilities || []).map((l: any, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{l.groupName}</span>
-                      <span>₹{l.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span>₹{(l.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   ))}
                 </div>
               </div>
               <div style={{ marginTop: 'auto', paddingTop: '10px', borderTop: '1.5px solid #0f172a', display: 'flex', justifyContent: 'space-between', fontWeight: 700 }}>
                 <span>Total Liabilities & Capital:</span>
-                <span>₹{(bsData.totalLiabilities + bsData.totalCapital).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span>₹{((bsData?.totalLiabilities || 0) + (bsData?.totalCapital || 0)).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
 
@@ -194,10 +194,10 @@ export const BalanceSheetPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Assets</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '6px' }}>
-                  {bsData.assets.map((a: any, i: number) => (
+                  {(bsData?.assets || []).map((a: any, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{a.groupName}</span>
-                      <span>₹{a.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span>₹{(a.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   ))}
                 </div>
@@ -360,10 +360,10 @@ export const BalanceSheetPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Capital & Reserves</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', fontSize: '13px' }}>
-                  {bsData.capital.map((c: any, i: number) => (
+                  {(bsData?.capital || []).map((c: any, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{c.groupName}</span>
-                      <span style={{ fontWeight: 600 }}>₹{c.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span style={{ fontWeight: 600 }}>₹{(c.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   ))}
                 </div>
@@ -373,10 +373,10 @@ export const BalanceSheetPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Current & Non-Current Liabilities</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', fontSize: '13px' }}>
-                  {bsData.liabilities.map((l: any, i: number) => (
+                  {(bsData?.liabilities || []).map((l: any, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{l.groupName}</span>
-                      <span style={{ fontWeight: 600 }}>₹{l.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span style={{ fontWeight: 600 }}>₹{(l.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   ))}
                 </div>
@@ -411,10 +411,10 @@ export const BalanceSheetPage: React.FC = () => {
               <div>
                 <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 700, textTransform: 'uppercase' }}>Assets schedule</span>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px', fontSize: '13px' }}>
-                  {bsData.assets.map((a: any, i: number) => (
+                  {(bsData?.assets || []).map((a: any, i: number) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{a.groupName}</span>
-                      <span style={{ fontWeight: 600 }}>₹{a.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                      <span style={{ fontWeight: 600 }}>₹{(a.amount || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
                     </div>
                   ))}
                 </div>

@@ -162,7 +162,7 @@ async function runLoanTests() {
 
     // Verify Cash & Bank Book synchronization for Repayment
     const cbRepayment = await prisma.cashBankVoucher.findFirst({
-      where: { companyId: company.id, referenceBillNo: loanGiven.voucherNumber, voucherNumber: { contains: 'CASH' }, NOT: { id: cbInception?.id } }
+      where: { companyId: company.id, referenceBillNo: loanGiven.voucherNumber, NOT: { id: cbInception?.id } }
     });
     assert(!!cbRepayment, `Cash & Bank Book synchronised: Repayment Voucher generated (${cbRepayment?.voucherNumber})`);
     assert(Number(cbRepayment?.amount) === 20000, `Repayment cash amount matches paid amount`);

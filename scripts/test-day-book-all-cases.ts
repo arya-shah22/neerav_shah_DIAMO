@@ -129,7 +129,7 @@ async function testDayBookAllCases() {
   assertTest('Day 1 Closing Cash INR', day1Summary.closingCashInr === 10000, `Expected ₹10,000, Got ₹${day1Summary.closingCashInr}`);
   assertTest('Day 1 Closing Cash USD', day1Summary.closingCashUsd === 5000, `Expected $5,000, Got $${day1Summary.closingCashUsd}`);
   assertTest('Day 1 Closing Bank USD', day1Summary.closingBankUsd === 15000, `Expected $15,000, Got $${day1Summary.closingBankUsd}`);
-  assertTest('Day 1 Transaction Count', day1Summary.transactions.length === 6, `Expected 6 GL Entries, Got ${day1Summary.transactions.length}`);
+  assertTest('Day 1 Transaction Count', day1Summary.entries.length === 6, `Expected 6 GL Entries, Got ${day1Summary.entries.length}`);
 
   // TEST 4: Day 2 Opening Balance Continuity Check
   const day2Summary = await reportService.getDayBookSummary(company.id, day2Str);
@@ -159,7 +159,7 @@ async function testDayBookAllCases() {
   assertTest('Day 2 Closing Cash USD after $2,000 Loan Given', updatedDay2Summary.closingCashUsd === 3000, `Expected $3,000 ($5,000 - $2,000), Got $${updatedDay2Summary.closingCashUsd}`);
 
   // TEST 6: Multi-Currency Transaction Detail Formatting
-  const usdTx = updatedDay2Summary.transactions.find((t: any) => t.originalCurrency === 'USD');
+  const usdTx = updatedDay2Summary.entries.find((t: any) => t.originalCurrency === 'USD');
   assertTest('Day Book Transaction Original Currency', usdTx?.originalCurrency === 'USD', `Currency: ${usdTx?.originalCurrency}`);
   assertTest('Day Book Transaction Exchange Rate', Number(usdTx?.exchangeRate) === 90, `Exchange Rate: ${usdTx?.exchangeRate}`);
 

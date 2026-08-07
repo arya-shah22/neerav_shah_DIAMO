@@ -394,7 +394,9 @@ async function runPurchaseTests() {
       deletedPurchInv?.isDeleted === true
     );
 
-    const glEntriesAfterDelete = await prisma.generalLedgerEntry.findMany({ where: { sourceVoucherId: inrPurchInv.id } });
+    const glEntriesAfterDelete = await prisma.generalLedgerEntry.findMany({ 
+      where: { sourceVoucherType: InvoiceType.PURCHASE_INVOICE, sourceVoucherId: inrPurchInv.id } 
+    });
     recordResult('PU-CD-04', 'Financial Ledger Reversal cleans up double-entry ledger postings', 
       glEntriesAfterDelete.length === 0
     );

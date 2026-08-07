@@ -1,0 +1,77 @@
+# ═══════════════════════════════════════════════════════════════
+# DIAMO ERP — Continuous Integration & Cross-Platform Build Pipeline
+# Builds, tests, obfuscates, and packages .exe & .dmg releases
+# ═══════════════════════════════════════════════════════════════
+
+name: Build & Release DIAMO ERP
+
+on:
+  push:
+    branches:
+      - main
+      - master
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  test:
+    name: Autonomous Software Verification Test Suite
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Client
+        run: npx prisma generate
+
+      - name: Run TypeScript Static Analysis
+        run: npx tsc --noEmit
+
+      - name: Run Full Software Master Test Suite (40/40 Modules)
+        run: npx ts-node scripts/test-full-software.ts
+
+  build:
+    name: Build & Package (${{ matrix.os }})
+    needs: test
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Prisma Engine & Client
+        run: npx prisma generate
+
+      - name: Build & Obfuscate Bundle
+        run: npm run build:vite
+
+      - name: Compile Main Electron & Backend Entrypoint
+        run: npx tsc
+
+      - name: Publish & Create Release Installers (.exe / .dmg)
+        uses: electron-userland/builder-action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          release: true

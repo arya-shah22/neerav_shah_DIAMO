@@ -12,6 +12,35 @@ let mainWindow: BrowserWindow | null = null;
 const isDev = process.env.NODE_ENV !== 'production';
 const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 
+import { autoUpdater } from 'electron-updater';
+
+// Configure autoUpdater log output & download strategy
+autoUpdater.autoDownload = true;
+autoUpdater.autoInstallOnAppQuit = true;
+
+function setupAutoUpdater(): void {
+  if (isDev) return;
+
+  autoUpdater.on('update-available', (info: any) => {
+    console.log(`[AutoUpdater] Update available: v${info.version}`);
+    mainWindow?.webContents.send('app:update-available', info);
+  });
+
+  autoUpdater.on('update-downloaded', (info: any) => {
+    console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
+    mainWindow?.webContents.send('app:update-downloaded', info);
+  });
+
+  autoUpdater.on('error', (err: any) => {
+    console.error(`[AutoUpdater] Error: ${err.message}`);
+  });
+
+  // Check for updates automatically in production
+  autoUpdater.checkForUpdatesAndNotify().catch((err: any) => {
+    console.error('[AutoUpdater] Failed to check for updates:', err);
+  });
+}
+
 function createWindow(): void {
   mainWindow = new BrowserWindow({
     width: 1920,
@@ -33,6 +62,7 @@ function createWindow(): void {
   mainWindow.once('ready-to-show', () => {
     mainWindow?.show();
     mainWindow?.focus();
+    setupAutoUpdater();
   });
 
   // Load the app

@@ -35,6 +35,15 @@ export const MisDashboardPage: React.FC = () => {
   const [activeTab, setActiveTab] = useState<MisTab>('DASHBOARD');
   const [showPrintPreview, setShowPrintPreview] = useState(false);
   const [isPrintModalOpen, setIsPrintModalOpen] = useState(false);
+  const [selectedRatioDetail, setSelectedRatioDetail] = useState<{
+    title: string;
+    value: string;
+    target?: string;
+    formula: string;
+    description: string;
+    significance: string;
+    components?: { label: string; value: string }[];
+  } | null>(null);
 
   // IPC Hooks
   const { data: dashboardData, loading: dashLoading, invoke: getDashboard } = useIpc<any>('report:mis-dashboard');
@@ -323,20 +332,111 @@ export const MisDashboardPage: React.FC = () => {
             {/* KPI Cards */}
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--spacing-md)' }}>
               <div style={kpiCardStyle('var(--color-success)')}>
-                <div style={kpiLabel}>Today's Sales Revenue</div>
-                <div style={kpiValue}>₹{fmt(dashboardData?.today?.sales || 0)}</div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={kpiLabel}>Today's Sales Revenue</div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                      onClick={() => setSelectedRatioDetail({
+                        title: "Today's Sales Revenue",
+                        value: `₹${fmt(dashboardData?.today?.sales || 0)}`,
+                        formula: 'Sum of Approved Sales Invoices Billed Today',
+                        description: 'Total revenue earned from sales invoices registered on the current calendar date.',
+                        significance: 'Tracks daily commercial sales momentum and immediate top-line inflow.',
+                        components: [
+                          { label: "Today's Sales Volume", value: `₹${fmt(dashboardData?.today?.sales || 0)}` },
+                          { label: 'Available Inventory Valuation', value: `₹${fmt(stockJobData?.stock?.totalValue || 0)}` }
+                        ]
+                      })}
+                    >
+                      Details
+                    </Button>
+                  </div>
+                  <div style={kpiValue}>₹{fmt(dashboardData?.today?.sales || 0)}</div>
+                </div>
               </div>
+
               <div style={kpiCardStyle('var(--color-primary)')}>
-                <div style={kpiLabel}>Today's Purchase Volume</div>
-                <div style={kpiValue}>₹{fmt(dashboardData?.today?.purchases || 0)}</div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={kpiLabel}>Today's Purchase Volume</div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                      onClick={() => setSelectedRatioDetail({
+                        title: "Today's Purchase Volume",
+                        value: `₹${fmt(dashboardData?.today?.purchases || 0)}`,
+                        formula: 'Sum of Approved Purchase Bills Entered Today',
+                        description: 'Total raw rough or polished diamond purchases acquired from suppliers on the current date.',
+                        significance: 'Monitors daily capital outflow for stock procurement.',
+                        components: [
+                          { label: "Today's Purchases", value: `₹${fmt(dashboardData?.today?.purchases || 0)}` },
+                          { label: 'Total Pending Payables', value: `₹${fmt(ratioData?.payables || 0)}` }
+                        ]
+                      })}
+                    >
+                      Details
+                    </Button>
+                  </div>
+                  <div style={kpiValue}>₹{fmt(dashboardData?.today?.purchases || 0)}</div>
+                </div>
               </div>
+
               <div style={kpiCardStyle('var(--color-warning)')}>
-                <div style={kpiLabel}>Vault Stock Valuation</div>
-                <div style={kpiValue}>₹{fmt(stockJobData?.stock?.totalValue || 0)}</div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={kpiLabel}>Vault Stock Valuation</div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                      onClick={() => setSelectedRatioDetail({
+                        title: 'Vault Stock Valuation',
+                        value: `₹${fmt(stockJobData?.stock?.totalValue || 0)}`,
+                        formula: 'Sum of (Carat Weight × Cost per Carat) for AVAILABLE packets',
+                        description: 'Current market cost valuation of all unallocated, available diamond packets stored in central vaults.',
+                        significance: 'Represents key physical liquid inventory assets available for trade.',
+                        components: [
+                          { label: 'Available Stock Valuation', value: `₹${fmt(stockJobData?.stock?.totalValue || 0)}` },
+                          { label: 'Available Packets Count', value: `${stockJobData?.stock?.availableCount || 0} Packets` }
+                        ]
+                      })}
+                    >
+                      Details
+                    </Button>
+                  </div>
+                  <div style={kpiValue}>₹{fmt(stockJobData?.stock?.totalValue || 0)}</div>
+                </div>
               </div>
+
               <div style={kpiCardStyle('#8e44ad')}>
-                <div style={kpiLabel}>Accounts Receivable (AR)</div>
-                <div style={kpiValue}>₹{fmt(ratioData?.receivables || 0)}</div>
+                <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={kpiLabel}>Accounts Receivable (AR)</div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                      onClick={() => setSelectedRatioDetail({
+                        title: 'Accounts Receivable (AR)',
+                        value: `₹${fmt(ratioData?.receivables || 0)}`,
+                        formula: 'Sum of Unpaid Customer Invoices',
+                        description: 'Total outstanding funds due from customer credit sales.',
+                        significance: 'Essential metric for tracking upcoming cash inflow from trade debtors.',
+                        components: [
+                          { label: 'Outstanding Receivables', value: `₹${fmt(ratioData?.receivables || 0)}` },
+                          { label: 'Current Ratio', value: String(ratioData?.currentRatio || '0.00') }
+                        ]
+                      })}
+                    >
+                      Details
+                    </Button>
+                  </div>
+                  <div style={kpiValue}>₹{fmt(ratioData?.receivables || 0)}</div>
+                </div>
               </div>
             </div>
 
@@ -410,17 +510,64 @@ export const MisDashboardPage: React.FC = () => {
         {activeTab === 'STOCK_JOB' && (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--spacing-lg)' }}>
             <div style={kpiCardStyle('var(--color-warning)')}>
-              <div style={kpiLabel}>Slow Moving Stock Ratio (&gt;90 Days)</div>
-              <div style={kpiValue}>{stockJobData?.stock?.slowMovingRatio || '0.00'}%</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
-                Value: ₹{fmt(stockJobData?.stock?.slowMovingValue || 0)}
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={kpiLabel}>Slow Moving Stock Ratio (&gt;90 Days)</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                    onClick={() => setSelectedRatioDetail({
+                      title: 'Slow Moving Stock Ratio (>90 Days)',
+                      value: `${stockJobData?.stock?.slowMovingRatio || '0.00'}%`,
+                      formula: '(Slow Moving Stock Value / Total Available Stock Value) × 100',
+                      description: 'Percentage of inventory stock packets held in vault for longer than 90 days without movement or sales.',
+                      significance: 'High slow-moving ratio signals capital lockup in stagnant inventory.',
+                      components: [
+                        { label: 'Slow Moving Stock Value (>90 Days)', value: `₹${fmt(stockJobData?.stock?.slowMovingValue || 0)}` },
+                        { label: 'Total Available Stock Value', value: `₹${fmt(stockJobData?.stock?.totalValue || 0)}` },
+                        { label: 'Slow Moving Packets Count', value: `${stockJobData?.stock?.slowMovingCount || 0} Packets` }
+                      ]
+                    })}
+                  >
+                    Details
+                  </Button>
+                </div>
+                <div style={kpiValue}>{stockJobData?.stock?.slowMovingRatio || '0.00'}%</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
+                  Value: ₹{fmt(stockJobData?.stock?.slowMovingValue || 0)}
+                </div>
               </div>
             </div>
+
             <div style={kpiCardStyle('#16a085')}>
-              <div style={kpiLabel}>Active Outsource Job Orders</div>
-              <div style={kpiValue}>{stockJobData?.jobs?.activeOrders || 0}</div>
-              <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
-                Pending worker approval or delivery
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={kpiLabel}>Active Outsource Job Orders</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                    onClick={() => setSelectedRatioDetail({
+                      title: 'Active Outsource Job Orders',
+                      value: String(stockJobData?.jobs?.activeOrders || 0),
+                      formula: 'Count of Job Work Vouchers in ISSUED / IN_PROCESS Status',
+                      description: 'Number of active job work orders issued to external polishers, artisans, or job workers.',
+                      significance: 'Monitors ongoing external processing pipeline and job work workflow throughput.',
+                      components: [
+                        { label: 'Active Job Vouchers', value: String(stockJobData?.jobs?.activeOrders || 0) },
+                        { label: 'Total Job Income (Period)', value: `₹${fmt(stockJobData?.jobs?.totalJobIncome || 0)}` },
+                        { label: 'Total Job Expense (Period)', value: `₹${fmt(stockJobData?.jobs?.totalJobExpense || 0)}` }
+                      ]
+                    })}
+                  >
+                    Details
+                  </Button>
+                </div>
+                <div style={kpiValue}>{stockJobData?.jobs?.activeOrders || 0}</div>
+                <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', marginTop: '8px' }}>
+                  Pending worker approval or delivery
+                </div>
               </div>
             </div>
           </div>
@@ -429,26 +576,196 @@ export const MisDashboardPage: React.FC = () => {
         {activeTab === 'RATIOS' && (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 'var(--spacing-md)' }}>
             <div style={kpiCardStyle('var(--color-success)')}>
-              <div style={kpiLabel}>Current Ratio</div>
-              <div style={kpiValue}>{ratioData?.currentRatio || '0.00'}</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>Target: &gt; 1.5</div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={kpiLabel}>Current Ratio</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                    onClick={() => setSelectedRatioDetail({
+                      title: 'Current Ratio',
+                      value: String(ratioData?.currentRatio || '0.00'),
+                      target: '> 1.5',
+                      formula: 'Current Assets / Current Liabilities',
+                      description: 'Measures the company’s ability to cover its short-term obligations (due within 1 year) with its short-term assets (inventory, receivables, cash).',
+                      significance: 'A ratio above 1.5 indicates healthy liquidity and short-term financial solvency.',
+                      components: [
+                        { label: 'Current Assets (Inventory + Receivables + Cash)', value: `₹${fmt(ratioData?.components?.currentAssets || 0)}` },
+                        { label: 'Current Liabilities (Payables)', value: `₹${fmt(ratioData?.components?.currentLiabilities || 0)}` },
+                        { label: 'Calculated Ratio', value: String(ratioData?.currentRatio || '0.00') },
+                      ]
+                    })}
+                  >
+                    Details
+                  </Button>
+                </div>
+                <div style={kpiValue}>{ratioData?.currentRatio || '0.00'}</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>Target: &gt; 1.5</div>
+              </div>
             </div>
+
             <div style={kpiCardStyle('var(--color-primary)')}>
-              <div style={kpiLabel}>Quick Ratio</div>
-              <div style={kpiValue}>{ratioData?.quickRatio || '0.00'}</div>
-              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>Target: &gt; 1.0</div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={kpiLabel}>Quick Ratio</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                    onClick={() => setSelectedRatioDetail({
+                      title: 'Quick Ratio (Acid-Test)',
+                      value: String(ratioData?.quickRatio || '0.00'),
+                      target: '> 1.0',
+                      formula: '(Receivables + Cash & Bank) / Current Liabilities',
+                      description: 'Evaluates immediate liquidity by testing whether liquid assets (excluding inventory stock) are sufficient to clear all short-term debts immediately.',
+                      significance: 'A quick ratio > 1.0 means the business can settle all current liabilities instantly without needing to liquidate inventory.',
+                      components: [
+                        { label: 'Quick Assets (Receivables + Cash)', value: `₹${fmt((ratioData?.components?.receivables || 0) + (ratioData?.components?.cashBankBalance || 0))}` },
+                        { label: 'Current Liabilities (Payables)', value: `₹${fmt(ratioData?.components?.currentLiabilities || 0)}` },
+                        { label: 'Calculated Ratio', value: String(ratioData?.quickRatio || '0.00') },
+                      ]
+                    })}
+                  >
+                    Details
+                  </Button>
+                </div>
+                <div style={kpiValue}>{ratioData?.quickRatio || '0.00'}</div>
+                <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', marginTop: '4px' }}>Target: &gt; 1.0</div>
+              </div>
             </div>
+
             <div style={kpiCardStyle('var(--color-warning)')}>
-              <div style={kpiLabel}>Outstanding Receivables</div>
-              <div style={kpiValue}>₹{fmt(ratioData?.receivables || 0)}</div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={kpiLabel}>Outstanding Receivables</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                    onClick={() => setSelectedRatioDetail({
+                      title: 'Outstanding Receivables (AR)',
+                      value: `₹${fmt(ratioData?.receivables || 0)}`,
+                      formula: 'Sum of Unpaid Sale Invoices & Debit Notes',
+                      description: 'Total pending money to be collected from customers/debtors for sales made on credit.',
+                      significance: 'Timely collection reduces bad debt risks and enhances working capital cash flow.',
+                      components: [
+                        { label: 'Total Pending Invoices', value: `₹${fmt(ratioData?.receivables || 0)}` },
+                        { label: 'Receivables / Payables Ratio', value: `${ratioData?.ratios?.receivablesToPayablesRatio || '0.00'}x` },
+                      ]
+                    })}
+                  >
+                    Details
+                  </Button>
+                </div>
+                <div style={kpiValue}>₹{fmt(ratioData?.receivables || 0)}</div>
+              </div>
             </div>
+
             <div style={kpiCardStyle('var(--color-error)')}>
-              <div style={kpiLabel}>Outstanding Payables</div>
-              <div style={kpiValue}>₹{fmt(ratioData?.payables || 0)}</div>
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={kpiLabel}>Outstanding Payables</div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    style={{ fontSize: '11px', padding: '2px 8px', height: '22px' }}
+                    onClick={() => setSelectedRatioDetail({
+                      title: 'Outstanding Payables (AP)',
+                      value: `₹${fmt(ratioData?.payables || 0)}`,
+                      formula: 'Sum of Unpaid Purchase Bills & Debit Notes',
+                      description: 'Total obligations owed to suppliers/creditors for goods and services purchased on credit terms.',
+                      significance: 'Managing payables effectively maintains supplier trust and optimizes credit utilization.',
+                      components: [
+                        { label: 'Total Pending Purchase Bills', value: `₹${fmt(ratioData?.payables || 0)}` },
+                        { label: 'Net Working Capital', value: `₹${fmt(ratioData?.workingCapital || 0)}` },
+                      ]
+                    })}
+                  >
+                    Details
+                  </Button>
+                </div>
+                <div style={kpiValue}>₹{fmt(ratioData?.payables || 0)}</div>
+              </div>
             </div>
           </div>
         )}
       </div>
+
+      {/* Ratio Details Modal */}
+      <Modal
+        isOpen={Boolean(selectedRatioDetail)}
+        onClose={() => setSelectedRatioDetail(null)}
+        title={selectedRatioDetail?.title || 'Financial Ratio Details'}
+        size="md"
+      >
+        {selectedRatioDetail && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', padding: '4px 0' }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              padding: '12px 16px',
+              background: 'var(--color-bg)',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border)'
+            }}>
+              <div>
+                <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Current Value</div>
+                <div style={{ fontSize: '24px', fontWeight: 800, color: 'var(--color-primary)' }}>{selectedRatioDetail.value}</div>
+              </div>
+              {selectedRatioDetail.target && (
+                <div style={{ textAlign: 'right' }}>
+                  <div style={{ fontSize: '11px', textTransform: 'uppercase', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Target Benchmark</div>
+                  <div style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-success)' }}>{selectedRatioDetail.target}</div>
+                </div>
+              )}
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Formula</h4>
+              <div style={{ fontFamily: 'monospace', fontSize: '13px', background: '#0f172a', color: '#38bdf8', padding: '8px 12px', borderRadius: '6px' }}>
+                {selectedRatioDetail.formula}
+              </div>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Meaning & Definition</h4>
+              <p style={{ fontSize: '13px', color: 'var(--color-text)', margin: 0, lineHeight: '1.5' }}>
+                {selectedRatioDetail.description}
+              </p>
+            </div>
+
+            <div>
+              <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '4px' }}>Business Significance</h4>
+              <p style={{ fontSize: '13px', color: 'var(--color-text-secondary)', margin: 0, lineHeight: '1.5' }}>
+                {selectedRatioDetail.significance}
+              </p>
+            </div>
+
+            {selectedRatioDetail.components && selectedRatioDetail.components.length > 0 && (
+              <div>
+                <h4 style={{ fontSize: '12px', textTransform: 'uppercase', color: 'var(--color-text-secondary)', marginBottom: '8px' }}>Company Breakdown</h4>
+                <div style={{ border: '1px solid var(--color-border)', borderRadius: '6px', overflow: 'hidden' }}>
+                  {selectedRatioDetail.components.map((comp, idx) => (
+                    <div key={idx} style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      background: idx % 2 === 0 ? 'var(--color-surface)' : 'var(--color-bg)',
+                      borderBottom: idx === selectedRatioDetail.components!.length - 1 ? 'none' : '1px solid var(--color-border)'
+                    }}>
+                      <span style={{ color: 'var(--color-text-secondary)' }}>{comp.label}</span>
+                      <span style={{ fontWeight: 600, color: 'var(--color-text)' }}>{comp.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </Modal>
 
       {/* Print Option Dialog */}
       <Modal isOpen={isPrintModalOpen} onClose={() => setIsPrintModalOpen(false)} title="Print Options" size="sm">

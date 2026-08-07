@@ -823,6 +823,31 @@ export class InvoiceService {
         });
       }
 
+      // Round Off Posting
+      if (Math.abs(roundOff) > 0.001) {
+        const roundOffLedgerId = await getOrCreateDefaultAccount(
+          this.prisma,
+          companyId,
+          'Round-off A/c',
+          'Indirect Expenses',
+          'Expense',
+        );
+        const roundOffDc: DebitCreditType = roundOff > 0 ? DebitCreditType.CREDIT : DebitCreditType.DEBIT;
+        await tx.generalLedgerEntry.create({
+          data: {
+            companyId,
+            accountId: roundOffLedgerId,
+            voucherDate: invoiceDate,
+            debitCreditType: roundOffDc,
+            amount: Math.abs(roundOff),
+            sourceVoucherType: invoiceType as any,
+            sourceVoucherId: createdInvoice.id,
+            sourceBillNumber: billNumber,
+            narration: 'Round off adjustment',
+          },
+        });
+      }
+
       // 3. Stock Movements (Carat Adjustments)
       const hasStockInward = (invoiceType === 'PURCHASE_INVOICE' || invoiceType === 'SALE_RETURN');
       const isFinancialOnly = (invoiceType === 'SALE_DEBIT_NOTE' || invoiceType === 'PURCHASE_DEBIT_NOTE');
@@ -1627,6 +1652,31 @@ export class InvoiceService {
             debitCreditType: taxDebitCredit,
             amount: totalIgst, sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'IGST tax entry',
+          },
+        });
+      }
+
+      // Round Off Posting
+      if (Math.abs(roundOff) > 0.001) {
+        const roundOffLedgerId = await getOrCreateDefaultAccount(
+          this.prisma,
+          companyId,
+          'Round-off A/c',
+          'Indirect Expenses',
+          'Expense',
+        );
+        const roundOffDc: DebitCreditType = roundOff > 0 ? DebitCreditType.CREDIT : DebitCreditType.DEBIT;
+        await tx.generalLedgerEntry.create({
+          data: {
+            companyId,
+            accountId: roundOffLedgerId,
+            voucherDate: invoiceDate,
+            debitCreditType: roundOffDc,
+            amount: Math.abs(roundOff),
+            sourceVoucherType: invoiceType as any,
+            sourceVoucherId: id,
+            sourceBillNumber: billNumber,
+            narration: 'Round off adjustment',
           },
         });
       }

@@ -227,7 +227,7 @@ export class LoanService {
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
     if (!company || !fy) throw new BadRequestException('Company or FY not found');
 
-    const typeLabel = isCash ? 'CASH' : 'BANK';
+    const typeLabel = isCash ? (isReceipt ? 'CR' : 'CP') : (isReceipt ? 'BR' : 'BP');
     const vType = isReceipt ? 
       (isCash ? VoucherType.CASH_RECEIPT : VoucherType.BANK_RECEIPT) : 
       (isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT);
@@ -393,6 +393,44 @@ export class LoanService {
         }
       });
 
+      // 4. Post General Ledger Entries for Loan Inception
+      const partyDc = isGiven ? DebitCreditType.DEBIT : DebitCreditType.CREDIT;
+      const cashBankDc = isGiven ? DebitCreditType.CREDIT : DebitCreditType.DEBIT;
+
+      await tx.generalLedgerEntry.create({
+        data: {
+          companyId,
+          accountId: partyId,
+          voucherDate: loanDate,
+          debitCreditType: partyDc,
+          amount: principalAmountAlt,
+          originalCurrency: transactionCurrency as any,
+          originalAmount: principalAmount,
+          exchangeRate,
+          sourceVoucherType: VoucherType.LOAN_VOUCHER,
+          sourceVoucherId: loan.id,
+          sourceBillNumber: voucherNumber,
+          narration: `Loan ${isGiven ? 'Given' : 'Taken'}: ${narration}`,
+        },
+      });
+
+      await tx.generalLedgerEntry.create({
+        data: {
+          companyId,
+          accountId: cashBankAccountId,
+          voucherDate: loanDate,
+          debitCreditType: cashBankDc,
+          amount: principalAmountAlt,
+          originalCurrency: transactionCurrency as any,
+          originalAmount: principalAmount,
+          exchangeRate,
+          sourceVoucherType: VoucherType.LOAN_VOUCHER,
+          sourceVoucherId: loan.id,
+          sourceBillNumber: voucherNumber,
+          narration: `Loan ${isGiven ? 'Given' : 'Taken'}: ${narration}`,
+        },
+      });
+
       return loan;
     });
   }
@@ -504,6 +542,44 @@ export class LoanService {
           exchangeRate: exRate,
           amountAlt,
         }
+      });
+
+      // Post General Ledger Entries for Loan Repayment
+      const repayCashBankDc = isGiven ? DebitCreditType.DEBIT : DebitCreditType.CREDIT;
+      const repayPartyDc = isGiven ? DebitCreditType.CREDIT : DebitCreditType.DEBIT;
+
+      await tx.generalLedgerEntry.create({
+        data: {
+          companyId,
+          accountId: cashBankAccountId,
+          voucherDate: paymentDate,
+          debitCreditType: repayCashBankDc,
+          amount: amountAlt,
+          originalCurrency: loan.transactionCurrency,
+          originalAmount: amount,
+          exchangeRate: exRate,
+          sourceVoucherType: VoucherType.LOAN_VOUCHER,
+          sourceVoucherId: loan.id,
+          sourceBillNumber: loan.voucherNumber,
+          narration: `Loan Repayment (${loan.voucherNumber}): ${narration}`,
+        },
+      });
+
+      await tx.generalLedgerEntry.create({
+        data: {
+          companyId,
+          accountId: loan.partyId,
+          voucherDate: paymentDate,
+          debitCreditType: repayPartyDc,
+          amount: amountAlt,
+          originalCurrency: loan.transactionCurrency,
+          originalAmount: amount,
+          exchangeRate: exRate,
+          sourceVoucherType: VoucherType.LOAN_VOUCHER,
+          sourceVoucherId: loan.id,
+          sourceBillNumber: loan.voucherNumber,
+          narration: `Loan Repayment (${loan.voucherNumber}): ${narration}`,
+        },
       });
 
       return repayment;

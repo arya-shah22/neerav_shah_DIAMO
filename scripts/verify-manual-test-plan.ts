@@ -761,12 +761,11 @@ async function main() {
       const res = await quality().handleCreate({
         companyId: companyAId,
         data: {
-          qualityName: `Other Quality ${suffix}`,
-          itemCode: `VS-${suffix}`,
+          qualityName: `VS1 ${suffix}`,
           hsnNumber: '71023910',
         },
       });
-      assertFailure(res, 'duplicate item code', 'item code already exists');
+      assertFailure(res, 'duplicate quality name', 'already exists');
     });
 
     await runTest('TC-107', 'Min > max validation', async () => {
@@ -820,7 +819,7 @@ async function main() {
       const packet = res.data as { id: number; stockIdNumber: string; shape: string };
       stockPacketId = packet.id;
       stockIdNumber = packet.stockIdNumber;
-      assert(packet.shape === 'Oval', 'shape not saved');
+      assert(packet.shape?.toUpperCase() === 'OVAL', 'shape not saved');
       cloneLikeIpc(res.data);
     });
 

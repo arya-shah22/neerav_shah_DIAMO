@@ -68,10 +68,13 @@ async function runComprehensiveTests() {
     await prisma.stockConversionOutput.deleteMany({ where: { stockConversion: { companyId: company.id } } });
     await prisma.stockConversion.deleteMany({ where: { companyId: company.id } });
     await prisma.stockPacket.deleteMany({ where: { companyId: company.id } });
+    await prisma.qualityGstHistory.deleteMany({ where: { quality: { companyId: company.id } } });
     await prisma.quality.deleteMany({ where: { companyId: company.id } });
     await prisma.generalLedgerEntry.deleteMany({ where: { companyId: company.id } });
     await prisma.voucherNumberSequence.deleteMany({ where: { companyId: company.id } });
     await prisma.voucherNumberConfig.deleteMany({ where: { companyId: company.id } });
+    await prisma.brokerProfile.deleteMany({ where: { account: { companyId: company.id } } });
+    await prisma.outstandingBill.deleteMany({ where: { companyId: company.id } });
     await prisma.account.deleteMany({ where: { companyId: company.id } });
     await prisma.accountGroup.deleteMany({ where: { companyId: company.id } });
 
@@ -112,7 +115,7 @@ async function runComprehensiveTests() {
     });
 
     const quality = await prisma.quality.create({
-      data: { companyId: company.id, qualityName: 'Natural Ex-VS2', itemCode: 'NAT-VS2', hsnNumber: '7113' }
+      data: { companyId: company.id, qualityName: 'Natural Ex-VS2', hsnNumber: '7113' }
     });
 
     console.log('🧪 Running Test Flow 1: Stock Purchase (auto creation)...');

@@ -12,7 +12,12 @@ import { getProfitLossCSV } from '../../utils/reportExports';
 
 export const ProfitLossPage: React.FC = () => {
   const { activeCompany, companyId, isReady } = useActiveCompany();
-  const [startDate, setStartDate] = useState('');
+  const getDefaultStartDate = () => {
+    const now = new Date();
+    const fyYear = now.getMonth() >= 3 ? now.getFullYear() : now.getFullYear() - 1;
+    return `${fyYear}-04-01`;
+  };
+  const [startDate, setStartDate] = useState(getDefaultStartDate());
   const [endDate, setEndDate] = useState(new Date().toISOString().split('T')[0]);
   const [showPrintModal, setShowPrintModal] = useState(false);
   const [showPrintPreview, setShowPrintPreview] = useState(false);
@@ -80,7 +85,8 @@ export const ProfitLossPage: React.FC = () => {
   if (showPrintPreview && activeCompany && plData) {
     return (
       <div id="print-preview-root" style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
-        <style dangerouslySetInnerHTML={{ __html: `
+        <style dangerouslySetInnerHTML={{
+          __html: `
           @media print {
             @page { size: A4 portrait; margin: 15mm; }
             body { background: #ffffff !important; padding: 0 !important; margin: 0 !important; }
@@ -105,16 +111,16 @@ export const ProfitLossPage: React.FC = () => {
             }
           }
         `}} />
-        
+
         {/* Preview Toolbar */}
-        <div className="no-print" style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          marginBottom: '20px', 
-          padding: '12px 24px', 
-          background: 'var(--color-surface)', 
-          border: '1px solid var(--color-border)', 
-          borderRadius: '8px' 
+        <div className="no-print" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          marginBottom: '20px',
+          padding: '12px 24px',
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: '8px'
         }}>
           <Button variant="ghost" onClick={() => setShowPrintPreview(false)} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <ArrowLeft size={16} /> Back to Page
@@ -309,15 +315,15 @@ export const ProfitLossPage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', fontSize: '13px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Sales Income:</span>
-                <span style={{ fontWeight: 600 }}>₹{plData.revenue.sales.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>₹{(plData?.revenue?.sales || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Job Work Income:</span>
-                <span style={{ fontWeight: 600 }}>₹{plData.revenue.jobWorkIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>₹{(plData?.revenue?.jobWorkIncome || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--color-border)', paddingTop: '6px', fontWeight: 700 }}>
                 <span>Total Revenue (A):</span>
-                <span>₹{plData.revenue.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span>₹{(plData?.revenue?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -328,19 +334,19 @@ export const ProfitLossPage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', fontSize: '13px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Purchases:</span>
-                <span style={{ fontWeight: 600 }}>₹{plData.costOfGoods.purchases.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>₹{(plData?.costOfGoods?.purchases || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Job Work Expenses:</span>
-                <span style={{ fontWeight: 600 }}>₹{plData.costOfGoods.jobWorkExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>₹{(plData?.costOfGoods?.jobWorkExpense || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Direct Expenses:</span>
-                <span style={{ fontWeight: 600 }}>₹{plData.costOfGoods.directExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>₹{(plData?.costOfGoods?.directExpense || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--color-border)', paddingTop: '6px', fontWeight: 700 }}>
                 <span>Total Cost of Sales (B):</span>
-                <span>₹{plData.costOfGoods.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span>₹{(plData?.costOfGoods?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -357,7 +363,7 @@ export const ProfitLossPage: React.FC = () => {
             color: 'var(--color-success)',
           }}>
             <span>GROSS PROFIT (A - B):</span>
-            <span>₹{plData.grossProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span>₹{(plData?.grossProfit || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
           </div>
 
           {/* Operating Expenses */}
@@ -366,11 +372,11 @@ export const ProfitLossPage: React.FC = () => {
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '12px', fontSize: '13px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                 <span>Indirect & Operating Expenses:</span>
-                <span style={{ fontWeight: 600 }}>₹{plData.expenses.operatingExpense.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span style={{ fontWeight: 600 }}>₹{(plData?.expenses?.operatingExpense || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
               <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px dashed var(--color-border)', paddingTop: '6px', fontWeight: 700 }}>
                 <span>Total Operating Expenses (C):</span>
-                <span>₹{plData.expenses.total.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+                <span>₹{(plData?.expenses?.total || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
               </div>
             </div>
           </div>
@@ -380,7 +386,7 @@ export const ProfitLossPage: React.FC = () => {
             <h3 style={{ fontSize: '15px', fontWeight: 700, borderBottom: '1px solid var(--color-border)', paddingBottom: '8px', color: 'var(--color-primary)' }}>4. OTHER INDIRECT INCOME</h3>
             <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '12px', fontSize: '13px' }}>
               <span>Interest & Other Incomes (D):</span>
-              <span style={{ fontWeight: 600 }}>₹{plData.otherIncome.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+              <span style={{ fontWeight: 600 }}>₹{(plData?.otherIncome || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
             </div>
           </div>
 
@@ -397,7 +403,7 @@ export const ProfitLossPage: React.FC = () => {
             border: '1px solid var(--color-accent)',
           }}>
             <span>NET PROFIT FOR THE PERIOD:</span>
-            <span>₹{plData.netProfit.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+            <span>₹{(plData?.netProfit || plData?.netProfitOrLoss || 0).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
           </div>
         </div>
       )}
@@ -432,7 +438,7 @@ export const ProfitLossPage: React.FC = () => {
               Select "Preview on Screen" to see the copy first, or "System Print Dialog" to print directly.
             </p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
-              <button 
+              <button
                 onClick={() => { setShowPrintModal(false); setShowPrintPreview(true); }}
                 style={{
                   width: '100%',
@@ -449,7 +455,7 @@ export const ProfitLossPage: React.FC = () => {
               >
                 Preview on Screen
               </button>
-              <button 
+              <button
                 onClick={triggerDirectPrint}
                 style={{
                   width: '100%',
@@ -466,7 +472,7 @@ export const ProfitLossPage: React.FC = () => {
               >
                 System Print Dialog
               </button>
-              <button 
+              <button
                 onClick={() => setShowPrintModal(false)}
                 style={{
                   background: 'none',

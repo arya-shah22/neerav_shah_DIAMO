@@ -120,6 +120,53 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
     chrome: process.versions.chrome,
   }));
 
+  ipcMain.handle('system:check-update', async () => {
+    try {
+      const { autoUpdater } = require('electron-updater');
+      const result = await autoUpdater.checkForUpdates();
+      return { success: true, version: result?.updateInfo?.version };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to check for updates' };
+    }
+  });
+
+  ipcMain.handle('system:get-db-config', async () => {
+    const fs = require('fs');
+    const path = require('path');
+    const configPath = path.join(process.cwd(), '.env');
+    let currentUrl = process.env.DATABASE_URL || '';
+    if (fs.existsSync(configPath)) {
+      const content = fs.readFileSync(configPath, 'utf8');
+      const match = content.match(/DATABASE_URL=["']?([^"'\n]+)["']?/);
+      if (match) currentUrl = match[1];
+    }
+    return { success: true, databaseUrl: currentUrl };
+  });
+
+  ipcMain.handle('system:save-db-config', async (_, payload: { databaseUrl: string }) => {
+    try {
+      const fs = require('fs');
+      const path = require('path');
+      const configPath = path.join(process.cwd(), '.env');
+      const envContent = `DATABASE_URL="${payload.databaseUrl}"\nNODE_ENV="production"\n`;
+      fs.writeFileSync(configPath, envContent, 'utf8');
+      process.env.DATABASE_URL = payload.databaseUrl;
+      return { success: true, message: 'Database configuration saved successfully. Please restart application.' };
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Failed to save database configuration' };
+    }
+  });
+
+  ipcMain.handle('system:quit-and-install', async () => {
+    try {
+      const { autoUpdater } = require('electron-updater');
+      autoUpdater.quitAndInstall();
+      return { success: true };
+    } catch (err: any) {
+      return { success: false, error: err.message };
+    }
+  });
+
   ipcMain.handle('system:print-to-pdf', async (event, payload: { filename: string }) => {
     const win = BrowserWindow.fromWebContents(event.sender);
     if (!win) return { success: false, error: 'No active window found' };

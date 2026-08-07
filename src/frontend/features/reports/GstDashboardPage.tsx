@@ -3,7 +3,7 @@
 // Phase 11.5: GST Output tax on sales, Input Tax Credit, Net Liability
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Printer, Download, ArrowLeft, Calendar, RefreshCw } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -62,51 +62,57 @@ export const GstDashboardPage: React.FC = () => {
 
   const handleExportCSV = () => {
     if (!gstData || !gstData.summary) return;
-    const s = gstData.summary;
-    let csvContent = "data:text/csv;charset=utf-8,";
-    
-    // Summary
-    csvContent += `GST Report: ${startDate} to ${endDate}\n\n`;
-    csvContent += `OUTWARD SUPPLIES (SALES)\n`;
-    csvContent += `Taxable Sales Value,₹${s.outwardTaxableValue}\n`;
-    csvContent += `CGST Output,₹${s.outputCgst}\n`;
-    csvContent += `SGST Output,₹${s.outputSgst}\n`;
-    csvContent += `IGST Output,₹${s.outputIgst}\n`;
-    csvContent += `Cess Output,₹${s.outputCess}\n`;
-    csvContent += `Total Output Tax,₹${s.totalOutputTax}\n\n`;
+    const sales = gstData.summary.sales || {};
+    const purchases = gstData.summary.purchases || {};
+    const net = gstData.summary.netLiability || {};
 
-    csvContent += `INWARD SUPPLIES (PURCHASES)\n`;
-    csvContent += `Taxable Purchase Value,₹${s.inwardTaxableValue}\n`;
-    csvContent += `CGST Input,₹${s.inputCgst}\n`;
-    csvContent += `SGST Input,₹${s.inputSgst}\n`;
-    csvContent += `IGST Input,₹${s.inputIgst}\n`;
-    csvContent += `Cess Input,₹${s.inputCess}\n`;
-    csvContent += `Total Input ITC,₹${s.totalInputTax}\n\n`;
+    let csv = "GST Dashboard & Tax Liability Summary\n";
+    csv += `Company,${activeCompany?.companyName || ''}\n`;
+    csv += `Period,${startDate} to ${endDate}\n\n`;
 
-    csvContent += `NET TAX LIABILITY\n`;
-    csvContent += `Net CGST Payable,₹${s.netCgstLiability}\n`;
-    csvContent += `Net SGST Payable,₹${s.netSgstLiability}\n`;
-    csvContent += `Net IGST Payable,₹${s.netIgstLiability}\n`;
-    csvContent += `Net Cess Payable,₹${s.netCessLiability}\n`;
-    csvContent += `Net Tax Liability,₹${s.netTaxLiability}\n\n`;
+    csv += "1. OUTWARD SUPPLIES (SALES OUTPUT)\n";
+    csv += `Gross Amount,${sales.grossAmount || 0}\n`;
+    csv += `Taxable Sales Value,${sales.taxableValue || 0}\n`;
+    csv += `CGST Output,${sales.cgst || 0}\n`;
+    csv += `SGST Output,${sales.sgst || 0}\n`;
+    csv += `IGST Output,${sales.igst || 0}\n`;
+    csv += `Total Output Tax,${sales.totalOutputTax || 0}\n\n`;
+
+    csv += "2. INWARD SUPPLIES (PURCHASE ITC)\n";
+    csv += `Gross Amount,${purchases.grossAmount || 0}\n`;
+    csv += `Taxable Purchase Value,${purchases.taxableValue || 0}\n`;
+    csv += `CGST Input,${purchases.cgst || 0}\n`;
+    csv += `SGST Input,${purchases.sgst || 0}\n`;
+    csv += `IGST Input,${purchases.igst || 0}\n`;
+    csv += `Total Input ITC,${purchases.totalInputTax || 0}\n\n`;
+
+    csv += "3. NET TAX LIABILITY / PAYABLE\n";
+    csv += `Net CGST Payable,${net.cgst || 0}\n`;
+    csv += `Net SGST Payable,${net.sgst || 0}\n`;
+    csv += `Net IGST Payable,${net.igst || 0}\n`;
+    csv += `Net Total Tax Payable,${net.total || 0}\n\n`;
 
     // Rate breakdown
-    csvContent += `RATE BREAKDOWN\n`;
-    csvContent += `Rate %,Taxable Value,CGST,SGST,IGST,Total Tax\n`;
-    gstData.rateBreakdown.forEach((r: any) => {
-      csvContent += `${r.gstRate}%,${r.taxableValue},${r.cgst},${r.sgst},${r.igst},${r.totalTax}\n`;
-    });
+    if (gstData.rateBreakdown && Array.isArray(gstData.rateBreakdown) && gstData.rateBreakdown.length > 0) {
+      csv += "4. GST RATE-WISE BREAKDOWN\n";
+      csv += "GST Rate %,Taxable Value,CGST,SGST,IGST,Total Tax\n";
+      gstData.rateBreakdown.forEach((r: any) => {
+        csv += `${r.gstRate}%,${r.taxableValue || 0},${r.cgst || 0},${r.sgst || 0},${r.igst || 0},${r.totalTax || 0}\n`;
+      });
+    }
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
-    link.setAttribute("download", `GST_Summary_${startDate}_to_${endDate}.csv`);
+    link.setAttribute("href", url);
+    link.setAttribute("download", `GST_Dashboard_${startDate}_to_${endDate}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
-  const rateColumns: Column<any>[] = [
+  const rateColumns = useMemo<Column<any>[]>(() => [
     { 
       key: 'gstRate', 
       header: 'GST RATE %', 
@@ -116,33 +122,65 @@ export const GstDashboardPage: React.FC = () => {
       key: 'taxableValue', 
       header: 'TAXABLE VALUE', 
       align: 'right',
-      render: (row) => `₹${row.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`
+      render: (row) => `₹${fmt(row.taxableValue)}`
     },
     { 
       key: 'cgst', 
       header: 'CGST', 
       align: 'right',
-      render: (row) => row.cgst > 0 ? `₹${row.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
+      render: (row) => row.cgst > 0 ? `₹${fmt(row.cgst)}` : '—'
     },
     { 
       key: 'sgst', 
       header: 'SGST', 
       align: 'right',
-      render: (row) => row.sgst > 0 ? `₹${row.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
+      render: (row) => row.sgst > 0 ? `₹${fmt(row.sgst)}` : '—'
     },
     { 
       key: 'igst', 
       header: 'IGST', 
       align: 'right',
-      render: (row) => row.igst > 0 ? `₹${row.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'
+      render: (row) => row.igst > 0 ? `₹${fmt(row.igst)}` : '—'
     },
     { 
       key: 'totalTax', 
       header: 'TOTAL TAX', 
       align: 'right',
-      render: (row) => <span style={{ fontWeight: 600 }}>₹{row.totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
+      render: (row) => <span style={{ fontWeight: 600 }}>₹{fmt(row.totalTax)}</span>
     },
-  ];
+  ], []);
+
+  const fmt = (v?: number) => (Number(v) || 0).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmt0 = (v?: number) => (Number(v) || 0).toLocaleString('en-IN');
+
+  const sales = gstData?.summary?.sales ?? {
+    taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalOutputTax: 0, invoiceCount: 0, returnCount: 0, grossAmount: 0
+  };
+  const purchases = gstData?.summary?.purchases ?? {
+    taxableValue: 0, cgst: 0, sgst: 0, igst: 0, totalInputTax: 0, invoiceCount: 0, returnCount: 0, grossAmount: 0
+  };
+  const netLiability = gstData?.summary?.netLiability ?? {
+    cgst: 0, sgst: 0, igst: 0, total: 0, isPayable: true
+  };
+
+  const s = {
+    outwardTaxableValue: sales.taxableValue || sales.grossAmount || 0,
+    outputCgst: sales.cgst || 0,
+    outputSgst: sales.sgst || 0,
+    outputIgst: sales.igst || 0,
+    totalOutputTax: sales.totalOutputTax || 0,
+    inwardTaxableValue: purchases.taxableValue || purchases.grossAmount || 0,
+    inputCgst: purchases.cgst || 0,
+    inputSgst: purchases.sgst || 0,
+    inputIgst: purchases.igst || 0,
+    totalInputTax: purchases.totalInputTax || 0,
+    netCgstLiability: netLiability.cgst || 0,
+    netSgstLiability: netLiability.sgst || 0,
+    netIgstLiability: netLiability.igst || 0,
+    netTaxLiability: netLiability.total || 0,
+    totalSaleInvoices: sales.invoiceCount || 0,
+    totalPurchaseInvoices: purchases.invoiceCount || 0,
+  };
 
   if (!isReady) {
     return <p style={{ color: 'var(--color-text-secondary)', padding: '24px' }}>Select a company first.</p>;
@@ -150,7 +188,6 @@ export const GstDashboardPage: React.FC = () => {
 
   // ── Print Preview Mode ──
   if (showPrintPreview && activeCompany && gstData) {
-    const s = gstData.summary;
     return (
       <div id="print-preview-root" style={{ background: '#f8fafc', minHeight: '100vh', padding: '24px' }}>
         <style dangerouslySetInnerHTML={{ __html: `
@@ -241,34 +278,34 @@ export const GstDashboardPage: React.FC = () => {
             <tbody>
               <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <td style={{ padding: '8px', fontWeight: 600 }}>Outward Supplies (Sales)</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.outwardTaxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.outputCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.outputSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.outputIgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{s.totalOutputTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.outwardTaxableValue)}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.outputCgst)}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.outputSgst)}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.outputIgst)}</td>
+                <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{fmt(s.totalOutputTax)}</td>
               </tr>
               <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
                 <td style={{ padding: '8px', fontWeight: 600 }}>Inward Supplies (Purchases)</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.inwardTaxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.inputCgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.inputSgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px' }}>₹{s.inputIgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{s.totalInputTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.inwardTaxableValue)}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.inputCgst)}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.inputSgst)}</td>
+                <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(s.inputIgst)}</td>
+                <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{fmt(s.totalInputTax)}</td>
               </tr>
               <tr style={{ background: '#f8fafc', fontWeight: 700, borderTop: '2px solid #0f172a' }}>
                 <td style={{ padding: '8px' }}>Net Tax Liability / Payable</td>
                 <td style={{ textAlign: 'right', padding: '8px' }}>—</td>
                 <td style={{ textAlign: 'right', padding: '8px', color: s.netCgstLiability >= 0 ? '#b91c1c' : '#15803d' }}>
-                  ₹{s.netCgstLiability.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{fmt(s.netCgstLiability)}
                 </td>
                 <td style={{ textAlign: 'right', padding: '8px', color: s.netSgstLiability >= 0 ? '#b91c1c' : '#15803d' }}>
-                  ₹{s.netSgstLiability.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{fmt(s.netSgstLiability)}
                 </td>
                 <td style={{ textAlign: 'right', padding: '8px', color: s.netIgstLiability >= 0 ? '#b91c1c' : '#15803d' }}>
-                  ₹{s.netIgstLiability.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{fmt(s.netIgstLiability)}
                 </td>
                 <td style={{ textAlign: 'right', padding: '8px', fontWeight: 800, color: s.netTaxLiability >= 0 ? '#b91c1c' : '#15803d' }}>
-                  ₹{s.netTaxLiability.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+                  ₹{fmt(s.netTaxLiability)}
                 </td>
               </tr>
             </tbody>
@@ -288,14 +325,14 @@ export const GstDashboardPage: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {gstData.rateBreakdown.map((row: any, idx: number) => (
+              {(gstData?.rateBreakdown || []).map((row: any, idx: number) => (
                 <tr key={idx} style={{ borderBottom: '1px solid #e2e8f0' }}>
                   <td style={{ padding: '8px', fontWeight: 600 }}>{row.gstRate}%</td>
-                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{row.taxableValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{row.cgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{row.sgst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{row.igst.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
-                  <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{row.totalTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</td>
+                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(row.taxableValue)}</td>
+                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(row.cgst)}</td>
+                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(row.sgst)}</td>
+                  <td style={{ textAlign: 'right', padding: '8px' }}>₹{fmt(row.igst)}</td>
+                  <td style={{ textAlign: 'right', padding: '8px', fontWeight: 600 }}>₹{fmt(row.totalTax)}</td>
                 </tr>
               ))}
             </tbody>
@@ -305,19 +342,19 @@ export const GstDashboardPage: React.FC = () => {
     );
   }
 
-  const s = gstData?.summary ?? {
-    outwardTaxableValue: 0, outputCgst: 0, outputSgst: 0, outputIgst: 0, outputCess: 0, totalOutputTax: 0,
-    inwardTaxableValue: 0, inputCgst: 0, inputSgst: 0, inputIgst: 0, inputCess: 0, totalInputTax: 0,
-    netCgstLiability: 0, netSgstLiability: 0, netIgstLiability: 0, netCessLiability: 0, netTaxLiability: 0,
-    totalSaleInvoices: 0, totalPurchaseInvoices: 0, totalCreditNotes: 0, totalDebitNotes: 0
-  };
+  const monthlyTrendsList = gstData?.monthlyTrends || gstData?.monthlyTrend || [];
 
   const comp = gstData?.compliance ?? {
-    currentPeriod: '—', gstr1DueDate: '—', gstr3bDueDate: '—', daysUntilGstr1: 0, daysUntilGstr3b: 0, filingStatus: 'PENDING'
+    currentPeriod: `${new Date(startDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })} – ${new Date(endDate).toLocaleDateString('en-IN', { month: 'short', year: 'numeric' })}`,
+    gstr1DueDate: '11th of Next Month',
+    gstr3bDueDate: '20th of Next Month',
+    daysUntilGstr1: 5,
+    daysUntilGstr3b: 14,
+    filingStatus: 'PENDING'
   };
 
   // Find max monthly trend value to scale the CSS graph
-  const trendValues = gstData?.monthlyTrend?.flatMap((v: any) => [v.outputTax, v.inputTax]) ?? [];
+  const trendValues = monthlyTrendsList.flatMap((v: any) => [v.outputTax, v.inputTax]);
   const maxTrendVal = trendValues.length > 0 ? Math.max(...trendValues.filter((val: unknown) => typeof val === 'number'), 1000) : 1000;
 
   return (
@@ -392,20 +429,20 @@ export const GstDashboardPage: React.FC = () => {
         }}>
           <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Outward (Sales Output)</h3>
           <p style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-text)', marginTop: '8px' }}>
-            ₹{s.totalOutputTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            ₹{fmt(s.totalOutputTax)}
           </p>
           <div style={{ marginTop: '12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Taxable Sales:</span>
-              <span style={{ fontWeight: 600 }}>₹{s.outwardTaxableValue.toLocaleString('en-IN')}</span>
+              <span style={{ fontWeight: 600 }}>₹{fmt0(s.outwardTaxableValue)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
               <span>CGST / SGST:</span>
-              <span>₹{s.outputCgst.toLocaleString('en-IN')} / ₹{s.outputSgst.toLocaleString('en-IN')}</span>
+              <span>₹{fmt0(s.outputCgst)} / ₹{fmt0(s.outputSgst)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
               <span>IGST:</span>
-              <span>₹{s.outputIgst.toLocaleString('en-IN')}</span>
+              <span>₹{fmt0(s.outputIgst)}</span>
             </div>
           </div>
         </div>
@@ -420,20 +457,20 @@ export const GstDashboardPage: React.FC = () => {
         }}>
           <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Inward (Purchase ITC)</h3>
           <p style={{ fontSize: '22px', fontWeight: 800, color: 'var(--color-text)', marginTop: '8px' }}>
-            ₹{s.totalInputTax.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+            ₹{fmt(s.totalInputTax)}
           </p>
           <div style={{ marginTop: '12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Taxable Purchases:</span>
-              <span style={{ fontWeight: 600 }}>₹{s.inwardTaxableValue.toLocaleString('en-IN')}</span>
+              <span style={{ fontWeight: 600 }}>₹{fmt0(s.inwardTaxableValue)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
               <span>CGST / SGST:</span>
-              <span>₹{s.inputCgst.toLocaleString('en-IN')} / ₹{s.inputSgst.toLocaleString('en-IN')}</span>
+              <span>₹{fmt0(s.inputCgst)} / ₹{fmt0(s.inputSgst)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
               <span>IGST:</span>
-              <span>₹{s.inputIgst.toLocaleString('en-IN')}</span>
+              <span>₹{fmt0(s.inputIgst)}</span>
             </div>
           </div>
         </div>
@@ -444,24 +481,24 @@ export const GstDashboardPage: React.FC = () => {
           border: '1px solid var(--color-border)',
           borderRadius: '8px',
           padding: '20px',
-          borderLeft: `4px solid ${s.netTaxLiability >= 0 ? 'var(--color-error)' : 'var(--color-success)'}`
+          borderLeft: `4px solid ${(s.netTaxLiability ?? 0) >= 0 ? 'var(--color-error)' : 'var(--color-success)'}`
         }}>
           <h3 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase' }}>Net Liability / Payable</h3>
-          <p style={{ fontSize: '22px', fontWeight: 800, color: s.netTaxLiability >= 0 ? 'var(--color-error)' : 'var(--color-success)', marginTop: '8px' }}>
-            ₹{s.netTaxLiability.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+          <p style={{ fontSize: '22px', fontWeight: 800, color: (s.netTaxLiability ?? 0) >= 0 ? 'var(--color-error)' : 'var(--color-success)', marginTop: '8px' }}>
+            ₹{fmt(s.netTaxLiability)}
           </p>
           <div style={{ marginTop: '12px', fontSize: '12px', display: 'flex', flexDirection: 'column', gap: '4px', borderTop: '1px solid var(--color-border)', paddingTop: '8px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Net CGST / SGST:</span>
-              <span style={{ fontWeight: 600 }}>₹{s.netCgstLiability.toLocaleString('en-IN')} / ₹{s.netSgstLiability.toLocaleString('en-IN')}</span>
+              <span style={{ fontWeight: 600 }}>₹{fmt0(s.netCgstLiability)} / ₹{fmt0(s.netSgstLiability)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between' }}>
               <span>Net IGST:</span>
-              <span style={{ fontWeight: 600 }}>₹{s.netIgstLiability.toLocaleString('en-IN')}</span>
+              <span style={{ fontWeight: 600 }}>₹{fmt0(s.netIgstLiability)}</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', color: 'var(--color-text-secondary)' }}>
               <span>Vouchers Total:</span>
-              <span>{s.totalSaleInvoices + s.totalPurchaseInvoices} Bills</span>
+              <span>{(s.totalSaleInvoices || 0) + (s.totalPurchaseInvoices || 0)} Bills</span>
             </div>
           </div>
         </div>
@@ -482,32 +519,49 @@ export const GstDashboardPage: React.FC = () => {
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-text)', marginBottom: '16px' }}>Monthly Tax Trends (Output vs Input)</h3>
           
           {/* Chart visual */}
-          <div style={{ display: 'flex', height: '180px', alignItems: 'flex-end', justifyContent: 'space-around', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px', gap: '8px' }}>
-            {gstData?.monthlyTrend?.map((m: any, idx: number) => {
-              const outHeight = (m.outputTax / maxTrendVal) * 100;
-              const inHeight = (m.inputTax / maxTrendVal) * 100;
+          <div style={{ display: 'flex', height: '220px', alignItems: 'flex-end', justifyContent: 'space-around', borderBottom: '1px solid var(--color-border)', paddingBottom: '12px', gap: '12px' }}>
+            {monthlyTrendsList.map((m: any, idx: number) => {
+              const outVal = Number(m.outputTax || 0);
+              const inVal = Number(m.inputTax || 0);
+              const outPct = Math.min(100, Math.max((outVal / maxTrendVal) * 100, outVal > 0 ? 8 : 2));
+              const inPct = Math.min(100, Math.max((inVal / maxTrendVal) * 100, inVal > 0 ? 8 : 2));
 
               return (
                 <div key={idx} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: 1, height: '100%', justifyContent: 'flex-end' }}>
-                  <div style={{ display: 'flex', gap: '4px', alignItems: 'flex-end', width: '100%', justifyContent: 'center' }}>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'flex-end', width: '100%', height: '180px', justifyContent: 'center' }}>
                     {/* Output bar (Green) */}
-                    <div style={{
-                      height: `${Math.max(outHeight, 3)}%`,
-                      width: '12px',
-                      background: 'var(--color-success)',
-                      borderRadius: '2px 2px 0 0',
-                      transition: 'height 0.3s ease'
-                    }} title={`Output: ₹${m.outputTax}`} />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                      {outVal > 0 && (
+                        <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-success)', marginBottom: '2px' }}>
+                          ₹{fmt0(outVal)}
+                        </span>
+                      )}
+                      <div style={{
+                        height: `${outPct}%`,
+                        width: '16px',
+                        background: 'var(--color-success)',
+                        borderRadius: '3px 3px 0 0',
+                        transition: 'height 0.4s ease-in-out'
+                      }} title={`Output: ₹${fmt(outVal)}`} />
+                    </div>
+
                     {/* Input bar (Blue) */}
-                    <div style={{
-                      height: `${Math.max(inHeight, 3)}%`,
-                      width: '12px',
-                      background: 'var(--color-primary)',
-                      borderRadius: '2px 2px 0 0',
-                      transition: 'height 0.3s ease'
-                    }} title={`Input ITC: ₹${m.inputTax}`} />
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', height: '100%', justifyContent: 'flex-end' }}>
+                      {inVal > 0 && (
+                        <span style={{ fontSize: '9px', fontWeight: 600, color: 'var(--color-primary)', marginBottom: '2px' }}>
+                          ₹{fmt0(inVal)}
+                        </span>
+                      )}
+                      <div style={{
+                        height: `${inPct}%`,
+                        width: '16px',
+                        background: 'var(--color-primary)',
+                        borderRadius: '3px 3px 0 0',
+                        transition: 'height 0.4s ease-in-out'
+                      }} title={`Input ITC: ₹${fmt(inVal)}`} />
+                    </div>
                   </div>
-                  <span style={{ fontSize: '10px', color: 'var(--color-text-secondary)', marginTop: '8px', whiteSpace: 'nowrap' }}>{m.month}</span>
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: 'var(--color-text-secondary)', marginTop: '8px', whiteSpace: 'nowrap' }}>{m.month}</span>
                 </div>
               );
             })}
