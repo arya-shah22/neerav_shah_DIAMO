@@ -22,7 +22,7 @@ import { QualityService } from '../src/backend/modules/quality/quality.service';
 import { BrokerService } from '../src/backend/modules/broker/broker.service';
 import { LoanService } from '../src/backend/modules/loan/loan.service';
 
-const COMPANY_ID = 1;
+let COMPANY_ID = 1;
 let passed = 0;
 let failed = 0;
 const failures: string[] = [];
@@ -66,12 +66,36 @@ async function main() {
 
   // ─── 1. COMPANY & FINANCIAL YEAR ──────────────────────────
   console.log('\n📦 Company & Financial Year');
+  let companies = await companyService.list();
+  if (!companies || companies.length === 0) {
+    await companyService.create({
+      companyName: 'DIAMO Test Enterprise',
+      companyCode: 'TST',
+      stateCode: '24',
+      currency: 'INR',
+    });
+    companies = await companyService.list();
+  }
+  const testCompany = companies[0];
+  COMPANY_ID = testCompany.id;
+
+  let fys = await fyService.list(testCompany.id);
+  if (!fys || fys.length === 0) {
+    await fyService.create(testCompany.id, {
+      fyName: '2026-2027',
+      fromDate: '2026-04-01',
+      toDate: '2027-03-31',
+      isCurrentFY: true,
+    });
+    fys = await fyService.list(testCompany.id);
+  }
+
   await test('List companies', async () => {
-    const companies = await companyService.list();
-    if (!Array.isArray(companies) || companies.length === 0) throw new Error('No companies found');
+    const list = await companyService.list();
+    if (!Array.isArray(list) || list.length === 0) throw new Error('No companies found');
   });
   await test('List financial years', async () => {
-    const fys = await fyService.list(COMPANY_ID);
+    const fys = await fyService.list(testCompany.id);
     if (!Array.isArray(fys) || fys.length === 0) throw new Error('No financial years found');
   });
 

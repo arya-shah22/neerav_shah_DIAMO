@@ -7,9 +7,6 @@ name: Build & Release DIAMO ERP
 
 on:
   push:
-    branches:
-      - main
-      - master
     tags:
       - 'v*'
   workflow_dispatch:
@@ -51,6 +48,11 @@ jobs:
 
       - name: Push Database Schema to Test MySQL
         run: npx prisma db push --skip-generate
+        env:
+          DATABASE_URL: "mysql://root:password@127.0.0.1:3306/diamo_test"
+
+      - name: Seed Reference Data to Test MySQL
+        run: npx ts-node prisma/seed.ts
         env:
           DATABASE_URL: "mysql://root:password@127.0.0.1:3306/diamo_test"
 
