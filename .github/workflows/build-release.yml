@@ -95,9 +95,6 @@ jobs:
         env:
           DATABASE_URL: "mysql://root:password@localhost:3306/diamo_db"
 
-      - name: Compile Main Electron & Backend Entrypoint
-        run: npx tsc
-
       - name: Publish & Create Release Installers (.exe / .dmg)
         run: npx electron-builder --publish always
         env:
