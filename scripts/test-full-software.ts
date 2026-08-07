@@ -90,6 +90,12 @@ async function main() {
     fys = await fyService.list(testCompany.id);
   }
 
+  let existingAccounts = await accountService.list(testCompany.id);
+  if (!existingAccounts || existingAccounts.length === 0) {
+    await accountGroupService.seedDefaultGroups(testCompany.id);
+    await accountService.seedDefaultAccounts(testCompany.id);
+  }
+
   await test('List companies', async () => {
     const list = await companyService.list();
     if (!Array.isArray(list) || list.length === 0) throw new Error('No companies found');
