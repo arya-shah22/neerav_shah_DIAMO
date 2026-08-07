@@ -4,8 +4,8 @@ copyright: Copyright © 2025 Neerav Shah
 
 publish:
   provider: github
-  owner: aryashah325
-  repo: diamo_erp_releases
+  owner: arya-shah22
+  repo: neerav_shah_DIAMO
   releaseType: release
 
 directories:

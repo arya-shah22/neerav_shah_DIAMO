@@ -96,7 +96,6 @@ jobs:
         run: npx tsc
 
       - name: Publish & Create Release Installers (.exe / .dmg)
-        uses: electron-userland/builder-action@v1
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          release: true
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
