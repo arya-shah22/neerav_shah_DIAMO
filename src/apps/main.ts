@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
 
@@ -61,6 +61,14 @@ function createWindow(): void {
     mainWindow?.focus();
     setupAutoUpdater();
   });
+
+  // Fallback: Ensure window displays even if ready-to-show is delayed
+  setTimeout(() => {
+    if (mainWindow && !mainWindow.isVisible()) {
+      mainWindow.show();
+      mainWindow.focus();
+    }
+  }, 1000);
 
   // Load the app
   if (isDev) {
@@ -224,13 +232,20 @@ app.whenReady().then(async () => {
     }
   }
 
-  // Initialize NestJS backend modules context
-  nestApp = await bootstrapNestApp();
-
-  // Register all IPC handlers before creating window
-  registerIpcHandlers(ipcMain, nestApp);
-
+  // 1. Create main window immediately so app launches instantly
   createWindow();
+
+  // 2. Initialize NestJS backend modules context safely
+  try {
+    nestApp = await bootstrapNestApp();
+    registerIpcHandlers(ipcMain, nestApp);
+  } catch (backendErr: any) {
+    console.error('[Main] NestJS backend initialization failed:', backendErr);
+    dialog.showErrorBox(
+      'DIAMO ERP – Initialization Error',
+      `Failed to initialize database connection or backend services:\n\n${backendErr?.stack || backendErr?.message || backendErr}`
+    );
+  }
 
   // Run startup catch-up checks 10 seconds after launching to keep load times fast
   setTimeout(() => {
