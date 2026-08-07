@@ -52,21 +52,27 @@ export async function getOrInitializeVoucherConfig(
   });
 
   if (!config) {
-    config = await prisma.voucherNumberConfig.create({
-      data: {
-        companyId,
-        financialYearId,
-        voucherType,
-        method: 'AUTOMATIC',
-        prefix: defaultPrefix,
-        separator: '-',
-        suffix: '',
-        digitLength: 6,
-        includeYear: true,
-        includeMonth: false,
-        resetAnnually: true,
-      },
-    });
+    try {
+      config = await prisma.voucherNumberConfig.create({
+        data: {
+          companyId,
+          financialYearId,
+          voucherType,
+          method: 'AUTOMATIC',
+          prefix: defaultPrefix,
+          separator: '-',
+          suffix: '',
+          digitLength: 6,
+          includeYear: true,
+          includeMonth: false,
+          resetAnnually: true,
+        },
+      });
+    } catch {
+      config = await prisma.voucherNumberConfig.findFirst({
+        where: { companyId, financialYearId, voucherType },
+      });
+    }
   }
   return config;
 }

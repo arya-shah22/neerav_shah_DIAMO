@@ -211,17 +211,23 @@ export class StockService {
         },
       });
     } else {
-      return this.prisma.voucherNumberConfig.create({
-        data: {
-          companyId,
-          financialYearId,
-          voucherType: 'STOCK_ENTRY',
-          prefix: data.prefix,
-          separator: data.separator,
-          includeYear: data.includeYear,
-          digitLength: data.sequenceLength,
-        },
-      });
+      try {
+        return await this.prisma.voucherNumberConfig.create({
+          data: {
+            companyId,
+            financialYearId,
+            voucherType: 'STOCK_ENTRY',
+            prefix: data.prefix,
+            separator: data.separator,
+            includeYear: data.includeYear,
+            digitLength: data.sequenceLength,
+          },
+        });
+      } catch {
+        return await this.prisma.voucherNumberConfig.findFirst({
+          where: { companyId, financialYearId, voucherType: 'STOCK_ENTRY' as any },
+        });
+      }
     }
   }
 
@@ -359,20 +365,26 @@ export class StockService {
       });
     } else {
       formatChanged = true;
-      await this.prisma.voucherNumberConfig.create({
-        data: {
-          companyId,
-          financialYearId,
-          voucherType,
-          method: 'AUTOMATIC',
-          prefix: data.prefix,
-          separator: data.separator,
-          suffix: data.suffix,
-          digitLength: data.digitLength,
-          includeYear: data.includeYear,
-          includeMonth: data.includeMonth ?? false,
-        },
-      });
+      try {
+        await this.prisma.voucherNumberConfig.create({
+          data: {
+            companyId,
+            financialYearId,
+            voucherType,
+            method: 'AUTOMATIC',
+            prefix: data.prefix,
+            separator: data.separator,
+            suffix: data.suffix,
+            digitLength: data.digitLength,
+            includeYear: data.includeYear,
+            includeMonth: data.includeMonth ?? false,
+          },
+        });
+      } catch {
+        await this.prisma.voucherNumberConfig.findFirst({
+          where: { companyId, financialYearId, voucherType },
+        });
+      }
     }
 
     let message: string | null = null;

@@ -2,7 +2,7 @@
 // DIAMO ERP — IPC Handler Registration
 // ═══════════════════════════════════════════════════════════════
 
-import { IpcMain, BrowserWindow, dialog } from 'electron';
+import { IpcMain, BrowserWindow, dialog, app } from 'electron';
 import { INestApplicationContext } from '@nestjs/common';
 import { AuthController } from '../backend/modules/auth/auth.controller';
 import { CompanyController } from '../backend/modules/company/company.controller';
