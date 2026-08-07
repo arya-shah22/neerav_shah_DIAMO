@@ -1,3 +1,50 @@
+// ═══════════════════════════════════════════════════════════════
+// CRITICAL: Set DATABASE_URL SYNCHRONOUSLY before any import
+// PrismaClient reads process.env.DATABASE_URL at constructor time
+// (during module evaluation). If it's not set by then, Prisma throws
+// "Environment variable not found: DATABASE_URL" immediately.
+// This MUST run before any import that touches @prisma/client.
+// ═══════════════════════════════════════════════════════════════
+const _fs = require('fs');
+const _path = require('path');
+const _electron = require('electron');
+
+function _loadDatabaseUrlSync(): string {
+  // 1. Try userData/.env (client production config)
+  try {
+    const userDataPath = _electron.app.getPath('userData');
+    const envPath = _path.join(userDataPath, '.env');
+    if (_fs.existsSync(envPath)) {
+      const content = _fs.readFileSync(envPath, 'utf-8');
+      const match = content.match(/DATABASE_URL\s*=\s*"?([^"\n]+)"?/);
+      if (match && match[1]) return match[1];
+    }
+  } catch (_e) {
+    // userData may not be available yet in some edge cases
+  }
+
+  // 2. Try .env in current working directory (development)
+  try {
+    const rootEnv = _path.join(process.cwd(), '.env');
+    if (_fs.existsSync(rootEnv)) {
+      const content = _fs.readFileSync(rootEnv, 'utf-8');
+      const match = content.match(/DATABASE_URL\s*=\s*"?([^"\n]+)"?/);
+      if (match && match[1]) return match[1];
+    }
+  } catch (_e) {
+    // Ignore
+  }
+
+  // 3. Hardcoded fallback — safe default for local MySQL
+  return 'mysql://root:@localhost:3307/diamo_erp';
+}
+
+if (!process.env.DATABASE_URL) {
+  process.env.DATABASE_URL = _loadDatabaseUrlSync();
+  console.log('[Main] DATABASE_URL set synchronously before module loading');
+}
+
+// ─── Now safe to import modules that depend on DATABASE_URL ───
 import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
@@ -196,25 +243,26 @@ async function runActiveScheduledBackupChecks(nestContext: INestApplicationConte
 }
 
 app.whenReady().then(async () => {
+  // Create default .env in userData if missing (for future edits by client)
   try {
     const fs = require('fs');
     const userEnvPath = path.join(app.getPath('userData'), '.env');
     if (!fs.existsSync(userEnvPath)) {
-      const defaultEnvContent = `# DIAMO ERP Configuration\nDATABASE_URL="mysql://root:password@127.0.0.1:3306/diamo_db"\nNODE_ENV="production"\n`;
+      const defaultEnvContent = [
+        '# DIAMO ERP Configuration',
+        `DATABASE_URL="${process.env.DATABASE_URL}"`,
+        'NODE_ENV="production"',
+        '',
+      ].join('\n');
       try {
         fs.writeFileSync(userEnvPath, defaultEnvContent, 'utf-8');
+        console.log('[Main] Created default .env at:', userEnvPath);
       } catch (writeErr) {
         console.error('[Main] Could not create default .env file:', writeErr);
       }
     }
-    require('dotenv').config({ path: userEnvPath });
   } catch (err) {
-    console.error('[Main] Failed to load .env file:', err);
-  }
-
-  // Mandatory Fallback: Ensure DATABASE_URL is always defined for Prisma Client
-  if (!process.env.DATABASE_URL) {
-    process.env.DATABASE_URL = 'mysql://root:password@127.0.0.1:3306/diamo_db';
+    console.error('[Main] .env setup error:', err);
   }
 
   if (app.isPackaged) {
