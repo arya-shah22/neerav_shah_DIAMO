@@ -52,12 +52,12 @@ jobs:
           DATABASE_URL: "mysql://root:password@127.0.0.1:3306/diamo_test"
 
       - name: Seed Reference Data to Test MySQL
-        run: npx ts-node prisma/seed.ts
+        run: npx ts-node --compiler-options '{"module":"CommonJS"}' prisma/seed.ts
         env:
           DATABASE_URL: "mysql://root:password@127.0.0.1:3306/diamo_test"
 
       - name: Run Full Software Master Test Suite (40/40 Modules)
-        run: npx ts-node scripts/test-full-software.ts
+        run: npx ts-node --compiler-options '{"module":"CommonJS"}' scripts/test-full-software.ts
         env:
           DATABASE_URL: "mysql://root:password@127.0.0.1:3306/diamo_test"
 
