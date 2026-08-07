@@ -15,7 +15,13 @@ directories:
 files:
   - dist/**/*
   - node_modules/**/*
+  - node_modules/.prisma/**/*
   - package.json
+
+asarUnpack:
+  - "**/*.node"
+  - "node_modules/.prisma/**/*"
+  - "node_modules/@prisma/**/*"
 
 mac:
   category: public.app-category.business
