@@ -44,6 +44,7 @@ import { ReportIntelligencePage } from './features/reports/ReportIntelligencePag
 import { SettingsPage } from './features/settings';
 import { AdminConsolePage } from './features/admin/AdminConsolePage';
 import { AccessDeniedPage } from './components/feedback/AccessDeniedPage';
+import { InitialSetupWizard } from './components/InitialSetupWizard';
 import { useAuthStore } from './state/auth-store';
 import { usePagePermissions } from './hooks/usePagePermissions';
 
@@ -96,9 +97,26 @@ import { AnalyticsDashboardPage } from './features/dashboard/AnalyticsDashboardP
 // ─── App Root ────────────────────────────────────────────────
 
 const App: React.FC = () => {
+  const [showWizard, setShowWizard] = React.useState(false);
+
+  React.useEffect(() => {
+    async function checkSetup() {
+      try {
+        if (window.api && window.api.invoke) {
+          const res = (await window.api.invoke('db:get-config')) as any;
+          if (res && res.success && res.data && res.data.isConfigured === false) {
+            setShowWizard(true);
+          }
+        }
+      } catch {}
+    }
+    checkSetup();
+  }, []);
+
   return (
     <ErrorBoundary>
       <ToastProvider>
+        <InitialSetupWizard isOpen={showWizard} onComplete={() => setShowWizard(false)} />
         <BrowserRouter>
           <Routes>
             <Route element={<GuestRoutes />}>
