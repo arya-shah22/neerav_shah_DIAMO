@@ -297,6 +297,22 @@ app.whenReady().then(async () => {
     }
   }
 
+  // Start embedded MySQL (if in HOST mode) and LAN Discovery
+  try {
+    const { loadDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString } = require('./mysql-manager');
+    const { startHostDiscoveryBeacon } = require('./lan-discovery');
+
+    const dbConfig = loadDatabaseConfig();
+    process.env.DATABASE_URL = getConnectionString(dbConfig);
+
+    if (dbConfig.role === 'HOST') {
+      await ensureEmbeddedMySQLRunning(dbConfig);
+      startHostDiscoveryBeacon(dbConfig.hostPort);
+    }
+  } catch (dbInitErr) {
+    console.error('[Main] Embedded DB / LAN discovery initialization error:', dbInitErr);
+  }
+
   // 1. Create main window immediately so app launches instantly
   createWindow();
 
@@ -339,8 +355,15 @@ app.on('window-all-closed', () => {
   }
 });
 
-// Hook app exit to run quick database snapshot before quitting
+// Hook app exit to run quick database snapshot and stop embedded DB/LAN services before quitting
 app.on('before-quit', async () => {
+  try {
+    const { stopEmbeddedMySQL } = require('./mysql-manager');
+    const { stopLanDiscovery } = require('./lan-discovery');
+    stopLanDiscovery();
+    stopEmbeddedMySQL();
+  } catch (_e) {}
+
   if (nestApp) {
     try {
       const backupService = nestApp.get(BackupService);

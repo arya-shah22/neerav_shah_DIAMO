@@ -32,6 +32,8 @@ import { DashboardController } from '../backend/modules/dashboard/dashboard.cont
 import { NotificationController } from '../backend/modules/notification/notification.controller';
 import { UserWorkspaceController } from '../backend/modules/user-workspace/workspace.controller';
 import { ExchangeRateController } from '../backend/modules/exchange-rate/exchange-rate.controller';
+import { loadDatabaseConfig, saveDatabaseConfig, IDatabaseConfig } from './mysql-manager';
+import { discoverHostOnLan } from './lan-discovery';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import { PrismaService } from '../backend/database/prisma.service';
 import type { IApiResponse } from '../shared/types/common.types';
@@ -105,6 +107,25 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'workspace:get', (payload) => userWorkspaceController.handleGetWorkspace(payload));
   ipcHandle(ipcMain, 'workspace:update', (payload) => userWorkspaceController.handleUpdateWorkspace(payload));
   ipcHandle(ipcMain, 'workspace:log-recent', (payload) => userWorkspaceController.handleLogRecentPage(payload));
+
+  // ─── Database Configuration & LAN Discovery ────────────
+  ipcMain.handle('db:get-config', async () => ({
+    success: true,
+    data: loadDatabaseConfig(),
+  }));
+
+  ipcMain.handle('db:save-config', async (_event, config: IDatabaseConfig) => {
+    saveDatabaseConfig(config);
+    return { success: true, message: 'Database configuration saved successfully' };
+  });
+
+  ipcMain.handle('db:discover-host', async () => {
+    const hostInfo = await discoverHostOnLan(3000);
+    return {
+      success: !!hostInfo,
+      data: hostInfo,
+    };
+  });
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({
