@@ -33,7 +33,7 @@ import { NotificationController } from '../backend/modules/notification/notifica
 import { UserWorkspaceController } from '../backend/modules/user-workspace/workspace.controller';
 import { ExchangeRateController } from '../backend/modules/exchange-rate/exchange-rate.controller';
 import { loadDatabaseConfig, saveDatabaseConfig, IDatabaseConfig } from './mysql-manager';
-import { discoverHostOnLan } from './lan-discovery';
+import { discoverHostsOnLan } from './lan-discovery';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import { PrismaService } from '../backend/database/prisma.service';
 import type { IApiResponse } from '../shared/types/common.types';
@@ -120,10 +120,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   });
 
   ipcMain.handle('db:discover-host', async () => {
-    const hostInfo = await discoverHostOnLan(3000);
+    const hostsList = await discoverHostsOnLan(3000);
     return {
-      success: !!hostInfo,
-      data: hostInfo,
+      success: hostsList.length > 0,
+      data: hostsList,
     };
   });
 
