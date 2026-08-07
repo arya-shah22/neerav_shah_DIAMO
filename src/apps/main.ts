@@ -191,6 +191,18 @@ async function runActiveScheduledBackupChecks(nestContext: INestApplicationConte
 }
 
 app.whenReady().then(async () => {
+  try {
+    const fs = require('fs');
+    const userEnvPath = path.join(app.getPath('userData'), '.env');
+    if (fs.existsSync(userEnvPath)) {
+      require('dotenv').config({ path: userEnvPath });
+    } else {
+      require('dotenv').config();
+    }
+  } catch (err) {
+    console.error('[Main] Failed to load .env file:', err);
+  }
+
   // Initialize NestJS backend modules context
   nestApp = await bootstrapNestApp();
 

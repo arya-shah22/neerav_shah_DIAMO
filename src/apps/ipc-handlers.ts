@@ -133,7 +133,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcMain.handle('system:get-db-config', async () => {
     const fs = require('fs');
     const path = require('path');
-    const configPath = path.join(process.cwd(), '.env');
+    const configPath = app ? path.join(app.getPath('userData'), '.env') : path.join(process.cwd(), '.env');
     let currentUrl = process.env.DATABASE_URL || '';
     if (fs.existsSync(configPath)) {
       const content = fs.readFileSync(configPath, 'utf8');
@@ -147,7 +147,7 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
     try {
       const fs = require('fs');
       const path = require('path');
-      const configPath = path.join(process.cwd(), '.env');
+      const configPath = app ? path.join(app.getPath('userData'), '.env') : path.join(process.cwd(), '.env');
       const envContent = `DATABASE_URL="${payload.databaseUrl}"\nNODE_ENV="production"\n`;
       fs.writeFileSync(configPath, envContent, 'utf8');
       process.env.DATABASE_URL = payload.databaseUrl;
