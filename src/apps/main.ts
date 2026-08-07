@@ -203,13 +203,20 @@ app.whenReady().then(async () => {
   if (app.isPackaged) {
     try {
       const fs = require('fs');
-      const unpackedPrismaDir = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client');
-      if (fs.existsSync(unpackedPrismaDir)) {
-        const files = fs.readdirSync(unpackedPrismaDir);
-        const engineFile = files.find((f: string) => f.includes('query_engine') && (f.endsWith('.node') || f.endsWith('.dll') || f.endsWith('.so') || f.endsWith('.dylib')));
-        if (engineFile) {
-          process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(unpackedPrismaDir, engineFile);
-          console.log(`[Main] Explicitly configured Prisma Query Engine at: ${process.env.PRISMA_QUERY_ENGINE_LIBRARY}`);
+      const candidateDirs = [
+        path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client'),
+        path.join(process.resourcesPath, 'node_modules', '.prisma', 'client'),
+      ];
+
+      for (const dir of candidateDirs) {
+        if (fs.existsSync(dir)) {
+          const files = fs.readdirSync(dir);
+          const engineFile = files.find((f: string) => f.includes('query_engine') && (f.endsWith('.node') || f.endsWith('.dll') || f.endsWith('.so') || f.endsWith('.dylib')));
+          if (engineFile) {
+            process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(dir, engineFile);
+            console.log(`[Main] Explicitly configured Prisma Query Engine at: ${process.env.PRISMA_QUERY_ENGINE_LIBRARY}`);
+            break;
+          }
         }
       }
     } catch (engineErr) {
