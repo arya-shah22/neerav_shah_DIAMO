@@ -1,7 +1,4 @@
-// ═══════════════════════════════════════════════════════════════
-// DIAMO ERP — Electron Main Process
-// ═══════════════════════════════════════════════════════════════
-
+import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
@@ -201,6 +198,23 @@ app.whenReady().then(async () => {
     }
   } catch (err) {
     console.error('[Main] Failed to load .env file:', err);
+  }
+
+  if (app.isPackaged) {
+    try {
+      const fs = require('fs');
+      const unpackedPrismaDir = path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client');
+      if (fs.existsSync(unpackedPrismaDir)) {
+        const files = fs.readdirSync(unpackedPrismaDir);
+        const engineFile = files.find((f: string) => f.includes('query_engine') && (f.endsWith('.node') || f.endsWith('.dll') || f.endsWith('.so') || f.endsWith('.dylib')));
+        if (engineFile) {
+          process.env.PRISMA_QUERY_ENGINE_LIBRARY = path.join(unpackedPrismaDir, engineFile);
+          console.log(`[Main] Explicitly configured Prisma Query Engine at: ${process.env.PRISMA_QUERY_ENGINE_LIBRARY}`);
+        }
+      }
+    } catch (engineErr) {
+      console.error('[Main] Failed to configure Prisma Query Engine path:', engineErr);
+    }
   }
 
   // Initialize NestJS backend modules context
