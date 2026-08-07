@@ -11,25 +11,9 @@ export class MisReportService {
   private readonly prisma!: PrismaService;
 
   async getStockReport(companyId: number, filters?: { status?: string; qualityId?: number; search?: string }) {
-    const whereClause: any = { companyId };
-
-    if (filters?.status && filters.status !== 'ALL') {
-      whereClause.currentStatus = filters.status;
-    }
-    if (filters?.qualityId) {
-      whereClause.qualityId = filters.qualityId;
-    }
-    if (filters?.search) {
-      whereClause.OR = [
-        { stockIdNumber: { contains: filters.search } },
-        { color: { contains: filters.search } },
-        { clarity: { contains: filters.search } },
-        { shape: { contains: filters.search } },
-      ];
-    }
-
-    const packets = await this.prisma.stockPacket.findMany({
-      where: whereClause,
+    // 1. Fetch ALL stock packets for the company to calculate global summary & quality aggregates
+    const allPackets = await this.prisma.stockPacket.findMany({
+      where: { companyId },
       include: {
         quality: true,
         sourcePacket: true,
@@ -37,12 +21,12 @@ export class MisReportService {
       orderBy: { id: 'desc' },
     });
 
-    const packetIds = packets.map((p) => p.id);
+    const allPacketIds = allPackets.map((p) => p.id);
 
-    // Batch fetch sale info for sold packets to eliminate N+1 queries
+    // 2. Batch fetch sale items for accurate sold carats & sale info
     const saleItems = await (this.prisma as any).saleInvoiceItem.findMany({
       where: {
-        stockPacketId: { in: packetIds },
+        stockPacketId: { in: allPacketIds },
         saleInvoice: { isDeleted: false },
       },
       include: {
@@ -52,22 +36,41 @@ export class MisReportService {
       },
     });
 
-    const saleInfoMap = new Map<number, { actualSaleRate: number; actualSaleAmount: number; invoiceNumber: string; customerName: string; saleDate: Date }>();
+    const saleInfoMap = new Map<number, { actualSaleRate: number; actualSaleAmount: number; invoiceNumber: string; customerName: string; saleDate: Date; carats: number }>();
     for (const item of saleItems) {
       if (item.stockPacketId && item.saleInvoice) {
         saleInfoMap.set(item.stockPacketId, {
           actualSaleRate: Number(item.rate || 0),
-          actualSaleAmount: Number(item.netAmount || 0),
+          actualSaleAmount: Number(item.netAmount || item.grossAmount || 0),
           invoiceNumber: item.saleInvoice.voucherNumber,
           customerName: item.saleInvoice.customer?.accountName || 'Unknown Customer',
           saleDate: item.saleInvoice.invoiceDate,
+          carats: Number(item.carats || 0),
+        });
+      }
+    }
+
+    // 3. Batch fetch purchase items for fallback cost rates & carats
+    const purchaseItems = await (this.prisma as any).purchaseInvoiceItem.findMany({
+      where: {
+        stockPacketId: { in: allPacketIds },
+        purchaseInvoice: { isDeleted: false },
+      },
+    });
+
+    const purchaseInfoMap = new Map<number, { costRate: number; purchaseCarats: number }>();
+    for (const item of purchaseItems) {
+      if (item.stockPacketId) {
+        purchaseInfoMap.set(item.stockPacketId, {
+          costRate: Number(item.rate || 0),
+          purchaseCarats: Number(item.carats || 0),
         });
       }
     }
 
     const transformLogs = await (this.prisma as any).stockMovement.findMany({
       where: {
-        stockPacketId: { in: packetIds },
+        stockPacketId: { in: allPacketIds },
         movementType: { in: ['QUALITY_TRANSFORMATION', 'MANUAL_ADJUSTMENT'] as any[] },
       },
     });
@@ -82,7 +85,7 @@ export class MisReportService {
       }
     }
 
-    // Aggregations
+    // 4. Global Aggregations across ALL packets
     let totalCarats = 0;
     let totalPieces = 0;
     let totalValue = 0;
@@ -108,9 +111,23 @@ export class MisReportService {
       above_365: { count: 0, carats: 0, value: 0 },
     };
 
-    for (const p of packets) {
-      const carats = Number(p.caratWeight || 0);
-      const val = carats * Number(p.costPerCarat || 0);
+    const qualityAggregatesMap = new Map<string, { qualityName: string; count: number; carats: number; totalValue: number }>();
+
+    for (const p of allPackets) {
+      const saleInfo = saleInfoMap.get(p.id);
+      const purchaseInfo = purchaseInfoMap.get(p.id);
+
+      const rawCarats = Number(p.caratWeight || 0);
+      const carats = rawCarats > 0 ? rawCarats : (saleInfo?.carats || purchaseInfo?.purchaseCarats || 0);
+
+      const rawCost = Number(p.costPerCarat || 0);
+      const costRate = rawCost > 0 ? rawCost : (purchaseInfo?.costRate || (saleInfo?.actualSaleRate || 0));
+
+      let val = carats * costRate;
+      if (val === 0 && saleInfo?.actualSaleAmount) {
+        val = saleInfo.actualSaleAmount;
+      }
+
       totalCarats += carats;
       totalPieces += p.pieceCount || 0;
       totalValue += val;
@@ -141,11 +158,45 @@ export class MisReportService {
         ageing[ageKey].carats += carats;
         ageing[ageKey].value += val;
       }
+
+      // Quality aggregates
+      const qName = p.quality?.qualityName || 'Unknown';
+      if (!qualityAggregatesMap.has(qName)) {
+        qualityAggregatesMap.set(qName, { qualityName: qName, count: 0, carats: 0, totalValue: 0 });
+      }
+      const qRec = qualityAggregatesMap.get(qName)!;
+      qRec.count += 1;
+      qRec.carats += carats;
+      qRec.totalValue += val;
     }
+
+    const qualityAggregates = Array.from(qualityAggregatesMap.values()).map((q) => ({
+      qualityName: q.qualityName,
+      count: q.count,
+      carats: Math.round(q.carats * 1000) / 1000,
+      averageRate: q.carats > 0 ? Math.round((q.totalValue / q.carats) * 100) / 100 : 0,
+      totalValue: Math.round(q.totalValue * 100) / 100,
+    }));
+
+    // 5. Apply filters for packet list view
+    const filteredPackets = allPackets.filter((p) => {
+      if (filters?.status && filters.status !== 'ALL' && p.currentStatus !== filters.status) return false;
+      if (filters?.qualityId && p.qualityId !== filters.qualityId) return false;
+      if (filters?.search) {
+        const q = filters.search.toLowerCase();
+        const match = p.stockIdNumber?.toLowerCase().includes(q) ||
+                      p.color?.toLowerCase().includes(q) ||
+                      p.clarity?.toLowerCase().includes(q) ||
+                      p.shape?.toLowerCase().includes(q) ||
+                      p.quality?.qualityName?.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
 
     return {
       summary: {
-        totalPackets: packets.length,
+        totalPackets: allPackets.length,
         totalCarats: Math.round(totalCarats * 1000) / 1000,
         totalPieces,
         totalValue: Math.round(totalValue * 100) / 100,
@@ -158,10 +209,23 @@ export class MisReportService {
         statusBreakdown,
         ageing,
       },
-      packets: packets.map((p) => {
-        const carats = Number(p.caratWeight || 0);
+      qualityAggregates,
+      packets: filteredPackets.map((p) => {
         const saleInfo = saleInfoMap.get(p.id);
+        const purchaseInfo = purchaseInfoMap.get(p.id);
         const convInfo = convInfoMap.get(p.id);
+
+        const rawCarats = Number(p.caratWeight || 0);
+        const carats = rawCarats > 0 ? rawCarats : (saleInfo?.carats || purchaseInfo?.purchaseCarats || 0);
+
+        const rawCost = Number(p.costPerCarat || 0);
+        const costRate = rawCost > 0 ? rawCost : (purchaseInfo?.costRate || (saleInfo?.actualSaleRate || 0));
+
+        let totVal = carats * costRate;
+        if (totVal === 0 && saleInfo?.actualSaleAmount) {
+          totVal = saleInfo.actualSaleAmount;
+        }
+
         return {
           id: p.id,
           stockIdNumber: p.stockIdNumber,
@@ -171,8 +235,8 @@ export class MisReportService {
           color: p.color,
           clarity: p.clarity,
           caratWeight: carats,
-          costRate: Number(p.costPerCarat || 0),
-          totalValue: carats * Number(p.costPerCarat || 0),
+          costRate,
+          totalValue: totVal,
           targetSaleRate: p.targetSaleRate != null ? Number(p.targetSaleRate) : null,
           actualSaleRate: saleInfo ? saleInfo.actualSaleRate : null,
           actualSaleAmount: saleInfo ? saleInfo.actualSaleAmount : null,
