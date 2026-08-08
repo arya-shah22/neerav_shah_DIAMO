@@ -306,7 +306,7 @@ app.whenReady().then(async () => {
     const dbConfig = loadDatabaseConfig();
     process.env.DATABASE_URL = getConnectionString(dbConfig);
 
-    if (dbConfig.role === 'HOST') {
+    if (dbConfig.role === 'HOST' && dbConfig.isConfigured) {
       await ensureEmbeddedMySQLRunning(dbConfig);
       startHostDiscoveryBeacon(dbConfig.hostPort);
     }
