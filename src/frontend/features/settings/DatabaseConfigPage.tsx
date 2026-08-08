@@ -15,6 +15,8 @@ interface IDatabaseConfig {
   autoDiscover: boolean;
 }
 
+import { InitialSetupWizard } from '../../components/InitialSetupWizard';
+
 export const DatabaseConfigPage: React.FC = () => {
   const [config, setConfig] = useState<IDatabaseConfig>({
     role: 'HOST',
@@ -30,6 +32,7 @@ export const DatabaseConfigPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [discovering, setDiscovering] = useState(false);
+  const [previewWizard, setPreviewWizard] = useState(false);
   const [statusMsg, setStatusMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
@@ -124,28 +127,51 @@ export const DatabaseConfigPage: React.FC = () => {
             Configure local embedded database storage or multi-PC Ethernet LAN host connection.
           </p>
         </div>
-        <button
-          onClick={handleSave}
-          disabled={saving}
-          style={{
-            padding: '10px 18px',
-            backgroundColor: '#2563EB',
-            color: '#FFFFFF',
-            fontWeight: 600,
-            fontSize: '13px',
-            border: 'none',
-            borderRadius: '10px',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            opacity: saving ? 0.6 : 1,
-          }}
-        >
-          <Save size={16} />
-          <span>{saving ? 'Saving...' : 'Save Settings'}</span>
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <button
+            onClick={() => setPreviewWizard(true)}
+            style={{
+              padding: '10px 14px',
+              backgroundColor: '#F1F5F9',
+              color: '#334155',
+              border: '1px solid #CBD5E1',
+              fontWeight: 600,
+              fontSize: '13px',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <ShieldCheck size={16} color="#2563EB" />
+            <span>Preview Setup Wizard</span>
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{
+              padding: '10px 18px',
+              backgroundColor: '#2563EB',
+              color: '#FFFFFF',
+              fontWeight: 600,
+              fontSize: '13px',
+              border: 'none',
+              borderRadius: '10px',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              opacity: saving ? 0.6 : 1,
+            }}
+          >
+            <Save size={16} />
+            <span>{saving ? 'Saving...' : 'Save Settings'}</span>
+          </button>
+        </div>
       </div>
+
+      <InitialSetupWizard isOpen={previewWizard} onComplete={() => setPreviewWizard(false)} />
 
       {statusMsg && (
         <div style={{

@@ -24,7 +24,9 @@ export function getDatabaseConfigPath(): string {
 }
 
 export function getDatabaseDataDir(): string {
-  const dir = path.join(app.getPath('userData'), 'database_data');
+  const isDev = process.env.NODE_ENV !== 'production';
+  const baseDir = isDev ? process.cwd() : app.getPath('userData');
+  const dir = path.join(baseDir, 'Database');
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
