@@ -511,14 +511,24 @@ export const DayBookPage: React.FC = () => {
                 </thead>
                 <tbody>
                   <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
-                    <td style={{ padding: '8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>Cash (On Hand)</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>{renderAmount(detailData?.openingCash)}</td>
-                    <td style={{ padding: '8px', textAlign: 'right' }}>{renderAmount(detailData?.closingCash)}</td>
+                    <td style={{ padding: '8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>Cash (INR)</td>
+                    <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>{renderAmount(detailData?.openingCashInr ?? detailData?.openingCash)}</td>
+                    <td style={{ padding: '8px', textAlign: 'right' }}>{renderAmount(detailData?.closingCashInr ?? detailData?.closingCash)}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>Cash (USD)</td>
+                    <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', color: '#10b981', fontWeight: 600 }}>$ {(detailData?.openingCashUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: '#10b981', fontWeight: 600 }}>$ {(detailData?.closingCashUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                  </tr>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                    <td style={{ padding: '8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>Bank (INR)</td>
+                    <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>{renderAmount(detailData?.openingBankInr ?? detailData?.openingBank)}</td>
+                    <td style={{ padding: '8px', textAlign: 'right' }}>{renderAmount(detailData?.closingBankInr ?? detailData?.closingBank)}</td>
                   </tr>
                   <tr>
-                    <td style={{ padding: '8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>Bank Balances</td>
-                    <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #e2e8f0' }}>{renderAmount(detailData?.openingBank)}</td>
-                    <td style={{ padding: '8px', textAlign: 'right' }}>{renderAmount(detailData?.closingBank)}</td>
+                    <td style={{ padding: '8px', fontWeight: 500, borderRight: '1px solid #e2e8f0' }}>Bank (USD)</td>
+                    <td style={{ padding: '8px', textAlign: 'right', borderRight: '1px solid #e2e8f0', color: '#06b6d4', fontWeight: 600 }}>$ {(detailData?.openingBankUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+                    <td style={{ padding: '8px', textAlign: 'right', color: '#06b6d4', fontWeight: 600 }}>$ {(detailData?.closingBankUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
                   </tr>
                 </tbody>
               </table>
@@ -539,21 +549,21 @@ export const DayBookPage: React.FC = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {(detailData?.transactions || []).map((row: any, rowIdx: number) => (
+                  {((detailData?.transactions || detailData?.entries || [])).map((row: any, rowIdx: number) => (
                     <tr key={rowIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '8px' }}>{row.voucherNumber}</td>
+                      <td style={{ padding: '8px' }}>{row.voucherNumber || row.voucherId || '—'}</td>
                       <td style={{ padding: '8px' }}>{row.voucherType}</td>
                       <td style={{ padding: '8px' }}>{row.accountName}</td>
                       <td style={{ padding: '8px', textAlign: 'right' }}>
-                        {row.debitCreditType === 'DEBIT' ? `₹${row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                        {row.debitCredit === 'DEBIT' || row.debitCreditType === 'DEBIT' ? `₹${Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
                       </td>
                       <td style={{ padding: '8px', textAlign: 'right' }}>
-                        {row.debitCreditType === 'CREDIT' ? `₹${row.amount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
+                        {row.debitCredit === 'CREDIT' || row.debitCreditType === 'CREDIT' ? `₹${Number(row.amount).toLocaleString('en-IN', { minimumFractionDigits: 2 })}` : '—'}
                       </td>
-                      <td style={{ padding: '8px' }}>{row.narration}</td>
+                      <td style={{ padding: '8px' }}>{row.narration || ''}</td>
                     </tr>
                   ))}
-                  {(!detailData?.transactions || detailData.transactions.length === 0) && (
+                  {(!detailData?.transactions && !detailData?.entries || (detailData?.transactions || detailData?.entries || []).length === 0) && (
                     <tr>
                       <td colSpan={6} style={{ textAlign: 'center', padding: '16px', color: '#64748b' }}>
                         No transactions recorded on this day.

@@ -9,6 +9,7 @@ out/
 
 # Database
 prisma/migrations/
+Database/
 
 # Logs
 logs/

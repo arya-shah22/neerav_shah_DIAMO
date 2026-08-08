@@ -1019,14 +1019,24 @@ export const getDayBookPDFHtml = (detailData: any, activeCompany: any, activeDat
           </thead>
           <tbody>
             <tr style="border-bottom: 1px solid #e2e8f0;">
-              <td style="padding: 8px; fontWeight: 500; border-right: 1px solid #e2e8f0;">Cash (On Hand)</td>
-              <td style="padding: 8px; textAlign: right; border-right: 1px solid #e2e8f0;">${renderAmount(detailData?.openingCash)}</td>
-              <td style="padding: 8px; textAlign: right;">${renderAmount(detailData?.closingCash)}</td>
+              <td style="padding: 8px; fontWeight: 500; border-right: 1px solid #e2e8f0;">Cash (INR)</td>
+              <td style="padding: 8px; textAlign: right; border-right: 1px solid #e2e8f0;">${renderAmount(detailData?.openingCashInr ?? detailData?.openingCash)}</td>
+              <td style="padding: 8px; textAlign: right;">${renderAmount(detailData?.closingCashInr ?? detailData?.closingCash)}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; fontWeight: 500; border-right: 1px solid #e2e8f0;">Cash (USD)</td>
+              <td style="padding: 8px; textAlign: right; border-right: 1px solid #e2e8f0; color: #10b981; fontWeight: 600;">$ ${(detailData?.openingCashUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+              <td style="padding: 8px; textAlign: right; color: #10b981; fontWeight: 600;">$ ${(detailData?.closingCashUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+            </tr>
+            <tr style="border-bottom: 1px solid #e2e8f0;">
+              <td style="padding: 8px; fontWeight: 500; border-right: 1px solid #e2e8f0;">Bank (INR)</td>
+              <td style="padding: 8px; textAlign: right; border-right: 1px solid #e2e8f0;">${renderAmount(detailData?.openingBankInr ?? detailData?.openingBank)}</td>
+              <td style="padding: 8px; textAlign: right;">${renderAmount(detailData?.closingBankInr ?? detailData?.closingBank)}</td>
             </tr>
             <tr>
-              <td style="padding: 8px; fontWeight: 500; border-right: 1px solid #e2e8f0;">Bank Balances</td>
-              <td style="padding: 8px; textAlign: right; border-right: 1px solid #e2e8f0;">${renderAmount(detailData?.openingBank)}</td>
-              <td style="padding: 8px; textAlign: right;">${renderAmount(detailData?.closingBank)}</td>
+              <td style="padding: 8px; fontWeight: 500; border-right: 1px solid #e2e8f0;">Bank (USD)</td>
+              <td style="padding: 8px; textAlign: right; border-right: 1px solid #e2e8f0; color: #06b6d4; fontWeight: 600;">$ ${(detailData?.openingBankUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
+              <td style="padding: 8px; textAlign: right; color: #06b6d4; fontWeight: 600;">$ ${(detailData?.closingBankUsd || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
             </tr>
           </tbody>
         </table>

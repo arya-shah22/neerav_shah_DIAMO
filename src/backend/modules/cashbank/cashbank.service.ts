@@ -402,7 +402,6 @@ export class CashBankService {
    * Fetch current running balance of a Cash/Bank account
    */
   async getRunningBalance(companyId: number, cashBankAccountId: number): Promise<number> {
-    await this.ensureDefaultAccounts(companyId);
     const account = await this.prisma.account.findFirst({
       where: { id: cashBankAccountId, companyId }
     });

@@ -736,6 +736,7 @@ export class FinancialReportService {
           groupName: { in: ['Cash-in-Hand', 'Bank Accounts', 'Cash & Bank Accounts', 'Cash', 'Bank'] },
         },
       },
+      include: { accountGroup: true },
     });
 
     const accountIds = accounts.map((a) => a.id);
@@ -753,62 +754,98 @@ export class FinancialReportService {
       orderBy: { id: 'asc' },
     });
 
-    // Opening balances: sum of all prior GL entries up to start of day
+    const accountMap = new Map<number, { isCash: boolean; isUsd: boolean }>();
     let openingCashInr = 0;
     let openingCashUsd = 0;
     let openingBankInr = 0;
     let openingBankUsd = 0;
 
     for (const acc of accounts) {
-      const isCash = acc.accountName.toLowerCase().includes('cash');
-      const priorEntries = await (this.prisma as any).generalLedgerEntry.findMany({
-        where: {
-          companyId,
-          accountId: acc.id,
-          voucherDate: { lt: start },
-        },
-      });
+      const name = acc.accountName.toLowerCase();
+      const groupName = acc.accountGroup?.groupName?.toLowerCase() || '';
+      const isCash = name.includes('cash') || groupName.includes('cash');
+      const isUsd = name.includes('usd') || (acc as any).currency === 'USD';
 
-      let netPrior = Number(acc.openingBalanceAmount || 0);
-      for (const pe of priorEntries) {
-        const amt = Number(pe.amount);
-        if (pe.debitCredit === 'DEBIT') netPrior += amt;
-        else netPrior -= amt;
-      }
+      accountMap.set(acc.id, { isCash, isUsd });
+      const opening = Number(acc.openingBalanceAmount || 0);
 
       if (isCash) {
-        openingCashInr += netPrior;
+        if (isUsd) openingCashUsd += opening;
+        else openingCashInr += opening;
       } else {
-        openingBankInr += netPrior;
+        if (isUsd) openingBankUsd += opening;
+        else openingBankInr += opening;
+      }
+    }
+
+    const priorSummary = await (this.prisma as any).generalLedgerEntry.groupBy({
+      by: ['accountId', 'debitCreditType'],
+      where: {
+        companyId,
+        accountId: { in: accountIds },
+        voucherDate: { lt: start },
+      },
+      _sum: { amount: true, originalAmount: true },
+    });
+
+    for (const p of priorSummary) {
+      const meta = accountMap.get(p.accountId);
+      if (!meta) continue;
+      const isDebit = p.debitCreditType === 'DEBIT';
+      const amtInr = Number(p._sum.amount || 0);
+      const amtUsd = p._sum.originalAmount !== null && p._sum.originalAmount !== undefined ? Number(p._sum.originalAmount) : amtInr;
+
+      if (meta.isCash) {
+        if (meta.isUsd) openingCashUsd += isDebit ? amtUsd : -amtUsd;
+        else openingCashInr += isDebit ? amtInr : -amtInr;
+      } else {
+        if (meta.isUsd) openingBankUsd += isDebit ? amtUsd : -amtUsd;
+        else openingBankInr += isDebit ? amtInr : -amtInr;
       }
     }
 
     let dayTotalReceiptsInr = 0;
     let dayTotalPaymentsInr = 0;
+    let closingCashInr = openingCashInr;
+    let closingCashUsd = openingCashUsd;
+    let closingBankInr = openingBankInr;
+    let closingBankUsd = openingBankUsd;
 
     const mappedEntries = entries.map((e: any) => {
-      const amt = Number(e.amount);
-      const isReceipt = e.debitCredit === 'DEBIT';
-      if (isReceipt) dayTotalReceiptsInr += amt;
-      else dayTotalPaymentsInr += amt;
+      const amtInr = Number(e.amount);
+      const amtUsd = e.originalAmount !== null && e.originalAmount !== undefined ? Number(e.originalAmount) : amtInr;
+      const isReceipt = e.debitCreditType === 'DEBIT' || e.debitCredit === 'DEBIT';
+
+      if (isReceipt) dayTotalReceiptsInr += amtInr;
+      else dayTotalPaymentsInr += amtInr;
+
+      const meta = accountMap.get(e.accountId);
+      if (meta) {
+        if (meta.isCash) {
+          if (meta.isUsd) closingCashUsd += isReceipt ? amtUsd : -amtUsd;
+          else closingCashInr += isReceipt ? amtInr : -amtInr;
+        } else {
+          if (meta.isUsd) closingBankUsd += isReceipt ? amtUsd : -amtUsd;
+          else closingBankInr += isReceipt ? amtInr : -amtInr;
+        }
+      }
 
       return {
         id: e.id,
         voucherDate: e.voucherDate,
         voucherType: e.sourceVoucherType,
         voucherId: e.sourceVoucherId,
+        voucherNumber: e.sourceBillNumber || e.sourceVoucherId,
         accountName: e.account?.accountName || 'Unknown',
-        debitCredit: e.debitCredit,
-        amount: amt,
+        debitCredit: e.debitCreditType || e.debitCredit,
+        debitCreditType: e.debitCreditType || e.debitCredit,
+        amount: amtInr,
+        originalAmount: amtUsd,
+        originalCurrency: e.originalCurrency || (meta?.isUsd ? 'USD' : 'INR'),
+        exchangeRate: e.exchangeRate || 1.0,
         narration: e.narration,
       };
     });
-
-    const closingCashInr = openingCashInr + (entries.filter((e: any) => e.account?.accountName.toLowerCase().includes('cash') && e.debitCredit === 'DEBIT').reduce((s: any, e: any) => s + Number(e.amount), 0) - entries.filter((e: any) => e.account?.accountName.toLowerCase().includes('cash') && e.debitCredit === 'CREDIT').reduce((s: any, e: any) => s + Number(e.amount), 0));
-    const closingBankInr = openingBankInr + (entries.filter((e: any) => !e.account?.accountName.toLowerCase().includes('cash') && e.debitCredit === 'DEBIT').reduce((s: any, e: any) => s + Number(e.amount), 0) - entries.filter((e: any) => !e.account?.accountName.toLowerCase().includes('cash') && e.debitCredit === 'CREDIT').reduce((s: any, e: any) => s + Number(e.amount), 0));
-
-    const closingCashUsd = 0;
-    const closingBankUsd = 0;
 
     return {
       dateStr,
@@ -827,101 +864,135 @@ export class FinancialReportService {
       closingBankInr: Math.round(closingBankInr * 100) / 100,
       closingBankUsd: Math.round(closingBankUsd * 100) / 100,
       entries: mappedEntries,
+      transactions: mappedEntries,
     };
   }
 
   async getDayBookDatesList(companyId: number, startDateStr?: string, endDateStr?: string) {
-    const end = endDateStr ? new Date(endDateStr) : new Date();
-    const start = startDateStr ? new Date(startDateStr) : new Date(end.getTime() - 30 * 24 * 3600 * 1000);
+    const end = endDateStr ? new Date(endDateStr + 'T23:59:59.999') : new Date();
+    const start = startDateStr ? new Date(startDateStr + 'T00:00:00') : new Date(end.getTime() - 30 * 24 * 3600 * 1000);
 
-    // Group GL entries by voucherDate to find dates with activity
-    const datesGroup = await (this.prisma as any).generalLedgerEntry.groupBy({
-      by: ['voucherDate'],
+    const accounts = await this.prisma.account.findMany({
       where: {
         companyId,
-        voucherDate: { gte: start, lte: end },
+        isDeleted: false,
+        accountGroup: {
+          groupName: { in: ['Cash-in-Hand', 'Bank Accounts', 'Cash & Bank Accounts', 'Cash', 'Bank'] },
+        },
       },
-      _count: { id: true },
-      orderBy: { voucherDate: 'desc' },
+      include: { accountGroup: true },
     });
 
-    const dateMap: Record<string, number> = {};
-    for (const dg of datesGroup) {
-      const dStr = new Date(dg.voucherDate).toISOString().split('T')[0];
-      dateMap[dStr] = (dateMap[dStr] || 0) + dg._count.id;
+    const accountMap = new Map<number, { isCash: boolean; isUsd: boolean }>();
+    let initialCashInr = 0;
+    let initialCashUsd = 0;
+    let initialBankInr = 0;
+    let initialBankUsd = 0;
+
+    for (const acc of accounts) {
+      const name = acc.accountName.toLowerCase();
+      const groupName = acc.accountGroup?.groupName?.toLowerCase() || '';
+      const isCash = name.includes('cash') || groupName.includes('cash');
+      const isUsd = name.includes('usd') || (acc as any).currency === 'USD';
+
+      accountMap.set(acc.id, { isCash, isUsd });
+      const opening = Number(acc.openingBalanceAmount || 0);
+      if (isCash) {
+        if (isUsd) initialCashUsd += opening;
+        else initialCashInr += opening;
+      } else {
+        if (isUsd) initialBankUsd += opening;
+        else initialBankInr += opening;
+      }
     }
 
+    const accountIds = Array.from(accountMap.keys());
+
+    // Bulk prior GL aggregation before range start
+    const priorSummary = await (this.prisma as any).generalLedgerEntry.groupBy({
+      by: ['accountId', 'debitCreditType'],
+      where: {
+        companyId,
+        accountId: { in: accountIds },
+        voucherDate: { lt: start },
+      },
+      _sum: { amount: true, originalAmount: true },
+    });
+
+    for (const p of priorSummary) {
+      const meta = accountMap.get(p.accountId);
+      if (!meta) continue;
+      const isDebit = p.debitCreditType === 'DEBIT';
+      const amtInr = Number(p._sum.amount || 0);
+      const amtUsd = p._sum.originalAmount !== null && p._sum.originalAmount !== undefined ? Number(p._sum.originalAmount) : amtInr;
+
+      if (meta.isCash) {
+        if (meta.isUsd) initialCashUsd += isDebit ? amtUsd : -amtUsd;
+        else initialCashInr += isDebit ? amtInr : -amtInr;
+      } else {
+        if (meta.isUsd) initialBankUsd += isDebit ? amtUsd : -amtUsd;
+        else initialBankInr += isDebit ? amtInr : -amtInr;
+      }
+    }
+
+    // Single query for range entries
+    const rangeEntries = await (this.prisma as any).generalLedgerEntry.findMany({
+      where: {
+        companyId,
+        accountId: { in: accountIds },
+        voucherDate: { gte: start, lte: end },
+      },
+      orderBy: { voucherDate: 'asc' },
+    });
+
+    const dailyMap = new Map<string, { cashInrNet: number; cashUsdNet: number; bankInrNet: number; bankUsdNet: number; count: number }>();
+
+    for (const e of rangeEntries) {
+      const dStr = new Date(e.voucherDate).toISOString().split('T')[0];
+      if (!dailyMap.has(dStr)) {
+        dailyMap.set(dStr, { cashInrNet: 0, cashUsdNet: 0, bankInrNet: 0, bankUsdNet: 0, count: 0 });
+      }
+      const day = dailyMap.get(dStr)!;
+      day.count += 1;
+
+      const meta = accountMap.get(e.accountId);
+      if (!meta) continue;
+
+      const amtInr = Number(e.amount || 0);
+      const amtUsd = e.originalAmount !== null && e.originalAmount !== undefined ? Number(e.originalAmount) : amtInr;
+      const isDebit = e.debitCreditType === 'DEBIT';
+
+      if (meta.isCash) {
+        if (meta.isUsd) day.cashUsdNet += isDebit ? amtUsd : -amtUsd;
+        else day.cashInrNet += isDebit ? amtInr : -amtInr;
+      } else {
+        if (meta.isUsd) day.bankUsdNet += isDebit ? amtUsd : -amtUsd;
+        else day.bankInrNet += isDebit ? amtInr : -amtInr;
+      }
+    }
+
+    const dates = Array.from(dailyMap.keys()).sort();
+    let currentCashInr = initialCashInr;
+    let currentCashUsd = initialCashUsd;
+    let currentBankInr = initialBankInr;
+    let currentBankUsd = initialBankUsd;
+
     const results = [];
-    const dates = Object.keys(dateMap).sort().reverse();
-
     for (const dStr of dates) {
-      const dayStart = new Date(dStr + 'T00:00:00');
-      const accounts = await this.prisma.account.findMany({
-        where: {
-          companyId,
-          isDeleted: false,
-          accountGroup: {
-            groupName: { in: ['Cash-in-Hand', 'Bank Accounts', 'Cash & Bank Accounts', 'Cash', 'Bank'] },
-          },
-        },
-      });
+      const day = dailyMap.get(dStr)!;
+      const openingCashInr = currentCashInr;
+      const openingCashUsd = currentCashUsd;
+      const openingBankInr = currentBankInr;
+      const openingBankUsd = currentBankUsd;
 
-      let openingCashInr = 0;
-      let openingCashUsd = 0;
-      let openingBankInr = 0;
-      let openingBankUsd = 0;
-
-      for (const acc of accounts) {
-        const isCash = acc.accountName.toLowerCase().includes('cash');
-        const priorEntries = await (this.prisma as any).generalLedgerEntry.findMany({
-          where: {
-            companyId,
-            accountId: acc.id,
-            voucherDate: { lt: dayStart },
-          },
-        });
-
-        let netPrior = Number(acc.openingBalanceAmount || 0);
-        for (const pe of priorEntries) {
-          const amt = Number(pe.amount);
-          if (pe.debitCredit === 'DEBIT') netPrior += amt;
-          else netPrior -= amt;
-        }
-
-        if (isCash) openingCashInr += netPrior;
-        else openingBankInr += netPrior;
-      }
-
-      const dayEnd = new Date(dStr + 'T23:59:59.999');
-      const dayEntries = await (this.prisma as any).generalLedgerEntry.findMany({
-        where: {
-          companyId,
-          accountId: { in: accounts.map((a) => a.id) },
-          voucherDate: { gte: dayStart, lte: dayEnd },
-        },
-        include: { account: true },
-      });
-
-      let closingCashInr = openingCashInr;
-      let closingBankInr = openingBankInr;
-      let closingCashUsd = openingCashUsd;
-      let closingBankUsd = openingBankUsd;
-
-      for (const de of dayEntries) {
-        const isCash = de.account?.accountName.toLowerCase().includes('cash');
-        const amt = Number(de.amount);
-        if (isCash) {
-          if (de.debitCredit === 'DEBIT') closingCashInr += amt;
-          else closingCashInr -= amt;
-        } else {
-          if (de.debitCredit === 'DEBIT') closingBankInr += amt;
-          else closingBankInr -= amt;
-        }
-      }
+      const closingCashInr = openingCashInr + day.cashInrNet;
+      const closingCashUsd = openingCashUsd + day.cashUsdNet;
+      const closingBankInr = openingBankInr + day.bankInrNet;
+      const closingBankUsd = openingBankUsd + day.bankUsdNet;
 
       results.push({
         dateStr: dStr,
-        transactionCount: dateMap[dStr] || 0,
+        transactionCount: day.count,
         openingCash: Math.round(openingCashInr * 100) / 100,
         openingCashInr: Math.round(openingCashInr * 100) / 100,
         openingCashUsd: Math.round(openingCashUsd * 100) / 100,
@@ -935,9 +1006,14 @@ export class FinancialReportService {
         closingBankInr: Math.round(closingBankInr * 100) / 100,
         closingBankUsd: Math.round(closingBankUsd * 100) / 100,
       });
+
+      currentCashInr = closingCashInr;
+      currentCashUsd = closingCashUsd;
+      currentBankInr = closingBankInr;
+      currentBankUsd = closingBankUsd;
     }
 
-    return results;
+    return results.reverse();
   }
 
   async getCashFlow(companyId: number, startDateStr?: string, endDateStr?: string) {

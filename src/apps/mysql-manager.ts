@@ -89,10 +89,15 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
   const dataDir = getDatabaseDataDir();
   console.log('[MySQLManager] Running in HOST mode — Database data folder at:', dataDir);
 
-  // Look for bundled mysqld binary if available
+  // Look for bundled or system mysqld binary
   const possiblePaths = [
     path.join(process.resourcesPath, 'bin', 'mysql', process.platform === 'win32' ? 'mysqld.exe' : 'mysqld'),
     path.join(app.getAppPath(), 'resources', 'bin', 'mysql', process.platform === 'win32' ? 'mysqld.exe' : 'mysqld'),
+    '/opt/homebrew/bin/mysqld',
+    '/usr/local/bin/mysqld',
+    'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqld.exe',
+    'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqld.exe',
+    'C:\\xampp\\mysql\\bin\\mysqld.exe',
   ];
 
   let mysqldBin: string | null = null;
@@ -104,8 +109,20 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
   }
 
   if (!mysqldBin) {
-    console.log('[MySQLManager] Bundled mysqld binary not found; using system database service on port 3306');
+    console.log('[MySQLManager] mysqld binary not found in standard paths; using existing system database service');
     return true;
+  }
+
+  // Initialize data directory if empty
+  try {
+    const files = fs.readdirSync(dataDir);
+    if (files.length === 0) {
+      console.log('[MySQLManager] Initializing empty Database data folder at:', dataDir);
+      const { spawnSync } = require('child_process');
+      spawnSync(mysqldBin, [`--initialize-insecure`, `--datadir=${dataDir}`], { stdio: 'inherit' });
+    }
+  } catch (initErr) {
+    console.error('[MySQLManager] Error initializing Database folder:', initErr);
   }
 
   try {
@@ -115,6 +132,8 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
       [
         `--datadir=${dataDir}`,
         `--port=${config.hostPort}`,
+        '--socket=/tmp/mysql_diamo.sock',
+        '--mysqlx=OFF',
         '--bind-address=0.0.0.0',
         '--skip-grant-tables',
       ],

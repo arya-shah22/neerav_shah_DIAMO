@@ -36,7 +36,7 @@ function _loadDatabaseUrlSync(): string {
   }
 
   // 3. Hardcoded fallback — safe default for local MySQL
-  return 'mysql://root:@localhost:3307/diamo_erp';
+  return 'mysql://root:@localhost/diamo_db?socket=/tmp/mysql_diamo.sock';
 }
 
 if (!process.env.DATABASE_URL) {

@@ -43,7 +43,7 @@ export default defineConfig({
         if (m2 && m2[1]) return m2[1];
       }
     } catch(e) {}
-    return "mysql://root:@localhost:3307/diamo_erp";
+    return "mysql://root:@localhost/diamo_db?socket=/tmp/mysql_diamo.sock";
   }
   process.env.DATABASE_URL = loadDbUrl();
   console.log("[Banner] DATABASE_URL set before any module loads:", process.env.DATABASE_URL ? "OK" : "MISSING");
