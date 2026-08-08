@@ -30,60 +30,138 @@ export const HostOfflineModal: React.FC<HostOfflineModalProps> = ({
     try {
       await onRetry();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Could not connect to Host PC. Ensure it is powered on and connected to Wi-Fi.');
+      setErrorMsg(err?.message || 'Could not connect to Host PC. Ensure it is powered on and connected to Wi-Fi/Ethernet.');
     } finally {
       setRetrying(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 max-w-md w-full shadow-2xl space-y-6 text-white text-center">
-        <div className="w-16 h-16 bg-red-500/10 border border-red-500/20 rounded-full flex items-center justify-center mx-auto text-red-400">
-          <WifiOff className="w-8 h-8 animate-pulse" />
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.75)',
+      backdropFilter: 'blur(6px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999,
+      padding: '16px',
+    }}>
+      <div style={{
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        borderRadius: '20px',
+        maxWidth: '460px',
+        width: '100%',
+        padding: '28px',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '20px',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+        textAlign: 'center',
+      }}>
+        <div style={{
+          width: '64px',
+          height: '64px',
+          backgroundColor: '#FEE2E2',
+          border: '1px solid #FCA5A5',
+          borderRadius: '50%',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          margin: '0 auto',
+          color: '#DC2626',
+        }}>
+          <WifiOff size={32} />
         </div>
 
-        <div className="space-y-2">
-          <h2 className="text-xl font-bold tracking-wide">Host PC Connection Lost</h2>
-          <p className="text-sm text-slate-400 leading-relaxed">
-            DIAMO ERP could not reach the central database on <span className="font-semibold text-white">{hostName}</span> ({hostIp}).
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Host PC Connection Lost</h2>
+          <p style={{ fontSize: '13px', color: '#64748B', margin: 0, lineHeight: 1.5 }}>
+            DIAMO ERP could not reach the central database on <strong style={{ color: '#0F172A' }}>{hostName}</strong> ({hostIp}).
           </p>
         </div>
 
-        <div className="bg-slate-950/60 border border-slate-800/80 rounded-xl p-4 text-left text-xs space-y-2 text-slate-300">
-          <div className="flex items-center gap-2 text-amber-400 font-semibold mb-1">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>Recommended Troubleshooting Steps:</span>
+        <div style={{
+          backgroundColor: '#F8FAFC',
+          border: '1px solid #E2E8F0',
+          borderRadius: '12px',
+          padding: '14px',
+          textAlign: 'left',
+          fontSize: '12px',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '8px',
+          color: '#334155',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#D97706', fontWeight: 600 }}>
+            <AlertCircle size={16} />
+            <span>Troubleshooting Steps:</span>
           </div>
-          <ul className="list-disc pl-5 space-y-1 text-slate-400">
-            <li>Ensure the Host PC (<span className="text-slate-200">{hostName}</span>) is turned <strong>ON</strong> and active.</li>
-            <li>Verify both computers are connected to the same Wi-Fi network.</li>
+          <ul style={{ margin: 0, paddingLeft: '20px', display: 'flex', flexDirection: 'column', gap: '4px', color: '#475569' }}>
+            <li>Ensure the Host PC (<strong>{hostName}</strong>) is turned <strong>ON</strong> and active.</li>
+            <li>Verify both computers are connected to the same Ethernet/Wi-Fi network.</li>
             <li>Check if DIAMO ERP is open on the Host PC.</li>
           </ul>
         </div>
 
         {errorMsg && (
-          <p className="text-xs text-red-400 bg-red-950/40 border border-red-800/40 p-2.5 rounded-lg">
+          <p style={{ fontSize: '12px', color: '#DC2626', backgroundColor: '#FEE2E2', border: '1px solid #FCA5A5', padding: '10px', borderRadius: '8px', margin: 0 }}>
             {errorMsg}
           </p>
         )}
 
-        <div className="flex items-center gap-3 pt-2">
+        <div style={{ display: 'flex', gap: '12px', paddingTop: '4px' }}>
           {onOpenSettings && (
             <button
               onClick={onOpenSettings}
-              className="flex-1 px-4 py-2.5 rounded-xl border border-slate-700 bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-semibold transition-all"
+              style={{
+                flex: 1,
+                padding: '12px',
+                backgroundColor: '#F1F5F9',
+                border: '1px solid #CBD5E1',
+                borderRadius: '12px',
+                color: '#334155',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+              }}
             >
-              <Server className="w-4 h-4 inline mr-2" />
-              Settings
+              <Server size={16} />
+              <span>Settings</span>
             </button>
           )}
           <button
             onClick={handleRetryClick}
             disabled={retrying}
-            className="flex-1 px-4 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white text-sm font-semibold shadow-lg shadow-blue-500/20 transition-all flex items-center justify-center gap-2"
+            style={{
+              flex: 1,
+              padding: '12px',
+              backgroundColor: '#2563EB',
+              color: '#FFFFFF',
+              border: 'none',
+              borderRadius: '12px',
+              fontSize: '13px',
+              fontWeight: 600,
+              cursor: 'pointer',
+              boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              opacity: retrying ? 0.6 : 1,
+            }}
           >
-            <RefreshCw className={`w-4 h-4 ${retrying ? 'animate-spin' : ''}`} />
+            <RefreshCw size={16} className={retrying ? 'animate-spin' : ''} />
             <span>{retrying ? 'Connecting...' : 'Retry Connection'}</span>
           </button>
         </div>

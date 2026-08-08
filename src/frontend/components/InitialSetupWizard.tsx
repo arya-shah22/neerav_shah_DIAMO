@@ -69,56 +69,102 @@ export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-4 animate-fadeIn">
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-2xl w-full shadow-2xl space-y-6 text-white">
-        <div className="text-center space-y-2">
-          <div className="inline-flex p-3 bg-blue-500/10 border border-blue-500/20 rounded-2xl text-blue-400 mb-2">
-            <ShieldCheck className="w-8 h-8" />
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: 'rgba(15, 23, 42, 0.75)',
+      backdropFilter: 'blur(6px)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      zIndex: 9999,
+      padding: '16px',
+    }}>
+      <div style={{
+        backgroundColor: '#FFFFFF',
+        border: '1px solid #E2E8F0',
+        borderRadius: '20px',
+        maxWidth: '620px',
+        width: '100%',
+        padding: '32px',
+        boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '24px',
+        fontFamily: 'system-ui, -apple-system, sans-serif',
+      }}>
+        {/* Header */}
+        <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
+          <div style={{
+            backgroundColor: '#EFF6FF',
+            border: '1px solid #BFDBFE',
+            padding: '12px',
+            borderRadius: '16px',
+            color: '#2563EB',
+            display: 'inline-flex',
+            marginBottom: '4px',
+          }}>
+            <ShieldCheck size={32} />
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-white">Welcome to DIAMO ERP</h1>
-          <p className="text-sm text-slate-400 max-w-md mx-auto">
+          <h1 style={{ fontSize: '22px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Welcome to DIAMO ERP</h1>
+          <p style={{ fontSize: '13px', color: '#64748B', margin: 0, maxWidth: '440px', lineHeight: 1.5 }}>
             Please select the installation role for this computer to configure your local database or office network connection.
           </p>
         </div>
 
         {/* Option Selection Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div
             onClick={() => setRole('HOST')}
-            className={`p-6 rounded-2xl border cursor-pointer transition-all ${
-              role === 'HOST'
-                ? 'bg-blue-950/50 border-blue-500 shadow-xl shadow-blue-500/10 scale-[1.02]'
-                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-75'
-            }`}
+            style={{
+              padding: '20px',
+              borderRadius: '16px',
+              border: role === 'HOST' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+              backgroundColor: role === 'HOST' ? '#F0F6FF' : '#F8FAFC',
+              cursor: 'pointer',
+              transition: 'all 200ms ease',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400">
-                <Server className="w-6 h-6" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ backgroundColor: '#DBEAFE', padding: '10px', borderRadius: '12px', color: '#1D4ED8' }}>
+                <Server size={22} />
               </div>
-              {role === 'HOST' && <CheckCircle2 className="w-5 h-5 text-blue-400" />}
+              {role === 'HOST' && <CheckCircle2 size={20} color="#2563EB" />}
             </div>
-            <h3 className="text-base font-bold text-white">Main Host PC (Server)</h3>
-            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Main Host PC (Server)</h3>
+            <p style={{ fontSize: '12px', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
               Creates and manages the central database on this computer. Select this if this is your primary office PC.
             </p>
           </div>
 
           <div
             onClick={() => setRole('CLIENT')}
-            className={`p-6 rounded-2xl border cursor-pointer transition-all ${
-              role === 'CLIENT'
-                ? 'bg-indigo-950/50 border-indigo-500 shadow-xl shadow-indigo-500/10 scale-[1.02]'
-                : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 opacity-75'
-            }`}
+            style={{
+              padding: '20px',
+              borderRadius: '16px',
+              border: role === 'CLIENT' ? '2px solid #4F46E5' : '1px solid #E2E8F0',
+              backgroundColor: role === 'CLIENT' ? '#EEF2FF' : '#F8FAFC',
+              cursor: 'pointer',
+              transition: 'all 200ms ease',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '10px',
+            }}
           >
-            <div className="flex items-center justify-between mb-4">
-              <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
-                <Network className="w-6 h-6" />
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <div style={{ backgroundColor: '#E0E7FF', padding: '10px', borderRadius: '12px', color: '#4338CA' }}>
+                <Network size={22} />
               </div>
-              {role === 'CLIENT' && <CheckCircle2 className="w-5 h-5 text-indigo-400" />}
+              {role === 'CLIENT' && <CheckCircle2 size={20} color="#4F46E5" />}
             </div>
-            <h3 className="text-base font-bold text-white">Client Workstation (Ethernet / LAN)</h3>
-            <p className="text-xs text-slate-400 mt-1.5 leading-relaxed">
+            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Client Workstation (Ethernet / LAN)</h3>
+            <p style={{ fontSize: '12px', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
               Connects over Ethernet LAN cable or Wi-Fi to your office Host PC. Does not store a separate local database.
             </p>
           </div>
@@ -126,34 +172,64 @@ export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, 
 
         {/* Client Sub-Configuration */}
         {role === 'CLIENT' && (
-          <div className="bg-slate-950/80 border border-slate-800 rounded-2xl p-5 space-y-3 text-sm animate-fadeIn">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-semibold text-slate-300">Host PC IP Address or Computer Name</label>
+          <div style={{
+            backgroundColor: '#F8FAFC',
+            border: '1px solid #E2E8F0',
+            borderRadius: '16px',
+            padding: '18px',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <label style={{ fontSize: '12px', fontWeight: 600, color: '#334155' }}>Host PC IP Address or Computer Name</label>
               <button
                 onClick={handleScanNetwork}
                 disabled={scanning}
-                className="px-3 py-1 bg-indigo-600/20 hover:bg-indigo-600/30 text-indigo-300 border border-indigo-500/30 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all"
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#EEF2FF',
+                  color: '#4338CA',
+                  border: '1px solid #C7D2FE',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  opacity: scanning ? 0.6 : 1,
+                }}
               >
-                <RefreshCw className={`w-3.5 h-3.5 ${scanning ? 'animate-spin' : ''}`} />
+                <RefreshCw size={14} className={scanning ? 'animate-spin' : ''} />
                 <span>{scanning ? 'Scanning Network...' : 'Auto-Scan Ethernet / LAN'}</span>
               </button>
             </div>
+
             {discoveredHosts.length > 1 && (
-              <div className="space-y-1.5 pt-1">
-                <label className="text-xs font-semibold text-slate-400">Select Host PC to Connect:</label>
-                <div className="space-y-1 max-h-32 overflow-y-auto">
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', paddingTop: '4px' }}>
+                <label style={{ fontSize: '11px', fontWeight: 600, color: '#64748B' }}>Select Host PC to Connect:</label>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', maxHeight: '120px', overflowY: 'auto' }}>
                   {discoveredHosts.map((h) => (
                     <div
                       key={`${h.ip}:${h.port}`}
                       onClick={() => setHostIp(h.ip)}
-                      className={`p-2.5 rounded-xl border text-xs flex items-center justify-between cursor-pointer transition-all ${
-                        hostIp === h.ip
-                          ? 'bg-indigo-950/60 border-indigo-500 text-white font-semibold'
-                          : 'bg-slate-900 border-slate-800 text-slate-300 hover:border-slate-700'
-                      }`}
+                      style={{
+                        padding: '10px 12px',
+                        borderRadius: '10px',
+                        border: hostIp === h.ip ? '2px solid #4F46E5' : '1px solid #CBD5E1',
+                        backgroundColor: hostIp === h.ip ? '#EEF2FF' : '#FFFFFF',
+                        fontSize: '12px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                        cursor: 'pointer',
+                        fontWeight: hostIp === h.ip ? 600 : 400,
+                        color: hostIp === h.ip ? '#3730A3' : '#1E293B',
+                      }}
                     >
                       <span>🖥️ {h.hostname} ({h.ip})</span>
-                      {hostIp === h.ip && <CheckCircle2 className="w-4 h-4 text-indigo-400" />}
+                      {hostIp === h.ip && <CheckCircle2 size={16} color="#4F46E5" />}
                     </div>
                   ))}
                 </div>
@@ -164,20 +240,47 @@ export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, 
               type="text"
               value={hostIp}
               onChange={(e) => setHostIp(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-2.5 text-white text-sm focus:outline-none focus:border-indigo-500"
+              style={{
+                width: '100%',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '10px',
+                padding: '10px 14px',
+                fontSize: '13px',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
               placeholder="e.g. 192.168.1.100 or NEERAV-HOST-PC"
             />
-            {scanStatus && <p className="text-xs text-indigo-400 pt-1">{scanStatus}</p>}
+            {scanStatus && <p style={{ fontSize: '12px', color: '#4338CA', margin: 0 }}>{scanStatus}</p>}
           </div>
         )}
 
         <button
           onClick={handleSaveAndContinue}
           disabled={saving}
-          className="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 disabled:opacity-50 text-white font-bold rounded-2xl shadow-xl shadow-blue-500/20 flex items-center justify-center gap-2 transition-all text-sm"
+          style={{
+            width: '100%',
+            padding: '14px',
+            backgroundColor: '#2563EB',
+            color: '#FFFFFF',
+            fontWeight: 700,
+            fontSize: '14px',
+            border: 'none',
+            borderRadius: '14px',
+            cursor: 'pointer',
+            boxShadow: '0 10px 15px -3px rgba(37, 99, 235, 0.3)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            opacity: saving ? 0.6 : 1,
+            transition: 'all 150ms ease',
+          }}
         >
           <span>{saving ? 'Applying Configuration...' : 'Confirm & Launch DIAMO ERP'}</span>
-          <ArrowRight className="w-4 h-4" />
+          <ArrowRight size={18} />
         </button>
       </div>
     </div>

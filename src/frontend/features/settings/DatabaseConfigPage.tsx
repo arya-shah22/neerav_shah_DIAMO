@@ -6,6 +6,7 @@ import { Server, Wifi, RefreshCw, CheckCircle, Save, HardDrive, ShieldCheck } fr
 
 interface IDatabaseConfig {
   role: 'HOST' | 'CLIENT';
+  isConfigured: boolean;
   hostIp: string;
   hostPort: number;
   dbName: string;
@@ -17,6 +18,7 @@ interface IDatabaseConfig {
 export const DatabaseConfigPage: React.FC = () => {
   const [config, setConfig] = useState<IDatabaseConfig>({
     role: 'HOST',
+    isConfigured: true,
     hostIp: '127.0.0.1',
     hostPort: 3306,
     dbName: 'diamo_db',
@@ -43,7 +45,7 @@ export const DatabaseConfigPage: React.FC = () => {
           setConfig(res.data);
         }
       }
-    } catch (err: any) {
+    } catch {
       setStatusMsg({ type: 'error', text: 'Failed to load database configuration' });
     } finally {
       setLoading(false);
@@ -55,7 +57,7 @@ export const DatabaseConfigPage: React.FC = () => {
     setStatusMsg(null);
     try {
       if (window.api && window.api.invoke) {
-        const res = (await window.api.invoke('db:save-config', config)) as any;
+        const res = (await window.api.invoke('db:save-config', { ...config, isConfigured: true })) as any;
         if (res && res.success) {
           setStatusMsg({ type: 'success', text: 'Database configuration saved successfully! Restart app to apply changes.' });
         } else {
@@ -75,8 +77,8 @@ export const DatabaseConfigPage: React.FC = () => {
     try {
       if (window.api && window.api.invoke) {
         const res = (await window.api.invoke('db:discover-host')) as any;
-        if (res && res.success && res.data) {
-          const hostData = res.data;
+        if (res && res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const hostData = res.data[0];
           setConfig((prev) => ({
             ...prev,
             role: 'CLIENT',
@@ -90,12 +92,12 @@ export const DatabaseConfigPage: React.FC = () => {
         } else {
           setStatusMsg({
             type: 'error',
-            text: 'No DIAMO Host PC discovered on current Wi-Fi network. Ensure Host PC is turned ON.',
+            text: 'No DIAMO Host PC discovered on local network. Ensure Host PC is turned ON.',
           });
         }
       }
-    } catch (err: any) {
-      setStatusMsg({ type: 'error', text: 'Wi-Fi LAN auto-discovery scan failed' });
+    } catch {
+      setStatusMsg({ type: 'error', text: 'Ethernet / LAN auto-discovery scan failed' });
     } finally {
       setDiscovering(false);
     }
@@ -103,150 +105,230 @@ export const DatabaseConfigPage: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="p-8 text-center text-slate-400">
-        <RefreshCw className="w-6 h-6 animate-spin mx-auto mb-2" />
+      <div style={{ padding: '32px', textAlign: 'center', color: '#64748B' }}>
+        <RefreshCw size={24} className="animate-spin" style={{ margin: '0 auto 8px auto' }} />
         <span>Loading database configuration...</span>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6 text-slate-100">
-      <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+    <div style={{ padding: '24px', maxWidth: '800px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '24px', fontFamily: 'system-ui, -apple-system, sans-serif' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '16px' }}>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-white flex items-center gap-2">
-            <Server className="w-7 h-7 text-blue-400" />
-            <span>Database Architecture & Multi-Device LAN</span>
+          <h1 style={{ fontSize: '20px', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Server size={24} color="#2563EB" />
+            <span>Database Architecture & Ethernet / LAN Settings</span>
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Configure local embedded database storage or multi-PC Wi-Fi LAN host connection.
+          <p style={{ fontSize: '13px', color: '#64748B', margin: '4px 0 0 0' }}>
+            Configure local embedded database storage or multi-PC Ethernet LAN host connection.
           </p>
         </div>
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-5 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-50 text-white font-semibold rounded-xl shadow-lg shadow-blue-500/20 flex items-center gap-2 transition-all"
+          style={{
+            padding: '10px 18px',
+            backgroundColor: '#2563EB',
+            color: '#FFFFFF',
+            fontWeight: 600,
+            fontSize: '13px',
+            border: 'none',
+            borderRadius: '10px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            opacity: saving ? 0.6 : 1,
+          }}
         >
-          <Save className="w-4 h-4" />
+          <Save size={16} />
           <span>{saving ? 'Saving...' : 'Save Settings'}</span>
         </button>
       </div>
 
       {statusMsg && (
-        <div
-          className={`p-4 rounded-xl border flex items-center gap-3 text-sm ${
-            statusMsg.type === 'success'
-              ? 'bg-emerald-950/40 border-emerald-800/50 text-emerald-300'
-              : 'bg-red-950/40 border-red-800/50 text-red-300'
-          }`}
-        >
-          {statusMsg.type === 'success' ? <CheckCircle className="w-5 h-5 shrink-0" /> : <Server className="w-5 h-5 shrink-0" />}
+        <div style={{
+          padding: '14px',
+          borderRadius: '10px',
+          border: statusMsg.type === 'success' ? '1px solid #A7F3D0' : '1px solid #FCA5A5',
+          backgroundColor: statusMsg.type === 'success' ? '#ECFDF5' : '#FEE2E2',
+          color: statusMsg.type === 'success' ? '#065F46' : '#991B1B',
+          fontSize: '13px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+        }}>
+          {statusMsg.type === 'success' ? <CheckCircle size={18} /> : <Server size={18} />}
           <span>{statusMsg.text}</span>
         </div>
       )}
 
       {/* Role Selection */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
         <div
           onClick={() => setConfig((prev) => ({ ...prev, role: 'HOST' }))}
-          className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-            config.role === 'HOST'
-              ? 'bg-blue-950/40 border-blue-500 shadow-lg shadow-blue-500/10'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+          style={{
+            padding: '20px',
+            borderRadius: '16px',
+            border: config.role === 'HOST' ? '2px solid #2563EB' : '1px solid #E2E8F0',
+            backgroundColor: config.role === 'HOST' ? '#F0F6FF' : '#FFFFFF',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-3 bg-blue-500/10 rounded-xl text-blue-400">
-              <HardDrive className="w-6 h-6" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ backgroundColor: '#DBEAFE', padding: '10px', borderRadius: '12px', color: '#1D4ED8' }}>
+              <HardDrive size={22} />
             </div>
-            {config.role === 'HOST' && <span className="text-xs font-semibold px-2.5 py-1 bg-blue-500/20 text-blue-300 rounded-full">ACTIVE</span>}
+            {config.role === 'HOST' && <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', backgroundColor: '#DBEAFE', color: '#1E40AF', borderRadius: '999px' }}>ACTIVE</span>}
           </div>
-          <h3 className="text-lg font-bold text-white">Main Host PC (Standalone / Server)</h3>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Runs embedded database locally on this computer. Other computers on local Wi-Fi will connect to this PC.
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Main Host PC (Standalone / Server)</h3>
+          <p style={{ fontSize: '12px', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
+            Runs embedded database locally on this computer. Other computers on local network will connect to this PC.
           </p>
         </div>
 
         <div
           onClick={() => setConfig((prev) => ({ ...prev, role: 'CLIENT' }))}
-          className={`p-5 rounded-2xl border cursor-pointer transition-all ${
-            config.role === 'CLIENT'
-              ? 'bg-indigo-950/40 border-indigo-500 shadow-lg shadow-indigo-500/10'
-              : 'bg-slate-900/60 border-slate-800 hover:border-slate-700'
-          }`}
+          style={{
+            padding: '20px',
+            borderRadius: '16px',
+            border: config.role === 'CLIENT' ? '2px solid #4F46E5' : '1px solid #E2E8F0',
+            backgroundColor: config.role === 'CLIENT' ? '#EEF2FF' : '#FFFFFF',
+            cursor: 'pointer',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '8px',
+          }}
         >
-          <div className="flex items-center justify-between mb-3">
-            <div className="p-3 bg-indigo-500/10 rounded-xl text-indigo-400">
-              <Wifi className="w-6 h-6" />
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ backgroundColor: '#E0E7FF', padding: '10px', borderRadius: '12px', color: '#4338CA' }}>
+              <Wifi size={22} />
             </div>
-            {config.role === 'CLIENT' && <span className="text-xs font-semibold px-2.5 py-1 bg-indigo-500/20 text-indigo-300 rounded-full">ACTIVE</span>}
+            {config.role === 'CLIENT' && <span style={{ fontSize: '11px', fontWeight: 700, padding: '4px 8px', backgroundColor: '#E0E7FF', color: '#3730A3', borderRadius: '999px' }}>ACTIVE</span>}
           </div>
-          <h3 className="text-lg font-bold text-white">Client Workstation (Multi-Device)</h3>
-          <p className="text-xs text-slate-400 mt-1 leading-relaxed">
-            Connects over Wi-Fi/LAN to the Host PC's central database. Does not run a local database process.
+          <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0 }}>Client Workstation (Ethernet / LAN)</h3>
+          <p style={{ fontSize: '12px', color: '#64748B', margin: 0, lineHeight: 1.4 }}>
+            Connects over Ethernet LAN cable or Wi-Fi to the Host PC's central database. Does not store a separate local database.
           </p>
         </div>
       </div>
 
       {/* Configuration Details */}
-      <div className="bg-slate-900/60 border border-slate-800 rounded-2xl p-6 space-y-4">
-        <div className="flex items-center justify-between border-b border-slate-800/80 pb-3">
-          <h2 className="text-lg font-semibold text-white flex items-center gap-2">
-            <ShieldCheck className="w-5 h-5 text-blue-400" />
-            <span>{config.role === 'HOST' ? 'Host Database Parameters' : 'Wi-Fi LAN Connection Parameters'}</span>
+      <div style={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '16px', padding: '20px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid #E2E8F0', paddingBottom: '12px' }}>
+          <h2 style={{ fontSize: '15px', fontWeight: 700, color: '#0F172A', margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <ShieldCheck size={18} color="#2563EB" />
+            <span>{config.role === 'HOST' ? 'Host Database Parameters' : 'Ethernet / LAN Connection Parameters'}</span>
           </h2>
           {config.role === 'CLIENT' && (
             <button
               onClick={handleAutoDiscover}
               disabled={discovering}
-              className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 disabled:opacity-50 text-slate-200 text-xs font-semibold rounded-lg border border-slate-700 flex items-center gap-2 transition-all"
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#EEF2FF',
+                color: '#4338CA',
+                border: '1px solid #C7D2FE',
+                borderRadius: '8px',
+                fontSize: '12px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                opacity: discovering ? 0.6 : 1,
+              }}
             >
-              <RefreshCw className={`w-3.5 h-3.5 ${discovering ? 'animate-spin' : ''}`} />
-              <span>{discovering ? 'Scanning Wi-Fi...' : 'Auto-Discover Host'}</span>
+              <RefreshCw size={14} className={discovering ? 'animate-spin' : ''} />
+              <span>{discovering ? 'Scanning Network...' : 'Auto-Discover Host'}</span>
             </button>
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Host IP Address or Computer Name</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Host IP Address or Computer Name</label>
             <input
               type="text"
               value={config.hostIp}
               disabled={config.role === 'HOST'}
               onChange={(e) => setConfig({ ...config, hostIp: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white disabled:opacity-60 focus:outline-none focus:border-blue-500"
+              style={{
+                width: '100%',
+                backgroundColor: config.role === 'HOST' ? '#F1F5F9' : '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
               placeholder="e.g. 192.168.1.100 or SERVER-PC"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Database Port</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Database Port</label>
             <input
               type="number"
               value={config.hostPort}
               onChange={(e) => setConfig({ ...config, hostPort: Number(e.target.value) })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-blue-500"
+              style={{
+                width: '100%',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Database Name</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Database Name</label>
             <input
               type="text"
               value={config.dbName}
               onChange={(e) => setConfig({ ...config, dbName: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-blue-500"
+              style={{
+                width: '100%',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-400 mb-1">Database User</label>
+            <label style={{ display: 'block', fontSize: '12px', fontWeight: 600, color: '#475569', marginBottom: '4px' }}>Database User</label>
             <input
               type="text"
               value={config.dbUser}
               onChange={(e) => setConfig({ ...config, dbUser: e.target.value })}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-white focus:outline-none focus:border-blue-500"
+              style={{
+                width: '100%',
+                backgroundColor: '#FFFFFF',
+                border: '1px solid #CBD5E1',
+                borderRadius: '8px',
+                padding: '8px 12px',
+                fontSize: '13px',
+                color: '#0F172A',
+                outline: 'none',
+                boxSizing: 'border-box',
+              }}
             />
           </div>
         </div>
