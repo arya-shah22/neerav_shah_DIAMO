@@ -33,9 +33,11 @@ export function getDatabaseDataDir(): string {
 
 export function loadDatabaseConfig(): IDatabaseConfig {
   const configPath = getDatabaseConfigPath();
+  const isDev = process.env.NODE_ENV !== 'production';
+
   const defaultConfig: IDatabaseConfig = {
     role: 'HOST',
-    isConfigured: false,
+    isConfigured: isDev, // In development (npm run dev), auto-mark as configured so developers are never interrupted
     hostIp: '127.0.0.1',
     hostPort: 3306,
     dbName: 'diamo_db',
