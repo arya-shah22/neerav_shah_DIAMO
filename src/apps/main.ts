@@ -10,32 +10,34 @@ const _path = require('path');
 const _electron = require('electron');
 
 function _loadDatabaseUrlSync(): string {
-  // 1. Try userData/.env (client production config)
+  // 1. Prioritize database_config.json if saved
   try {
-    const userDataPath = _electron.app.getPath('userData');
-    const envPath = _path.join(userDataPath, '.env');
-    if (_fs.existsSync(envPath)) {
-      const content = _fs.readFileSync(envPath, 'utf-8');
-      const match = content.match(/DATABASE_URL\s*=\s*"?([^"\n]+)"?/);
-      if (match && match[1]) return match[1];
+    const configPath = _path.join(_electron.app.getPath('userData'), 'database_config.json');
+    if (_fs.existsSync(configPath)) {
+      const config = JSON.parse(_fs.readFileSync(configPath, 'utf-8'));
+      if (config.role === 'CLIENT') {
+        const userPass = config.dbPass ? `${config.dbUser}:${config.dbPass}` : config.dbUser;
+        return `mysql://${userPass}@${config.hostIp}:${config.hostPort}/${config.dbName}`;
+      }
+      const userPass = config.dbPass ? `${config.dbUser}:${config.dbPass}` : config.dbUser;
+      if (process.platform === 'win32') {
+        return `mysql://${userPass}@127.0.0.1:${config.hostPort || 3306}/${config.dbName || 'diamo_db'}`;
+      }
+      return `mysql://${userPass}@localhost/${config.dbName || 'diamo_db'}?socket=/tmp/mysql_diamo.sock`;
     }
-  } catch (_e) {
-    // userData may not be available yet in some edge cases
+  } catch (e) {
+    console.error('[Banner] Error loading database_config.json:', e);
   }
 
-  // 2. Try .env in current working directory (development)
-  try {
-    const rootEnv = _path.join(process.cwd(), '.env');
-    if (_fs.existsSync(rootEnv)) {
-      const content = _fs.readFileSync(rootEnv, 'utf-8');
-      const match = content.match(/DATABASE_URL\s*=\s*"?([^"\n]+)"?/);
-      if (match && match[1]) return match[1];
-    }
-  } catch (_e) {
-    // Ignore
+  // 2. Fallback to process.env.DATABASE_URL
+  if (process.env.DATABASE_URL) {
+    return process.env.DATABASE_URL;
   }
 
   // 3. Hardcoded fallback — safe default for local MySQL
+  if (process.platform === 'win32') {
+    return 'mysql://root:@127.0.0.1:3306/diamo_db';
+  }
   return 'mysql://root:@localhost/diamo_db?socket=/tmp/mysql_diamo.sock';
 }
 

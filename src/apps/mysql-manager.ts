@@ -77,7 +77,10 @@ export function getConnectionString(config: IDatabaseConfig): string {
     return `mysql://${userPass}@${config.hostIp}:${config.hostPort}/${config.dbName}`;
   }
   const userPass = config.dbPass ? `${config.dbUser}:${config.dbPass}` : config.dbUser;
-  return `mysql://${userPass}@127.0.0.1:${config.hostPort}/${config.dbName}`;
+  if (process.platform === 'win32') {
+    return `mysql://${userPass}@127.0.0.1:${config.hostPort}/${config.dbName}`;
+  }
+  return `mysql://${userPass}@localhost/${config.dbName}?socket=/tmp/mysql_diamo.sock`;
 }
 
 export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promise<boolean> {
@@ -97,7 +100,13 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
     '/usr/local/bin/mysqld',
     'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqld.exe',
     'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqld.exe',
+    'C:\\Program Files\\MySQL\\MySQL Server 5.7\\bin\\mysqld.exe',
+    'C:\\Program Files\\MariaDB 10.5\\bin\\mysqld.exe',
+    'C:\\Program Files\\MariaDB 10.6\\bin\\mysqld.exe',
+    'C:\\Program Files\\MariaDB 10.11\\bin\\mysqld.exe',
     'C:\\xampp\\mysql\\bin\\mysqld.exe',
+    'C:\\wamp64\\bin\\mysql\\mysql8.0.36\\bin\\mysqld.exe',
+    'C:\\wamp64\\bin\\mysql\\mysql5.7.36\\bin\\mysqld.exe',
   ];
 
   let mysqldBin: string | null = null;
@@ -127,21 +136,22 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
 
   try {
     console.log('[MySQLManager] Launching embedded mysqld process from:', mysqldBin);
-    mysqlProcess = spawn(
-      mysqldBin,
-      [
-        `--datadir=${dataDir}`,
-        `--port=${config.hostPort}`,
-        '--socket=/tmp/mysql_diamo.sock',
-        '--mysqlx=OFF',
-        '--bind-address=0.0.0.0',
-        '--skip-grant-tables',
-      ],
-      {
-        detached: false,
-        stdio: 'ignore',
-      }
-    );
+    const mysqldArgs = [
+      `--datadir=${dataDir}`,
+      `--port=${config.hostPort}`,
+      '--mysqlx=OFF',
+      '--bind-address=0.0.0.0',
+      '--skip-grant-tables',
+    ];
+
+    if (process.platform !== 'win32') {
+      mysqldArgs.push('--socket=/tmp/mysql_diamo.sock');
+    }
+
+    mysqlProcess = spawn(mysqldBin, mysqldArgs, {
+      detached: false,
+      stdio: 'ignore',
+    });
 
     mysqlProcess.on('error', (err) => {
       console.error('[MySQLManager] Embedded mysqld process error:', err);

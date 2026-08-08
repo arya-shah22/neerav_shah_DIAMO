@@ -96,6 +96,17 @@ jobs:
         env:
           DATABASE_URL: "mysql://root:password@localhost:3306/diamo_db"
 
+      - name: Bundle Portable MySQL Engine for Windows Installer
+        if: matrix.os == 'windows-latest'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path "resources/bin/mysql"
+          if (Test-Path "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe") {
+            Copy-Item "C:\Program Files\MySQL\MySQL Server 8.0\bin\mysqld.exe" "resources/bin/mysql/mysqld.exe" -Force
+          } elseif (Test-Path "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe") {
+            Copy-Item "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" "resources/bin/mysql/mysqld.exe" -Force
+          }
+
       - name: Publish & Create Release Installers (.exe / .dmg)
         run: npx electron-builder --publish always
         env:
