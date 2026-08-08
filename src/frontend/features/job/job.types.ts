@@ -2,7 +2,20 @@
 // DIAMO ERP — Job Book Typings (Stage 8 / Phase 7)
 // ═══════════════════════════════════════════════════════════════
 
-import { JobType, VoucherStatus } from '@prisma/client';
+export enum JobType {
+  JOB_INCOME = 'JOB_INCOME',
+  JOB_EXPENSE = 'JOB_EXPENSE',
+}
+
+export enum VoucherStatus {
+  DRAFT = 'DRAFT',
+  PENDING_APPROVAL = 'PENDING_APPROVAL',
+  POSTED = 'POSTED',
+  CANCELLED = 'CANCELLED',
+  REVERSED = 'REVERSED',
+  DELETED = 'DELETED',
+}
+
 import { IAccount } from '../account/account.types';
 import { IQuality } from '../quality/quality.types';
 
