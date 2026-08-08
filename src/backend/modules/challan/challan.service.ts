@@ -116,7 +116,7 @@ export class ChallanService {
     const vType = purposeToVoucherType(purpose);
 
     const config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: vType },
+      where: { companyId, financialYearId, voucherType: vType },
     });
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
       where: { companyId, financialYearId, voucherType: vType },
@@ -194,7 +194,7 @@ export class ChallanService {
       const company = await tx.company.findUnique({ where: { id: companyId } });
       const fy = await tx.financialYear.findUnique({ where: { id: financialYearId } });
       const config = await tx.voucherNumberConfig.findFirst({
-        where: { companyId, voucherType: vType },
+        where: { companyId, financialYearId, voucherType: vType },
       });
       const startYear = fy ? fy.fromDate.getFullYear() : new Date().getFullYear();
       const endYear = fy ? fy.toDate.getFullYear() : new Date().getFullYear();

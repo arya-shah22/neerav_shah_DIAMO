@@ -96,7 +96,7 @@ export class LoanService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: VoucherType.LOAN_VOUCHER },
+      where: { companyId, financialYearId, voucherType: VoucherType.LOAN_VOUCHER },
     });
     if (!config) {
       try {
@@ -160,7 +160,7 @@ export class LoanService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: VoucherType.LOAN_VOUCHER },
+      where: { companyId, financialYearId, voucherType: VoucherType.LOAN_VOUCHER },
     });
     if (!config) {
       try {

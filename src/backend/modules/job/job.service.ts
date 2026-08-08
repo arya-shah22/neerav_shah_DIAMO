@@ -74,7 +74,7 @@ export class JobService {
     const dbVoucherType = type === JobType.JOB_INCOME ? 'JOB_INCOME' : 'JOB_EXPENSE';
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: dbVoucherType as any },
+      where: { companyId, financialYearId, voucherType: dbVoucherType as any },
     });
     if (!config) {
       try {
@@ -148,7 +148,7 @@ export class JobService {
     const dbVoucherType = type === JobType.JOB_INCOME ? 'JOB_INCOME' : 'JOB_EXPENSE';
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: dbVoucherType as any },
+      where: { companyId, financialYearId, voucherType: dbVoucherType as any },
     });
     if (!config) {
       try {
