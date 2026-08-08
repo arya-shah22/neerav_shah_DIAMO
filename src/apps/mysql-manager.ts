@@ -24,7 +24,7 @@ export function getDatabaseConfigPath(): string {
 }
 
 export function getDatabaseDataDir(): string {
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDev = !app.isPackaged;
   const baseDir = isDev ? process.cwd() : app.getPath('userData');
   const dir = path.join(baseDir, 'Database');
   if (!fs.existsSync(dir)) {
@@ -35,7 +35,7 @@ export function getDatabaseDataDir(): string {
 
 export function loadDatabaseConfig(): IDatabaseConfig {
   const configPath = getDatabaseConfigPath();
-  const isDev = process.env.NODE_ENV !== 'production';
+  const isDev = !app.isPackaged;
 
   const defaultConfig: IDatabaseConfig = {
     role: 'HOST',

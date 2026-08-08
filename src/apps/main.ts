@@ -57,7 +57,7 @@ import { startHostDiscoveryBeacon, stopLanDiscovery } from './lan-discovery';
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
 
-const isDev = process.env.NODE_ENV !== 'production';
+const isDev = !app.isPackaged;
 const VITE_DEV_SERVER_URL = 'http://localhost:5173';
 
 import { autoUpdater } from 'electron-updater';
