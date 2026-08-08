@@ -51,6 +51,8 @@ import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { registerIpcHandlers } from './ipc-handlers';
+import { loadDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
+import { startHostDiscoveryBeacon, stopLanDiscovery } from './lan-discovery';
 
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
@@ -301,9 +303,6 @@ app.whenReady().then(async () => {
 
   // Start embedded MySQL (if in HOST mode) and LAN Discovery
   try {
-    const { loadDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString } = require('./mysql-manager');
-    const { startHostDiscoveryBeacon } = require('./lan-discovery');
-
     const dbConfig = loadDatabaseConfig();
     process.env.DATABASE_URL = getConnectionString(dbConfig);
 
@@ -360,8 +359,6 @@ app.on('window-all-closed', () => {
 // Hook app exit to run quick database snapshot and stop embedded DB/LAN services before quitting
 app.on('before-quit', async () => {
   try {
-    const { stopEmbeddedMySQL } = require('./mysql-manager');
-    const { stopLanDiscovery } = require('./lan-discovery');
     stopLanDiscovery();
     stopEmbeddedMySQL();
   } catch (_e) {}

@@ -1858,7 +1858,7 @@ model ModulePermission {
 /// User activity event tracking. Append-only.
 model ActivityLog {
   id          Int      @id @default(autoincrement()) @db.UnsignedInt
-  userId      Int      @map("user_id") @db.UnsignedInt
+  userId      Int?     @map("user_id") @db.UnsignedInt
   action      String   @db.VarChar(50)
   moduleCode  String?  @map("module_code") @db.VarChar(50)
   entityType  String?  @map("entity_type") @db.VarChar(50)
@@ -1868,7 +1868,7 @@ model ActivityLog {
   createdAt   DateTime @default(now()) @map("created_at") @db.DateTime(3)
 
   // Relations
-  user User @relation(fields: [userId], references: [id])
+  user User? @relation(fields: [userId], references: [id])
 
   @@index([userId, createdAt], map: "IX_activity_logs_user_date")
   @@index([entityType, entityId], map: "IX_activity_logs_entity")

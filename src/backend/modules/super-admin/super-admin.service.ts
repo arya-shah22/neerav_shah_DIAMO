@@ -859,8 +859,8 @@ export class SuperAdminService {
       ...filteredActivityLogs.map((l) => ({
         id: `act_${l.id}`,
         userId: l.userId,
-        userName: l.user.fullName,
-        username: l.user.userIdHandle,
+        userName: l.user?.fullName || 'System User',
+        username: l.user?.userIdHandle || 'system',
         action: l.action,
         moduleCode: l.moduleCode || 'SYSTEM',
         entityType: l.entityType,

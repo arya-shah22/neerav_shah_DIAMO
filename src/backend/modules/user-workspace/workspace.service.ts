@@ -28,21 +28,27 @@ export class UserWorkspaceService {
     });
 
     if (!ws) {
-      ws = await this.prisma.userWorkspace.create({
-        data: {
-          userId,
-          favoritePages: [],
-          quickActions: DEFAULT_QUICK_ACTIONS,
-          recentItems: [],
-        },
-      });
+      try {
+        ws = await this.prisma.userWorkspace.create({
+          data: {
+            userId,
+            favoritePages: [],
+            quickActions: DEFAULT_QUICK_ACTIONS,
+            recentItems: [],
+          },
+        });
+      } catch (_err) {
+        ws = await this.prisma.userWorkspace.findUnique({
+          where: { userId },
+        });
+      }
     }
 
     return {
       userId,
-      favoritePages: (ws.favoritePages as any) || [],
-      quickActions: (ws.quickActions as any) || DEFAULT_QUICK_ACTIONS,
-      recentItems: (ws.recentItems as any) || [],
+      favoritePages: (ws?.favoritePages as any) || [],
+      quickActions: (ws?.quickActions as any) || DEFAULT_QUICK_ACTIONS,
+      recentItems: (ws?.recentItems as any) || [],
     };
   }
 

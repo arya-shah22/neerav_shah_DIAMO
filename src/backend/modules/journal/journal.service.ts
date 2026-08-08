@@ -39,7 +39,7 @@ export class JournalService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: VoucherType.JOURNAL_VOUCHER },
+      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
     });
     if (!config) {
       try {
@@ -58,7 +58,7 @@ export class JournalService {
         });
       } catch {
         config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, voucherType: VoucherType.JOURNAL_VOUCHER },
+          where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
         });
       }
     }
@@ -103,27 +103,37 @@ export class JournalService {
     }
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: VoucherType.JOURNAL_VOUCHER },
+      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
     });
     if (!config) {
-      config = await this.prisma.voucherNumberConfig.create({
-        data: {
-          companyId,
-          financialYearId,
-          voucherType: VoucherType.JOURNAL_VOUCHER,
-          method: 'AUTOMATIC',
-          separator: '-',
-          digitLength: 6,
-          includeYear: true,
-          includeMonth: false,
-          resetAnnually: true,
-        },
-      });
+      try {
+        config = await this.prisma.voucherNumberConfig.create({
+          data: {
+            companyId,
+            financialYearId,
+            voucherType: VoucherType.JOURNAL_VOUCHER,
+            method: 'AUTOMATIC',
+            separator: '-',
+            digitLength: 6,
+            includeYear: true,
+            includeMonth: false,
+            resetAnnually: true,
+          },
+        });
+      } catch {
+        config = await this.prisma.voucherNumberConfig.findFirst({
+          where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
+        });
+      }
     }
 
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
       where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
     });
+
+    if (!config) {
+      throw new BadRequestException('Voucher configuration not found');
+    }
 
     const nextNum = (sequence?.currentNumber || 0) + 1;
 

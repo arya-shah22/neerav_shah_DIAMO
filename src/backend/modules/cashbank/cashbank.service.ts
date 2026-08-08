@@ -461,7 +461,7 @@ export class CashBankService {
     const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: vType },
+      where: { companyId, financialYearId, voucherType: vType },
     });
     if (!config) {
       try {
@@ -480,7 +480,7 @@ export class CashBankService {
         });
       } catch {
         config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, voucherType: vType },
+          where: { companyId, financialYearId, voucherType: vType },
         });
       }
     }
@@ -530,27 +530,37 @@ export class CashBankService {
     const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
 
     let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: vType },
+      where: { companyId, financialYearId, voucherType: vType },
     });
     if (!config) {
-      config = await this.prisma.voucherNumberConfig.create({
-        data: {
-          companyId,
-          financialYearId,
-          voucherType: vType,
-          method: 'AUTOMATIC',
-          separator: '-',
-          digitLength: 6,
-          includeYear: true,
-          includeMonth: false,
-          resetAnnually: true,
-        },
-      });
+      try {
+        config = await this.prisma.voucherNumberConfig.create({
+          data: {
+            companyId,
+            financialYearId,
+            voucherType: vType,
+            method: 'AUTOMATIC',
+            separator: '-',
+            digitLength: 6,
+            includeYear: true,
+            includeMonth: false,
+            resetAnnually: true,
+          },
+        });
+      } catch {
+        config = await this.prisma.voucherNumberConfig.findFirst({
+          where: { companyId, financialYearId, voucherType: vType },
+        });
+      }
     }
 
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
       where: { companyId, financialYearId, voucherType: vType },
     });
+
+    if (!config) {
+      throw new BadRequestException('Voucher configuration not found');
+    }
 
     const nextNum = (sequence?.currentNumber || 0) + 1;
 
