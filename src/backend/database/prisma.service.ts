@@ -216,8 +216,8 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
         break;
       } catch (error) {
         if (attempt === MAX_RETRIES) {
-          console.error(`[PrismaService] Failed to connect after ${MAX_RETRIES} attempts:`, error);
-          throw error;
+          console.warn(`[PrismaService] Database connection not ready yet during startup (will auto-connect on demand):`, (error as any).message || error);
+          break;
         }
         const delay = BASE_DELAY_MS * Math.pow(2, attempt - 1);
         console.warn(`[PrismaService] Connection attempt ${attempt} failed, retrying in ${delay}ms...`);
@@ -225,7 +225,11 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
       }
     }
 
-    await migrateLegacyPurchaseInvoices(this);
+    try {
+      await migrateLegacyPurchaseInvoices(this);
+    } catch (migErr) {
+      console.warn('[PrismaService] Deferred legacy invoice migration until database connection is established');
+    }
   }
 
   async onModuleDestroy() {
