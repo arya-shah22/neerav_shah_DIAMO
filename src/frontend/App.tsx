@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React from 'react';
-import { BrowserRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
+import { HashRouter, Routes, Route, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { AppShell } from './components/layout/AppShell';
 import { ErrorBoundary } from './components/feedback/ErrorBoundary';
 import { LoadingOverlay } from './components/feedback/LoadingOverlay';
@@ -117,7 +117,7 @@ const App: React.FC = () => {
     <ErrorBoundary>
       <ToastProvider>
         <InitialSetupWizard isOpen={showWizard} onComplete={() => setShowWizard(false)} />
-        <BrowserRouter>
+        <HashRouter>
           <Routes>
             <Route element={<GuestRoutes />}>
               <Route path="/login" element={<LoginPage />} />
@@ -267,7 +267,7 @@ const App: React.FC = () => {
 
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
-        </BrowserRouter>
+        </HashRouter>
       </ToastProvider>
     </ErrorBoundary>
   );

@@ -59,6 +59,40 @@ function ipcHandle(
   });
 }
 
+/**
+ * Handlers the first-run setup wizard needs before the NestJS context exists.
+ * Registered ahead of window creation: the renderer calls db:get-config on mount,
+ * which lands several seconds before the Nest bootstrap finishes.
+ */
+export function registerSetupIpcHandlers(ipcMain: IpcMain): void {
+  // ─── Database Configuration & LAN Discovery ────────────
+  ipcMain.handle('db:get-config', async () => ({
+    success: true,
+    data: loadDatabaseConfig(),
+  }));
+
+  ipcMain.handle('db:save-config', async (_event, config: IDatabaseConfig) => {
+    saveDatabaseConfig(config);
+    return { success: true, message: 'Database configuration saved successfully' };
+  });
+
+  ipcMain.handle('db:discover-host', async () => {
+    const hostsList = await discoverHostsOnLan(3000);
+    return {
+      success: hostsList.length > 0,
+      data: hostsList,
+    };
+  });
+
+  // Restart so the new configuration is picked up by the whole startup chain
+  // (DATABASE_URL resolution → embedded MySQL → NestJS bootstrap).
+  ipcMain.handle('app:relaunch', async () => {
+    app.relaunch();
+    app.exit(0);
+    return { success: true };
+  });
+}
+
 export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationContext): void {
   const prismaService = nestApp.get(PrismaService);
   const authController = nestApp.get(AuthController);
@@ -107,25 +141,6 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   ipcHandle(ipcMain, 'workspace:get', (payload) => userWorkspaceController.handleGetWorkspace(payload));
   ipcHandle(ipcMain, 'workspace:update', (payload) => userWorkspaceController.handleUpdateWorkspace(payload));
   ipcHandle(ipcMain, 'workspace:log-recent', (payload) => userWorkspaceController.handleLogRecentPage(payload));
-
-  // ─── Database Configuration & LAN Discovery ────────────
-  ipcMain.handle('db:get-config', async () => ({
-    success: true,
-    data: loadDatabaseConfig(),
-  }));
-
-  ipcMain.handle('db:save-config', async (_event, config: IDatabaseConfig) => {
-    saveDatabaseConfig(config);
-    return { success: true, message: 'Database configuration saved successfully' };
-  });
-
-  ipcMain.handle('db:discover-host', async () => {
-    const hostsList = await discoverHostsOnLan(3000);
-    return {
-      success: hostsList.length > 0,
-      data: hostsList,
-    };
-  });
 
   // ─── System ──────────────────────────────────────────────
   ipcMain.handle('system:ping', async () => ({

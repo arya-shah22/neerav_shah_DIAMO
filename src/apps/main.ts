@@ -50,7 +50,7 @@ if (!process.env.DATABASE_URL) {
 import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
-import { registerIpcHandlers } from './ipc-handlers';
+import { registerIpcHandlers, registerSetupIpcHandlers } from './ipc-handlers';
 import { loadDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
 import { startHostDiscoveryBeacon, stopLanDiscovery } from './lan-discovery';
 
@@ -314,7 +314,8 @@ app.whenReady().then(async () => {
     console.error('[Main] Embedded DB / LAN discovery initialization error:', dbInitErr);
   }
 
-  // 1. Create main window immediately so app launches instantly
+  // 1. Create main window immediately so app launches instantly.
+  registerSetupIpcHandlers(ipcMain);
   createWindow();
 
   // 2. Initialize NestJS backend modules context safely

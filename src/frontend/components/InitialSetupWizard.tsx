@@ -59,6 +59,8 @@ export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, 
           hostIp: role === 'HOST' ? '127.0.0.1' : hostIp,
         };
         await window.api.invoke('db:save-config', newConfig);
+        await window.api.invoke('app:relaunch');
+        return;
       }
       onComplete();
     } catch (err) {
