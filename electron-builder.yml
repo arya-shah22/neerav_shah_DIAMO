@@ -19,10 +19,6 @@ files:
   - package.json
 
 extraResources:
-  - from: "node_modules/.prisma"
-    to: "node_modules/.prisma"
-  - from: "node_modules/@prisma"
-    to: "node_modules/@prisma"
   - from: "resources/bin"
     to: "bin"
 
