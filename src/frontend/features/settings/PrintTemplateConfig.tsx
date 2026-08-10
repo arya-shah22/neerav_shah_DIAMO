@@ -32,8 +32,8 @@ const PRINT_DOC_TYPES: PrintDocType[] = [
   { type: 'MEMO_JOB_WORK', label: 'Memo — Job Work Issue' },
   { type: 'MEMO_SALE_ORDER', label: 'Memo — Sale Order' },
   { type: 'MEMO_PURCHASE_ORDER', label: 'Memo — Purchase Order' },
-  { type: 'JOB_INCOME', label: 'Job Book Income' },
-  { type: 'JOB_EXPENSE', label: 'Job Book Expense' },
+  { type: 'JOB_INCOME', label: 'Job Work Billing — Client Copy' },
+  { type: 'JOB_EXPENSE', label: 'Job Work Billing — Manufacturer Copy' },
   { type: 'CASH_PAYMENT', label: 'Cash Payment' },
   { type: 'CASH_RECEIPT', label: 'Cash Receipt' },
   { type: 'BANK_PAYMENT', label: 'Bank Payment' },
@@ -912,7 +912,7 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
                     {config.party.showBillingAddress && (
                       <div style={{ border: '1px solid #cbd5e1', padding: isCompact ? '3px 5px' : '6px', borderRadius: '4px' }}>
                         <h3 style={{ margin: '0 0 1px', fontSize: isCompact ? '0.7em' : '0.8em', color: '#64748b', textTransform: 'uppercase', fontWeight: 700 }}>
-                          {selectedDocType === 'LOAN_VOUCHER' ? 'PARTY / CLIENT' : 'Billed To'}
+                          {selectedDocType === 'LOAN_VOUCHER' ? 'PARTY / CLIENT' : selectedDocType === 'JOB_EXPENSE' ? 'Issued To (Subcontractor / Manufacturer)' : 'Billed To'}
                         </h3>
                         <div style={{ fontWeight: 700, fontSize: isCompact ? '0.85em' : '0.95em' }}>Ajay Shah</div>
                         {config.party.showPartyGstin && <div style={{ fontSize: '0.75em', color: '#334155' }}>GSTIN: 24BBBBB0000B1Z5</div>}

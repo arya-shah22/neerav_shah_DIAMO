@@ -63,6 +63,7 @@ export const JobWorkBillingPage: React.FC = () => {
 
   // DIAMO Standard Print Template State
   const [printData, setPrintData] = useState<any | null>(null);
+  const [printConfig, setPrintConfig] = useState<any | null>(null);
 
   // Fetch register
   const fetchTickets = useCallback(async () => {
@@ -272,7 +273,19 @@ export const JobWorkBillingPage: React.FC = () => {
   };
 
   // Open Standard DIAMO Print Preview Modal for Client Invoice (Billed to Arya Shah)
-  const handlePrintClientBill = (ticket: IJobWorkTicket) => {
+  const handlePrintClientBill = async (ticket: IJobWorkTicket) => {
+    if (companyId) {
+      try {
+        const res = await invokeIpc<any>('print:get-template-config', { companyId, voucherType: 'JOB_INCOME' });
+        if (res?.success && res?.data) {
+          setPrintConfig(res.data);
+        } else {
+          setPrintConfig(null);
+        }
+      } catch (e) {
+        setPrintConfig(null);
+      }
+    }
     const isCompleted = ticket.outwardPolishedCarats !== null;
     let itemDesc = `${ticket.serviceType}`;
     if (isCompleted) {
@@ -282,7 +295,7 @@ export const JobWorkBillingPage: React.FC = () => {
     }
 
     setPrintData({
-      invoiceType: 'JOB WORK INVOICE',
+      invoiceType: 'JOB WORK BILLING INVOICE (CLIENT COPY)',
       voucherNumber: ticket.ticketNumber,
       voucherDate: ticket.issueDate,
       party: {
@@ -306,7 +319,19 @@ export const JobWorkBillingPage: React.FC = () => {
   };
 
   // Open Standard DIAMO Print Preview Modal for Subcontractor Slip (Issued to Jainee Jobwork)
-  const handlePrintVendorSlip = (ticket: IJobWorkTicket) => {
+  const handlePrintVendorSlip = async (ticket: IJobWorkTicket) => {
+    if (companyId) {
+      try {
+        const res = await invokeIpc<any>('print:get-template-config', { companyId, voucherType: 'JOB_EXPENSE' });
+        if (res?.success && res?.data) {
+          setPrintConfig(res.data);
+        } else {
+          setPrintConfig(null);
+        }
+      } catch (e) {
+        setPrintConfig(null);
+      }
+    }
     const isCompleted = ticket.outwardPolishedCarats !== null;
     let itemDesc = `${ticket.serviceType}`;
     if (isCompleted) {
@@ -316,7 +341,7 @@ export const JobWorkBillingPage: React.FC = () => {
     }
 
     setPrintData({
-      invoiceType: 'SUBCONTRACTOR WORK ORDER',
+      invoiceType: 'JOB WORK ORDER (MANUFACTURER / SUBCONTRACTOR COPY)',
       voucherNumber: ticket.ticketNumber,
       voucherDate: ticket.issueDate,
       party: {
@@ -701,7 +726,11 @@ export const JobWorkBillingPage: React.FC = () => {
         <PrintTemplate
           type="INVOICE"
           data={printData}
-          onClose={() => setPrintData(null)}
+          layoutConfig={printConfig}
+          onClose={() => {
+            setPrintData(null);
+            setPrintConfig(null);
+          }}
         />
       )}
 
