@@ -95,30 +95,28 @@ export class LoanService {
       throw new BadRequestException('Company or Financial Year not found');
     }
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.LOAN_VOUCHER },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: VoucherType.LOAN_VOUCHER,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: VoucherType.LOAN_VOUCHER,
+        method: 'AUTOMATIC',
+        prefix: 'LN',
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        includeMonth: false,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: VoucherType.LOAN_VOUCHER,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            includeMonth: false,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, voucherType: VoucherType.LOAN_VOUCHER },
-        });
-      }
-    }
 
     if (!config) {
       throw new BadRequestException('Voucher configuration not found');
@@ -159,30 +157,28 @@ export class LoanService {
       throw new BadRequestException('Company or Financial Year not found');
     }
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.LOAN_VOUCHER },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: VoucherType.LOAN_VOUCHER,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: VoucherType.LOAN_VOUCHER,
+        method: 'AUTOMATIC',
+        prefix: 'LN',
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        includeMonth: false,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: VoucherType.LOAN_VOUCHER,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            includeMonth: false,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, voucherType: VoucherType.LOAN_VOUCHER },
-        });
-      }
-    }
 
     if (!config) {
       throw new BadRequestException('Voucher configuration not found');
@@ -252,29 +248,27 @@ export class LoanService {
       (isCash ? VoucherType.CASH_RECEIPT : VoucherType.BANK_RECEIPT) : 
       (isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT);
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: vType },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: vType,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: vType,
+        method: 'AUTOMATIC',
+        prefix: typeLabel,
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: vType,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, financialYearId, voucherType: vType },
-        });
-      }
-    }
 
     if (!config) {
       throw new BadRequestException('Voucher configuration not found');

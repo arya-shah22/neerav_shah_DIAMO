@@ -460,30 +460,28 @@ export class CashBankService {
     const isCash = type === CashBankType.CASH_PAYMENT || type === CashBankType.CASH_RECEIPT;
     const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: vType },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: vType,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: vType,
+        method: 'AUTOMATIC',
+        prefix: isCash ? 'CP' : 'BP',
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        includeMonth: false,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: vType,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            includeMonth: false,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, financialYearId, voucherType: vType },
-        });
-      }
-    }
 
     if (!config) {
       throw new BadRequestException('Voucher configuration not found');
@@ -529,30 +527,28 @@ export class CashBankService {
     const isCash = transactionType === CashBankType.CASH_PAYMENT || transactionType === CashBankType.CASH_RECEIPT;
     const vType = isCash ? VoucherType.CASH_PAYMENT : VoucherType.BANK_PAYMENT;
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: vType },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: vType,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: vType,
+        method: 'AUTOMATIC',
+        prefix: isCash ? 'CP' : 'BP',
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        includeMonth: false,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: vType,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            includeMonth: false,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, financialYearId, voucherType: vType },
-        });
-      }
-    }
 
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
       where: { companyId, financialYearId, voucherType: vType },

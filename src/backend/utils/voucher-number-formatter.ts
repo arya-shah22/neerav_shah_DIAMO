@@ -47,32 +47,27 @@ export async function getOrInitializeVoucherConfig(
   voucherType: VoucherType,
   defaultPrefix: string,
 ) {
-  let config = await prisma.voucherNumberConfig.findFirst({
-    where: { companyId, financialYearId, voucherType },
+  return await prisma.voucherNumberConfig.upsert({
+    where: {
+      companyId_financialYearId_voucherType: {
+        companyId,
+        financialYearId,
+        voucherType,
+      },
+    },
+    update: {},
+    create: {
+      companyId,
+      financialYearId,
+      voucherType,
+      method: 'AUTOMATIC',
+      prefix: defaultPrefix,
+      separator: '-',
+      suffix: '',
+      digitLength: 6,
+      includeYear: true,
+      includeMonth: false,
+      resetAnnually: true,
+    },
   });
-
-  if (!config) {
-    try {
-      config = await prisma.voucherNumberConfig.create({
-        data: {
-          companyId,
-          financialYearId,
-          voucherType,
-          method: 'AUTOMATIC',
-          prefix: defaultPrefix,
-          separator: '-',
-          suffix: '',
-          digitLength: 6,
-          includeYear: true,
-          includeMonth: false,
-          resetAnnually: true,
-        },
-      });
-    } catch {
-      config = await prisma.voucherNumberConfig.findFirst({
-        where: { companyId, financialYearId, voucherType },
-      });
-    }
-  }
-  return config;
 }

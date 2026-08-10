@@ -38,30 +38,28 @@ export class JournalService {
       throw new BadRequestException('Company or Financial Year not found');
     }
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: VoucherType.JOURNAL_VOUCHER,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: VoucherType.JOURNAL_VOUCHER,
+        method: 'AUTOMATIC',
+        prefix: 'JV',
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        includeMonth: false,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: VoucherType.JOURNAL_VOUCHER,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            includeMonth: false,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
-        });
-      }
-    }
 
     if (!config) {
       throw new BadRequestException('Voucher configuration not found');
@@ -102,30 +100,28 @@ export class JournalService {
       throw new BadRequestException('Company or Financial Year not found');
     }
 
-    let config = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
+    const config = await this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
+          financialYearId,
+          voucherType: VoucherType.JOURNAL_VOUCHER,
+        },
+      },
+      update: {},
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: VoucherType.JOURNAL_VOUCHER,
+        method: 'AUTOMATIC',
+        prefix: 'JV',
+        separator: '-',
+        digitLength: 6,
+        includeYear: true,
+        includeMonth: false,
+        resetAnnually: true,
+      },
     });
-    if (!config) {
-      try {
-        config = await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: VoucherType.JOURNAL_VOUCHER,
-            method: 'AUTOMATIC',
-            separator: '-',
-            digitLength: 6,
-            includeYear: true,
-            includeMonth: false,
-            resetAnnually: true,
-          },
-        });
-      } catch {
-        config = await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },
-        });
-      }
-    }
 
     const sequence = await this.prisma.voucherNumberSequence.findFirst({
       where: { companyId, financialYearId, voucherType: VoucherType.JOURNAL_VOUCHER },

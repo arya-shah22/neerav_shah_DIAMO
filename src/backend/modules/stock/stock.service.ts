@@ -195,40 +195,30 @@ export class StockService {
   }
 
   async saveStockIdConfig(companyId: number, financialYearId: number, data: { prefix: string; separator: string; includeYear: boolean; sequenceLength: number }) {
-    const existing = await this.prisma.voucherNumberConfig.findFirst({
-      where: { companyId, voucherType: 'STOCK_ENTRY' },
-    });
-
-    if (existing) {
-      return this.prisma.voucherNumberConfig.update({
-        where: { id: existing.id },
-        data: {
-          prefix: data.prefix,
-          separator: data.separator,
-          includeYear: data.includeYear,
-          digitLength: data.sequenceLength,
+    return this.prisma.voucherNumberConfig.upsert({
+      where: {
+        companyId_financialYearId_voucherType: {
+          companyId,
           financialYearId,
+          voucherType: 'STOCK_ENTRY' as any,
         },
-      });
-    } else {
-      try {
-        return await this.prisma.voucherNumberConfig.create({
-          data: {
-            companyId,
-            financialYearId,
-            voucherType: 'STOCK_ENTRY',
-            prefix: data.prefix,
-            separator: data.separator,
-            includeYear: data.includeYear,
-            digitLength: data.sequenceLength,
-          },
-        });
-      } catch {
-        return await this.prisma.voucherNumberConfig.findFirst({
-          where: { companyId, financialYearId, voucherType: 'STOCK_ENTRY' as any },
-        });
-      }
-    }
+      },
+      update: {
+        prefix: data.prefix,
+        separator: data.separator,
+        includeYear: data.includeYear,
+        digitLength: data.sequenceLength,
+      },
+      create: {
+        companyId,
+        financialYearId,
+        voucherType: 'STOCK_ENTRY' as any,
+        prefix: data.prefix,
+        separator: data.separator,
+        includeYear: data.includeYear,
+        digitLength: data.sequenceLength,
+      },
+    });
   }
 
   async getAllVoucherConfigs(companyId: number, financialYearId: number) {
