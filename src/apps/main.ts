@@ -275,18 +275,35 @@ app.whenReady().then(async () => {
       const candidateDirs = [
         path.join(process.resourcesPath, 'app.asar.unpacked', 'node_modules', '.prisma', 'client'),
         path.join(process.resourcesPath, 'node_modules', '.prisma', 'client'),
+        path.join(process.resourcesPath, 'node_modules', '@prisma', 'client'),
       ];
 
       for (const dir of candidateDirs) {
         if (fs.existsSync(dir)) {
           const files = fs.readdirSync(dir);
           let engineFile: string | undefined;
+
           if (process.platform === 'win32') {
-            engineFile = files.find((f: string) => f.includes('query_engine') && (f.includes('windows') || f.endsWith('.dll') || f.endsWith('.dll.node')));
+            // Strictly match Windows query engine binaries (.dll / .dll.node) and ignore macOS/Linux binaries
+            engineFile = files.find((f: string) => 
+              f.includes('query_engine') && 
+              (f.includes('windows') || f.endsWith('.dll') || f.endsWith('.dll.node')) &&
+              !f.endsWith('.dylib') && !f.endsWith('.dylib.node') && !f.endsWith('.so') && !f.endsWith('.so.node')
+            );
           } else if (process.platform === 'darwin') {
-            engineFile = files.find((f: string) => f.includes('query_engine') && f.includes('darwin'));
+            // Strictly match macOS query engine binaries (.dylib / .dylib.node)
+            engineFile = files.find((f: string) => 
+              f.includes('query_engine') && 
+              (f.includes('darwin') || f.endsWith('.dylib') || f.endsWith('.dylib.node')) &&
+              !f.endsWith('.dll') && !f.endsWith('.dll.node') && !f.endsWith('.so') && !f.endsWith('.so.node')
+            );
           } else {
-            engineFile = files.find((f: string) => f.includes('query_engine') && (f.includes('linux') || f.includes('debian') || f.endsWith('.so') || f.endsWith('.so.node')));
+            // Strictly match Linux query engine binaries (.so / .so.node)
+            engineFile = files.find((f: string) => 
+              f.includes('query_engine') && 
+              (f.includes('linux') || f.includes('debian') || f.endsWith('.so') || f.endsWith('.so.node')) &&
+              !f.endsWith('.dll') && !f.endsWith('.dll.node') && !f.endsWith('.dylib') && !f.endsWith('.dylib.node')
+            );
           }
 
           if (engineFile) {

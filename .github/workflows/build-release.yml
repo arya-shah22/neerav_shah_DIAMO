@@ -64,17 +64,13 @@ jobs:
         env:
           DATABASE_URL: "mysql://root:password@127.0.0.1:3306/diamo_test"
 
-  build:
-    name: Build & Package (${{ matrix.os }})
+  build-windows:
+    name: Build & Package Windows (.exe)
     needs: test
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows-latest, macos-latest]
+    runs-on: windows-latest
 
     steps:
-      - name: Checkout Repository
+      - name: Checkout Repository (Fresh Isolated Environment)
         uses: actions/checkout@v4
 
       - name: Setup Node.js Environment
@@ -86,7 +82,7 @@ jobs:
       - name: Install Dependencies
         run: npm ci
 
-      - name: Generate Prisma Engine & Client
+      - name: Generate Native Windows Prisma Engine & Client
         run: npx prisma generate
         env:
           DATABASE_URL: "mysql://root:password@localhost:3306/diamo_db"
@@ -97,7 +93,6 @@ jobs:
           DATABASE_URL: "mysql://root:password@localhost:3306/diamo_db"
 
       - name: Bundle Portable MySQL Engine for Windows Installer
-        if: matrix.os == 'windows-latest'
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path "resources/bin/mysql"
@@ -107,7 +102,40 @@ jobs:
             Copy-Item "C:\Program Files\MySQL\MySQL Server 8.4\bin\mysqld.exe" "resources/bin/mysql/mysqld.exe" -Force
           }
 
-      - name: Publish & Create Release Installers (.exe / .dmg)
-        run: npx electron-builder --publish always
+      - name: Publish & Create Windows Release Installers (.exe)
+        run: npx electron-builder --win nsis portable --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  build-mac:
+    name: Build & Package macOS (.dmg)
+    needs: test
+    runs-on: macos-latest
+
+    steps:
+      - name: Checkout Repository (Fresh Isolated Environment)
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm ci
+
+      - name: Generate Native macOS Prisma Engine & Client
+        run: npx prisma generate
+        env:
+          DATABASE_URL: "mysql://root:password@localhost:3306/diamo_db"
+
+      - name: Build & Obfuscate Bundle
+        run: npm run build:vite
+        env:
+          DATABASE_URL: "mysql://root:password@localhost:3306/diamo_db"
+
+      - name: Publish & Create macOS Release Installers (.dmg)
+        run: npx electron-builder --mac dmg zip --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
