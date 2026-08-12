@@ -19,6 +19,22 @@ files:
   - package.json
 
 extraResources:
+  # The GENERATED Prisma client (node_modules/.prisma) is not an npm package, so
+  # electron-builder drops it when it builds node_modules from the dependency
+  # tree — the `node_modules/.prisma/**/*` entry under `files:` does not save it.
+  # Without this, @prisma/client/default.js throws
+  # "Cannot find module '.prisma/client/default'" and the app dies on launch.
+  # Copying it here works because Node resolves upward from resources/app.asar/
+  # into resources/node_modules/. Per-platform engine selection is handled in
+  # main.ts, which matches the query engine strictly by file extension.
+  - from: "node_modules/.prisma"
+    to: "node_modules/.prisma"
+  - from: "node_modules/@prisma"
+    to: "node_modules/@prisma"
+  # Full DDL applied on first run when the database is empty (see db-bootstrap.ts).
+  # Regenerate with `npm run db:gen-sql` whenever schema.prisma changes.
+  - from: "prisma/schema.sql"
+    to: "schema.sql"
   - from: "resources/bin"
     to: "bin"
 

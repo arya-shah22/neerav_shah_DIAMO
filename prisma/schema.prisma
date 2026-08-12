@@ -1508,7 +1508,10 @@ model StockPacket {
   @@unique([companyId, stockIdNumber], map: "UQ_stock_packets_id_number")
   @@unique([companyId, certificateNumber], map: "UQ_stock_packets_company_cert_number")
   @@index([companyId, currentStatus], map: "IX_stock_packets_status")
-  @@index([companyId, shape, color, clarity], map: "IX_stock_packets_physical")
+  // Prefix lengths keep this composite index within InnoDB's key-length limit.
+  // Without them the four full VARCHAR(255) utf8mb4 columns total ~3064 bytes,
+  // which MySQL 9.x / MariaDB reject (error 1071), leaving the schema half-built.
+  @@index([companyId, shape(length: 50), color(length: 50), clarity(length: 30)], map: "IX_stock_packets_physical")
   @@index([companyId, caratWeight], map: "IX_stock_packets_weight")
   @@index([companyId, qualityId], map: "IX_stock_packets_quality")
   @@index([sourcePacketId], map: "IX_stock_packets_source")
@@ -1721,7 +1724,9 @@ model User {
   userIdHandle         String     @unique @map("user_id_handle") @db.VarChar(50)
   passwordHash         String     @map("password_hash") @db.VarChar(255)
   fullName             String     @map("full_name") @db.VarChar(150)
-  email                String     @unique @db.VarChar(255)
+  // length: 250 caps the unique index at 1000 bytes (utf8mb4) so MySQL 9.x / MariaDB
+  // accept it; the column itself stays VARCHAR(255). See IX_stock_packets_physical.
+  email                String     @unique(length: 250) @db.VarChar(255)
   mobile               String?    @db.VarChar(20)
   designation          String?    @db.VarChar(100)
   profilePicturePath   String?    @map("profile_picture_path") @db.VarChar(500)
@@ -1782,7 +1787,7 @@ model UserCompanyAccess {
 model UserSession {
   id             Int       @id @default(autoincrement()) @db.UnsignedInt
   userId         Int       @map("user_id") @db.UnsignedInt
-  sessionToken   String    @unique @map("session_token") @db.VarChar(255)
+  sessionToken   String    @unique(length: 250) @map("session_token") @db.VarChar(255)
   hostname       String?   @db.VarChar(100)
   ipAddress      String?   @map("ip_address") @db.VarChar(45)
   loginAt        DateTime  @default(now()) @map("login_at") @db.DateTime(3)

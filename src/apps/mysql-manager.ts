@@ -2,6 +2,7 @@
 // DIAMO ERP — Embedded Portable Database Manager
 // ═══════════════════════════════════════════════════════════════
 import fs from 'fs';
+import net from 'net';
 import path from 'path';
 import { app } from 'electron';
 import { spawn, ChildProcess } from 'child_process';
@@ -83,6 +84,68 @@ export function getConnectionString(config: IDatabaseConfig): string {
   return `mysql://${userPass}@localhost/${config.dbName}?socket=/tmp/mysql_diamo.sock`;
 }
 
+/** Resolve a single-`*` path pattern against the filesystem (e.g. wamp64/bin/mysql/*\/bin/mysqld.exe). */
+function expandGlob(pattern: string): string[] {
+  const star = pattern.indexOf('*');
+  if (star === -1) return fs.existsSync(pattern) ? [pattern] : [];
+
+  const sep = process.platform === 'win32' ? '\\' : '/';
+  const parent = pattern.slice(0, pattern.lastIndexOf(sep, star));
+  const rest = pattern.slice(pattern.indexOf(sep, star) + 1);
+  try {
+    return fs
+      .readdirSync(parent)
+      .map((entry) => path.join(parent, entry, rest))
+      .filter((candidate) => fs.existsSync(candidate));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Locate a mysqld binary: the bundled copy first, then common system installs.
+ * Version directories are globbed rather than hardcoded — pinning exact versions
+ * (e.g. mysql8.0.36) misses real installs such as WAMP's mysql9.1.0.
+ */
+export function findMysqldBinary(): string | null {
+  const exe = process.platform === 'win32' ? 'mysqld.exe' : 'mysqld';
+  const patterns = [
+    path.join(process.resourcesPath || '', 'bin', 'mysql', exe),
+    path.join(app.getAppPath(), 'resources', 'bin', 'mysql', exe),
+    ...(process.platform === 'win32'
+      ? [
+          `C:\\Program Files\\MySQL\\*\\bin\\${exe}`,
+          `C:\\Program Files\\MariaDB*\\bin\\${exe}`,
+          `C:\\xampp\\mysql\\bin\\${exe}`,
+          `C:\\wamp64\\bin\\mysql\\*\\bin\\${exe}`,
+          `C:\\wamp64\\bin\\mariadb\\*\\bin\\${exe}`,
+        ]
+      : ['/opt/homebrew/bin/mysqld', '/usr/local/bin/mysqld', '/usr/sbin/mysqld']),
+  ];
+
+  for (const pattern of patterns) {
+    const [found] = expandGlob(pattern);
+    if (found) return found;
+  }
+  return null;
+}
+
+/** Resolve true once something accepts a TCP connection on host:port. */
+function isPortOpen(host: string, port: number, timeoutMs = 1000): Promise<boolean> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    const done = (open: boolean) => {
+      socket.destroy();
+      resolve(open);
+    };
+    socket.setTimeout(timeoutMs);
+    socket.once('connect', () => done(true));
+    socket.once('timeout', () => done(false));
+    socket.once('error', () => done(false));
+    socket.connect(port, host);
+  });
+}
+
 export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promise<boolean> {
   if (config.role === 'CLIENT') {
     console.log('[MySQLManager] Running in CLIENT mode — relying on Host PC database at:', config.hostIp);
@@ -92,35 +155,21 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
   const dataDir = getDatabaseDataDir();
   console.log('[MySQLManager] Running in HOST mode — Database data folder at:', dataDir);
 
-  // Look for bundled or system mysqld binary
-  const possiblePaths = [
-    path.join(process.resourcesPath, 'bin', 'mysql', process.platform === 'win32' ? 'mysqld.exe' : 'mysqld'),
-    path.join(app.getAppPath(), 'resources', 'bin', 'mysql', process.platform === 'win32' ? 'mysqld.exe' : 'mysqld'),
-    '/opt/homebrew/bin/mysqld',
-    '/usr/local/bin/mysqld',
-    'C:\\Program Files\\MySQL\\MySQL Server 8.0\\bin\\mysqld.exe',
-    'C:\\Program Files\\MySQL\\MySQL Server 8.4\\bin\\mysqld.exe',
-    'C:\\Program Files\\MySQL\\MySQL Server 5.7\\bin\\mysqld.exe',
-    'C:\\Program Files\\MariaDB 10.5\\bin\\mysqld.exe',
-    'C:\\Program Files\\MariaDB 10.6\\bin\\mysqld.exe',
-    'C:\\Program Files\\MariaDB 10.11\\bin\\mysqld.exe',
-    'C:\\xampp\\mysql\\bin\\mysqld.exe',
-    'C:\\wamp64\\bin\\mysql\\mysql8.0.36\\bin\\mysqld.exe',
-    'C:\\wamp64\\bin\\mysql\\mysql5.7.36\\bin\\mysqld.exe',
-  ];
-
-  let mysqldBin: string | null = null;
-  for (const p of possiblePaths) {
-    if (fs.existsSync(p)) {
-      mysqldBin = p;
-      break;
-    }
-  }
-
-  if (!mysqldBin) {
-    console.log('[MySQLManager] mysqld binary not found in standard paths; using existing system database service');
+  // A server may already be listening (a MySQL/MariaDB Windows service, XAMPP or
+  // WAMP started by the user). Reuse it rather than spawning a second server that
+  // would only fail to bind the port.
+  if (await isPortOpen('127.0.0.1', config.hostPort)) {
+    console.log(`[MySQLManager] A database server is already listening on port ${config.hostPort} — reusing it`);
     return true;
   }
+
+  const mysqldBin = findMysqldBinary();
+
+  if (!mysqldBin) {
+    console.error('[MySQLManager] No mysqld binary found and nothing is listening on port', config.hostPort);
+    return false;
+  }
+  console.log('[MySQLManager] Using mysqld binary at:', mysqldBin);
 
   // Initialize data directory if empty
   try {
@@ -136,12 +185,16 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
 
   try {
     console.log('[MySQLManager] Launching embedded mysqld process from:', mysqldBin);
+    // NOTE: --skip-grant-tables must NOT be used here. MySQL 8 silently turns on
+    // --skip-networking alongside it, so the server comes up with "port: 0" and
+    // refuses every TCP connection — while we connect over TCP on 127.0.0.1.
+    // --initialize-insecure already creates root with an empty password, which is
+    // what the default connection string expects.
     const mysqldArgs = [
       `--datadir=${dataDir}`,
       `--port=${config.hostPort}`,
       '--mysqlx=OFF',
       '--bind-address=0.0.0.0',
-      '--skip-grant-tables',
     ];
 
     if (process.platform !== 'win32') {
@@ -162,9 +215,19 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
       mysqlProcess = null;
     });
 
-    // Brief delay to allow mysqld socket binding
-    await new Promise((resolve) => setTimeout(resolve, 1500));
-    return true;
+    // Poll until the server accepts connections. A fixed short delay is not
+    // enough: a freshly initialized data directory can take many seconds.
+    for (let attempt = 0; attempt < 60; attempt++) {
+      if (await isPortOpen('127.0.0.1', config.hostPort)) {
+        console.log(`[MySQLManager] mysqld is accepting connections on port ${config.hostPort}`);
+        return true;
+      }
+      if (!mysqlProcess) break; // process exited — stop waiting
+      await new Promise((resolve) => setTimeout(resolve, 500));
+    }
+
+    console.error(`[MySQLManager] mysqld did not start listening on port ${config.hostPort}`);
+    return false;
   } catch (err) {
     console.error('[MySQLManager] Failed to launch embedded mysqld:', err);
     return false;

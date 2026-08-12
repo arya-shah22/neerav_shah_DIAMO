@@ -52,6 +52,7 @@ import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { registerIpcHandlers, registerSetupIpcHandlers } from './ipc-handlers';
 import { loadDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
+import { ensureDatabaseReady } from './db-bootstrap';
 import { startHostDiscoveryBeacon, stopLanDiscovery } from './lan-discovery';
 
 // Keep a global reference to prevent garbage collection
@@ -319,21 +320,52 @@ app.whenReady().then(async () => {
   }
 
   // Start embedded MySQL (if in HOST mode) and LAN Discovery
+  let databaseReady = true;
+  let databaseBootstrapError: string | null = null;
   try {
     const dbConfig = loadDatabaseConfig();
     process.env.DATABASE_URL = getConnectionString(dbConfig);
 
     if (dbConfig.role === 'HOST' && dbConfig.isConfigured) {
-      await ensureEmbeddedMySQLRunning(dbConfig);
+      databaseReady = await ensureEmbeddedMySQLRunning(dbConfig);
+
+      // Create the database, apply the schema and seed the Super Admin on first
+      // run. HOST only — a CLIENT must not write schema to the shared database.
+      if (databaseReady) {
+        try {
+          await ensureDatabaseReady(process.env.DATABASE_URL as string);
+        } catch (bootstrapErr) {
+          console.error('[Main] Database bootstrap failed:', bootstrapErr);
+          databaseBootstrapError = (bootstrapErr as Error)?.message || String(bootstrapErr);
+        }
+      }
+
       startHostDiscoveryBeacon(dbConfig.hostPort);
     }
   } catch (dbInitErr) {
     console.error('[Main] Embedded DB / LAN discovery initialization error:', dbInitErr);
+    databaseReady = false;
   }
 
   // 1. Create main window immediately so app launches instantly.
   registerSetupIpcHandlers(ipcMain);
   createWindow();
+
+  // Tell the user plainly when no database server could be provided — otherwise
+  // they are left at a login screen that can never succeed.
+  if (!databaseReady) {
+    dialog.showErrorBox(
+      'DIAMO ERP – Database Not Available',
+      'DIAMO ERP could not start or reach a local MySQL database server.\n\n' +
+        'Install MySQL or MariaDB (or start your existing XAMPP/WAMP MySQL service), then reopen DIAMO ERP.\n\n' +
+        'Expected server: 127.0.0.1:3306'
+    );
+  } else if (databaseBootstrapError) {
+    dialog.showErrorBox(
+      'DIAMO ERP – Database Setup Failed',
+      `The database server is running, but DIAMO ERP could not prepare its database.\n\n${databaseBootstrapError}`
+    );
+  }
 
   // 2. Initialize NestJS backend modules context safely
   try {

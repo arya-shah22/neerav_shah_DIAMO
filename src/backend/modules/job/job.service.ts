@@ -544,6 +544,12 @@ export class JobService {
     });
     if (!voucher) throw new BadRequestException('Jobwork ticket not found');
 
+    // A completed ticket has already posted its GL entries and outstanding bills.
+    // Re-billing it would double the revenue, receivable and subcontractor payable.
+    if (voucher.status === VoucherStatus.POSTED) {
+      throw new BadRequestException('This jobwork ticket is already completed and billed. Cancel it to reverse the postings before re-billing.');
+    }
+
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     if (!company) throw new BadRequestException('Company not found');
 
@@ -605,6 +611,14 @@ export class JobService {
           netAmount: netClientTotal,
         },
       });
+
+      // Bill exactly once, when the ticket becomes fully completed. Earlier partial
+      // receipts only record the accumulated outward quantities above; posting the
+      // GL entries and outstanding bills on every partial receipt double-counts the
+      // revenue, receivable and subcontractor payable (all under one billNumber).
+      if (!isFullyCompleted) {
+        return updated;
+      }
 
       // 2. Post 4-Way Double-Entry General Ledger Entries (GL is ALWAYS in base company currency INR)
       const isUsd = currency === 'USD';

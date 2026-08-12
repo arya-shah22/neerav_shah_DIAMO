@@ -18,6 +18,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
+    "db:gen-sql": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/schema.sql",
     "db:reset": "prisma migrate reset --force",
     "typecheck": "tsc --noEmit",
     "verify:test-plan": "ts-node --project scripts/tsconfig.json scripts/verify-manual-test-plan.ts"
