@@ -805,10 +805,14 @@ export class CashBankService {
       });
 
       // 2. Post to Party Account (adjust full settlement amount: Cash + Note Adjustment offset)
-      const totalSettlementAmount = isCreditAdjustment 
-        ? amount + adjustedNoteAmount 
+      const totalSettlementAmount = isCreditAdjustment
+        ? amount + adjustedNoteAmount
         : amount - adjustedNoteAmount;
-      const totalSettlementAlt = (amountAlt || amount) + (adjustedNoteAmount * (exchangeRate || 1.0));
+      // Note offset must be posted in base INR, same as every other GL line. Compute
+      // it once and reuse it so the party credit and the offset debit cancel exactly
+      // (posting the raw transaction-currency value unbalances GL by note × (rate−1)).
+      const glAdjustedNote = Math.round(adjustedNoteAmount * (exchangeRate || 1.0) * 100) / 100;
+      const totalSettlementAlt = (amountAlt || amount) + glAdjustedNote;
 
       await tx.generalLedgerEntry.create({
         data: {
@@ -835,7 +839,10 @@ export class CashBankService {
             accountId: partyId,
             voucherDate,
             debitCreditType: isReceipt ? DebitCreditType.DEBIT : DebitCreditType.CREDIT,
-            amount: adjustedNoteAmount,
+            amount: glAdjustedNote,
+            originalCurrency: transactionCurrency || 'INR',
+            originalAmount: adjustedNoteAmount,
+            exchangeRate: exchangeRate || 1.0,
             sourceVoucherType: vType,
             sourceVoucherId: voucher.id,
             sourceBillNumber: voucherNumber,
