@@ -727,8 +727,14 @@ export class InvoiceService {
       else if (isPurchaseReturn) partyDebitCredit = DebitCreditType.DEBIT;
 
       // Compute INR normalized amounts for General Ledger entries (GL is always in INR)
-      const glNetAmount = transactionCurrency === 'USD' ? Math.round(netAmount * exchangeRate * 100) / 100 : netAmount;
-      const glTaxableTotal = transactionCurrency === 'USD' ? Math.round(taxableTotal * exchangeRate * 100) / 100 : taxableTotal;
+      const toGl = (v: number) => transactionCurrency === 'USD' ? Math.round(v * exchangeRate * 100) / 100 : v;
+      const glNetAmount = toGl(netAmount);
+      const glTaxableTotal = toGl(taxableTotal);
+      // Tax lines must be converted too — leaving them in transaction currency while
+      // the party/revenue lines are in INR unbalances the GL by tax × (rate − 1).
+      const glCgst = toGl(totalCgst);
+      const glSgst = toGl(totalSgst);
+      const glIgst = toGl(totalIgst);
 
       // Party Posting
       await tx.generalLedgerEntry.create({
@@ -786,7 +792,10 @@ export class InvoiceService {
             accountId: cgstLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: taxDebitCredit,
-            amount: totalCgst,
+            amount: glCgst,
+            originalCurrency: transactionCurrency,
+            originalAmount: totalCgst,
+            exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
             sourceBillNumber: billNumber,
@@ -803,7 +812,10 @@ export class InvoiceService {
             accountId: sgstLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: taxDebitCredit,
-            amount: totalSgst,
+            amount: glSgst,
+            originalCurrency: transactionCurrency,
+            originalAmount: totalSgst,
+            exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
             sourceBillNumber: billNumber,
@@ -820,7 +832,10 @@ export class InvoiceService {
             accountId: igstLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: taxDebitCredit,
-            amount: totalIgst,
+            amount: glIgst,
+            originalCurrency: transactionCurrency,
+            originalAmount: totalIgst,
+            exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
             sourceBillNumber: billNumber,
@@ -1127,6 +1142,17 @@ export class InvoiceService {
     const invoiceDate = new Date(data.invoiceDate);
     const creditDays = Number(data.creditDays) || 0;
     const dueDate = new Date(invoiceDate.getTime() + creditDays * 24 * 60 * 60 * 1000);
+    // GL must be posted in INR. Editing a USD invoice previously rewrote every GL
+    // line with raw USD magnitudes; carry the currency/rate through, defaulting to
+    // whatever the invoice was originally saved with.
+    const transactionCurrency: 'USD' | 'INR' =
+      (data.transactionCurrency === 'USD' || data.transactionCurrency === 'INR')
+        ? data.transactionCurrency
+        : (((existing as any).transactionCurrency === 'USD') ? 'USD' : 'INR');
+    const exchangeRate = Number(data.exchangeRate) > 0
+      ? Number(data.exchangeRate)
+      : (Number((existing as any).exchangeRate) > 0 ? Number((existing as any).exchangeRate) : 1);
+    const toGl = (v: number) => transactionCurrency === 'USD' ? Math.round(v * exchangeRate * 100) / 100 : v;
     const addPct = Number(data.addPct) || 0;
     const lessPct = Number(data.lessPct) || 0;
 
@@ -1596,7 +1622,10 @@ export class InvoiceService {
           accountId: partyId,
           voucherDate: invoiceDate,
           debitCreditType: partyDebitCredit,
-          amount: netAmount,
+          amount: toGl(netAmount),
+          originalCurrency: transactionCurrency,
+          originalAmount: netAmount,
+          exchangeRate: exchangeRate,
           sourceVoucherType: invoiceType as any,
           sourceVoucherId: id,
           sourceBillNumber: billNumber,
@@ -1617,7 +1646,10 @@ export class InvoiceService {
           accountId: salesOrPurchaseLedgerId,
           voucherDate: invoiceDate,
           debitCreditType: revenueDebitCredit,
-          amount: taxableTotal,
+          amount: toGl(taxableTotal),
+          originalCurrency: transactionCurrency,
+          originalAmount: taxableTotal,
+          exchangeRate: exchangeRate,
           sourceVoucherType: invoiceType as any,
           sourceVoucherId: id,
           sourceBillNumber: billNumber,
@@ -1636,7 +1668,8 @@ export class InvoiceService {
           data: {
             companyId, accountId: cgstLedgerId, voucherDate: invoiceDate,
             debitCreditType: taxDebitCredit,
-            amount: totalCgst, sourceVoucherType: invoiceType as any,
+            amount: toGl(totalCgst), originalCurrency: transactionCurrency, originalAmount: totalCgst, exchangeRate,
+            sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'CGST tax entry',
           },
         });
@@ -1646,7 +1679,8 @@ export class InvoiceService {
           data: {
             companyId, accountId: sgstLedgerId, voucherDate: invoiceDate,
             debitCreditType: taxDebitCredit,
-            amount: totalSgst, sourceVoucherType: invoiceType as any,
+            amount: toGl(totalSgst), originalCurrency: transactionCurrency, originalAmount: totalSgst, exchangeRate,
+            sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'SGST tax entry',
           },
         });
@@ -1656,7 +1690,8 @@ export class InvoiceService {
           data: {
             companyId, accountId: igstLedgerId, voucherDate: invoiceDate,
             debitCreditType: taxDebitCredit,
-            amount: totalIgst, sourceVoucherType: invoiceType as any,
+            amount: toGl(totalIgst), originalCurrency: transactionCurrency, originalAmount: totalIgst, exchangeRate,
+            sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'IGST tax entry',
           },
         });
