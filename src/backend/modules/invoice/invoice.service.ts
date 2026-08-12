@@ -893,17 +893,21 @@ export class InvoiceService {
 
           if (packet) {
             const isSale = invoiceType === 'SALE_INVOICE';
+            // A purchase return ships stock back to the supplier, so it reduces the
+            // packet just like a sale. Previously only SALE_INVOICE was treated as
+            // outward, so PURCHASE_RETURN wrongly *increased* the carat weight.
+            const isStockOutward = invoiceType === 'SALE_INVOICE' || invoiceType === 'PURCHASE_RETURN';
             const itemCarats = Number(item.carats);
             const currentCarats = Number(packet.caratWeight || 0);
 
-            // Bug #11 fix: Validate against overselling
-            if (isSale && itemCarats > currentCarats + 0.0001) {
+            // Validate against removing more than is on hand
+            if (isStockOutward && itemCarats > currentCarats + 0.0001) {
               throw new BadRequestException(
-                `Cannot sell ${itemCarats.toFixed(3)} Cts from packet ${packet.stockIdNumber} — only ${currentCarats.toFixed(3)} Cts available`
+                `Cannot remove ${itemCarats.toFixed(3)} Cts from packet ${packet.stockIdNumber} — only ${currentCarats.toFixed(3)} Cts available`
               );
             }
 
-            const remainingCarats = isSale ? Math.max(0, currentCarats - itemCarats) : currentCarats + itemCarats;
+            const remainingCarats = isStockOutward ? Math.max(0, currentCarats - itemCarats) : currentCarats + itemCarats;
             const newStatus = isSale
               ? (remainingCarats <= 0.0001 ? StockStatus.SOLD : StockStatus.AVAILABLE)
               : (invoiceType === 'SALE_RETURN'
@@ -1754,7 +1758,8 @@ export class InvoiceService {
             const isSale = invoiceType === 'SALE_INVOICE';
             const currentCarats = Number(packet.caratWeight || 0);
             const itemCarats = Number(item.carats || 0);
-            const remainingCarats = isSale
+            // Purchase returns are outward too — decrement, don't add (see create()).
+            const remainingCarats = hasStockOutward
               ? Math.max(0, currentCarats - itemCarats)
               : currentCarats + itemCarats;
 
