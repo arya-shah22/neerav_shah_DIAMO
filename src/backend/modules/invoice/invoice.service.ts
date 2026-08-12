@@ -853,14 +853,22 @@ export class InvoiceService {
           'Indirect Expenses',
           'Expense',
         );
-        const roundOffDc: DebitCreditType = roundOff > 0 ? DebitCreditType.CREDIT : DebitCreditType.DEBIT;
+        // Round-off balances the (rounded) party line against the (unrounded)
+        // revenue + tax. When the party is debited (sales) a positive round-off is
+        // a credit; when the party is credited (purchase) the side flips — the old
+        // sales-only rule left every purchase round-off doubling the imbalance.
+        const partySignedRoundOff = (partyDebitCredit === DebitCreditType.DEBIT ? 1 : -1) * roundOff;
+        const roundOffDc: DebitCreditType = partySignedRoundOff < 0 ? DebitCreditType.DEBIT : DebitCreditType.CREDIT;
         await tx.generalLedgerEntry.create({
           data: {
             companyId,
             accountId: roundOffLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: roundOffDc,
-            amount: Math.abs(roundOff),
+            amount: toGl(Math.abs(roundOff)),
+            originalCurrency: transactionCurrency,
+            originalAmount: Math.abs(roundOff),
+            exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
             sourceBillNumber: billNumber,
@@ -1706,14 +1714,20 @@ export class InvoiceService {
           'Indirect Expenses',
           'Expense',
         );
-        const roundOffDc: DebitCreditType = roundOff > 0 ? DebitCreditType.CREDIT : DebitCreditType.DEBIT;
+        // See create(): round-off side depends on whether the party is debited or
+        // credited; convert the amount to INR like every other GL line.
+        const partySignedRoundOff = (partyDebitCredit === DebitCreditType.DEBIT ? 1 : -1) * roundOff;
+        const roundOffDc: DebitCreditType = partySignedRoundOff < 0 ? DebitCreditType.DEBIT : DebitCreditType.CREDIT;
         await tx.generalLedgerEntry.create({
           data: {
             companyId,
             accountId: roundOffLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: roundOffDc,
-            amount: Math.abs(roundOff),
+            amount: toGl(Math.abs(roundOff)),
+            originalCurrency: transactionCurrency,
+            originalAmount: Math.abs(roundOff),
+            exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: id,
             sourceBillNumber: billNumber,
