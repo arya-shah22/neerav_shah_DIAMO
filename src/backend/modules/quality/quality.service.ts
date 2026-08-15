@@ -93,6 +93,8 @@ export class QualityService {
           openingBalanceRate: Number(data.openingBalanceRate) || 0,
           isService: Boolean(data.isService),
           status: (data.status as AccountStatus) || AccountStatus.ACTIVE,
+          declarationText: data.declarationText ? (data.declarationText as string).trim() : null,
+          termsConditions: data.termsConditions ? (data.termsConditions as string).trim() : null,
         },
       });
 
@@ -170,6 +172,8 @@ export class QualityService {
         maxLevel: data.maxLevel != null ? Number(data.maxLevel) : undefined,
         isService: data.isService != null ? Boolean(data.isService) : undefined,
         status: data.status as AccountStatus,
+        declarationText: data.declarationText !== undefined ? (data.declarationText ? (data.declarationText as string).trim() : null) : undefined,
+        termsConditions: data.termsConditions !== undefined ? (data.termsConditions ? (data.termsConditions as string).trim() : null) : undefined,
         version: { increment: 1 },
       },
       include: { gstHistory: { orderBy: { applyDate: 'desc' } } },

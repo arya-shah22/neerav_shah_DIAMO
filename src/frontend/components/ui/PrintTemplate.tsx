@@ -20,6 +20,33 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
   const { activeCompany } = useActiveCompany();
   const cfg = mergeWithDefaults(rawConfig || null);
 
+  // Resolve custom declarations and terms from bill items' qualities if configured
+  const qualityDeclarations = Array.from(
+    new Set(
+      (data?.items || [])
+        .map((it: any) => it.quality?.declarationText || it.declarationText)
+        .filter((t: any) => typeof t === 'string' && t.trim().length > 0)
+        .map((t: any) => t.trim())
+    )
+  );
+
+  const qualityTerms = Array.from(
+    new Set(
+      (data?.items || [])
+        .map((it: any) => it.quality?.termsConditions || it.termsConditions)
+        .filter((t: any) => typeof t === 'string' && t.trim().length > 0)
+        .map((t: any) => t.trim())
+    )
+  );
+
+  const resolvedTermsText = qualityTerms.length > 0
+    ? qualityTerms.join('\n')
+    : (cfg.footer.customTermsText || 'Goods on memo are held at recipient risk. Subject to Surat jurisdiction.');
+
+  const resolvedDeclarationText = qualityDeclarations.length > 0
+    ? qualityDeclarations.join('\n')
+    : (cfg.footer.declarationText || 'We declare that this invoice shows the actual price of the goods described.');
+
   // Helper to convert number to currency words (USD / INR)
   const numberToWords = (num: number, currency: 'USD' | 'INR' = 'INR'): string => {
     try {
@@ -715,15 +742,15 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
 
               {/* Terms & Conditions Block */}
               {cfg.footer.showTermsConditions && (
-                <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: isCompact ? '2px' : '6px', fontSize: isCompact ? '0.68em' : '0.78em', color: '#0f172a', fontWeight: 600, lineHeight: 1.3 }}>
-                  <strong style={{ color: '#000', fontWeight: 700 }}>Terms:</strong> {cfg.footer.customTermsText || 'Goods on memo are held at recipient risk. Subject to Surat jurisdiction.'}
+                <div style={{ borderTop: '1px solid #cbd5e1', paddingTop: isCompact ? '2px' : '6px', fontSize: isCompact ? '0.68em' : '0.78em', color: '#0f172a', fontWeight: 600, lineHeight: 1.3, whiteSpace: 'pre-wrap' }}>
+                  <strong style={{ color: '#000', fontWeight: 700 }}>Terms:</strong> {resolvedTermsText}
                 </div>
               )}
 
               {/* Declaration */}
               {cfg.footer.showDeclaration && (
-                <div style={{ fontSize: isCompact ? '0.62em' : '0.78em', color: '#1e293b', fontWeight: 600, fontStyle: 'italic', lineHeight: 1.3 }}>
-                  {cfg.footer.declarationText || 'We declare that this invoice shows the actual price of the goods described.'}
+                <div style={{ fontSize: isCompact ? '0.62em' : '0.78em', color: '#1e293b', fontWeight: 600, fontStyle: 'italic', lineHeight: 1.3, whiteSpace: 'pre-wrap' }}>
+                  {resolvedDeclarationText}
                 </div>
               )}
 

@@ -210,6 +210,8 @@ CREATE TABLE `qualities` (
     `opening_balance_rate` DECIMAL(18, 2) NOT NULL DEFAULT 0.00,
     `is_service` BOOLEAN NOT NULL DEFAULT false,
     `status` ENUM('ACTIVE', 'INACTIVE', 'BLOCKED', 'SUSPENDED') NOT NULL DEFAULT 'ACTIVE',
+    `declaration_text` TEXT NULL,
+    `terms_conditions` TEXT NULL,
     `created_by` INTEGER UNSIGNED NULL,
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updated_by` INTEGER UNSIGNED NULL,

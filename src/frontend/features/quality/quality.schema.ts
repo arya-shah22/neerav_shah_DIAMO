@@ -16,6 +16,8 @@ export const qualitySchema = z.object({
   gstPct: z.number().min(0).max(100).optional(),
   cessPct: z.number().min(0).max(100).default(0),
   isService: z.boolean().default(false),
+  declarationText: z.string().max(2000).optional().nullable(),
+  termsConditions: z.string().max(2000).optional().nullable(),
 });
 
 export type QualityFormData = z.infer<typeof qualitySchema>;

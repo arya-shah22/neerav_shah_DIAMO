@@ -76,6 +76,22 @@ async function seedReferenceData(prisma: PrismaClient): Promise<void> {
     });
   }
 
+  // Ensure new optional columns exist on qualities table for existing installations
+  try {
+    const cols = await prisma.$queryRawUnsafe<Array<{ COLUMN_NAME: string }>>(
+      `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name = 'qualities' AND column_name IN ('declaration_text', 'terms_conditions')`
+    );
+    const existingCols = new Set(cols.map((c) => c.COLUMN_NAME.toLowerCase()));
+    if (!existingCols.has('declaration_text')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `qualities` ADD COLUMN `declaration_text` TEXT NULL');
+    }
+    if (!existingCols.has('terms_conditions')) {
+      await prisma.$executeRawUnsafe('ALTER TABLE `qualities` ADD COLUMN `terms_conditions` TEXT NULL');
+    }
+  } catch (colErr) {
+    // Ignore schema update errors if information_schema query is restricted
+  }
+
   // Only create the Super Admin when there is no user at all. Upserting would
   // reset a real administrator's password back to the default on every launch.
   const userCount = await prisma.user.count();

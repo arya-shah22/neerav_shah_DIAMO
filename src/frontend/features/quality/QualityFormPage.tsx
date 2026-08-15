@@ -105,6 +105,8 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
           gstPct: latestGst ? Number(latestGst.gstPct) : 3,
           cessPct: latestGst ? Number(latestGst.cessPct) : 0,
           isService: !!q.isService,
+          declarationText: q.declarationText || '',
+          termsConditions: q.termsConditions || '',
         });
       }
     };
@@ -215,6 +217,61 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
           <Input label="Carats" type="number" step="0.01" error={errors.openingBalanceCarats?.message} {...register('openingBalanceCarats', { valueAsNumber: true })} />
           <Input label="Pieces" type="number" error={errors.openingBalancePcs?.message} {...register('openingBalancePcs', { valueAsNumber: true })} />
           <Input label="Rate" type="number" step="0.01" error={errors.openingBalanceRate?.message} {...register('openingBalanceRate', { valueAsNumber: true })} />
+        </div>
+      </div>
+
+      <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '24px' }}>
+        <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '6px' }}>
+          Custom Print Terms & Declaration (Optional)
+        </h2>
+        <p style={{ fontSize: 'var(--text-body-sm)', color: 'var(--color-text-secondary)', marginBottom: '16px' }}>
+          Override default company print template terms and declaration when this quality is billed. Leave empty to use company defaults.
+        </p>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+          <div>
+            <label style={{ display: 'block', fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>
+              Declaration Text
+            </label>
+            <textarea
+              {...register('declarationText')}
+              placeholder="e.g. The diamonds herein invoiced are laboratory-grown synthetic diamonds... (Leave empty to use company default)"
+              rows={2}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-text-primary)',
+                fontSize: 'var(--text-body-sm)',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: 'block', fontSize: 'var(--text-label)', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '6px' }}>
+              Terms & Conditions
+            </label>
+            <textarea
+              {...register('termsConditions')}
+              placeholder="e.g. Custom terms for this quality lot... (Leave empty to use company default)"
+              rows={2}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--color-border)',
+                background: 'var(--color-surface)',
+                color: 'var(--color-text-primary)',
+                fontSize: 'var(--text-body-sm)',
+                fontFamily: 'inherit',
+                resize: 'vertical',
+                outline: 'none',
+              }}
+            />
+          </div>
         </div>
       </div>
     </div>

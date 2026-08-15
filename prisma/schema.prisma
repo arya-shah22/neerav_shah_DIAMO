@@ -631,6 +631,8 @@ model Quality {
   openingBalanceRate   Decimal       @default(0.00) @map("opening_balance_rate") @db.Decimal(18, 2)
   isService            Boolean       @default(false) @map("is_service")
   status               AccountStatus @default(ACTIVE)
+  declarationText      String?       @map("declaration_text") @db.Text
+  termsConditions      String?       @map("terms_conditions") @db.Text
 
   // Audit
   createdBy Int?      @map("created_by") @db.UnsignedInt
