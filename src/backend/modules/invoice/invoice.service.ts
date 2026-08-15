@@ -1214,6 +1214,8 @@ export class InvoiceService {
         }
 
         const netVal = taxable + cgst + sgst + igst;
+        const rateAlt = transactionCurrency === 'USD' ? Math.round(rate * exchangeRate * 100) / 100 : Math.round((rate / exchangeRate) * 100) / 100;
+        const netAmountAltItem = transactionCurrency === 'USD' ? Math.round(netVal * exchangeRate * 100) / 100 : Math.round((netVal / exchangeRate) * 100) / 100;
 
         let stockPacketId: number | null = null;
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
@@ -1435,6 +1437,8 @@ export class InvoiceService {
           carats,
           pieces,
           rate,
+          rateAlt,
+          targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
           lessPct: discountPct + lessPct,
           termsRate: rate,
           grossAmount: gross,
@@ -1443,6 +1447,7 @@ export class InvoiceService {
           sgstAmount: sgst,
           igstAmount: igst,
           netAmount: netVal,
+          netAmountAlt: netAmountAltItem,
           stockPacketId,
         });
       }
@@ -1459,6 +1464,7 @@ export class InvoiceService {
       const rawNet = taxableTotal + taxTotal;
       const roundOff = Math.round(rawNet) - rawNet;
       const netAmount = Math.round(rawNet);
+      const netAmountAlt = transactionCurrency === 'USD' ? Math.round(netAmount * exchangeRate * 100) / 100 : Math.round((netAmount / exchangeRate) * 100) / 100;
 
       const brokeragePct = Number(data.brokeragePct) || 0;
       const brokerageAmount = (taxableTotal * brokeragePct) / 100;
@@ -1545,6 +1551,9 @@ export class InvoiceService {
             totalIgst,
             roundOff,
             netAmount,
+            netAmountAlt,
+            transactionCurrency,
+            exchangeRate,
             outstandingAmount: newOutstanding,
             paymentStatus: newPaymentStatus as any,
             narration: data.narration || '',
@@ -1582,6 +1591,9 @@ export class InvoiceService {
             totalIgst,
             roundOff,
             netAmount,
+            netAmountAlt,
+            transactionCurrency,
+            exchangeRate,
             outstandingAmount: newOutstanding,
             paymentStatus: newPaymentStatus as any,
             narration: data.narration || '',
