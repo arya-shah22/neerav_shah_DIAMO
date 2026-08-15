@@ -161,7 +161,7 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
           <FormSelect
             control={control}
             name="hsnNumber"
-            label="HSN Code *"
+            label="HSN Code"
             placeholder="Type or select HSN"
             error={errors.hsnNumber?.message}
             required

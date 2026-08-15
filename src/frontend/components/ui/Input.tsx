@@ -68,7 +68,7 @@ export const Input = React.memo(forwardRef<HTMLInputElement, InputProps>(({
           color: 'var(--color-text-primary)',
         }}>
           {label}
-          {required && (
+          {required && !label.includes('*') && (
             <span style={{ color: 'var(--color-danger)', marginLeft: '2px' }}>*</span>
           )}
         </label>

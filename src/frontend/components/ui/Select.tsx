@@ -381,7 +381,7 @@ export const Select: React.FC<SelectProps> = ({
           marginBottom: 'var(--spacing-xxs)',
         }}>
           {label}
-          {required && <span style={{ color: 'var(--color-danger)', marginLeft: '2px' }}>*</span>}
+          {required && !label.includes('*') && <span style={{ color: 'var(--color-danger)', marginLeft: '2px' }}>*</span>}
         </label>
       )}
 
