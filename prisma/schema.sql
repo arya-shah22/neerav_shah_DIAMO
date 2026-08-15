@@ -46,7 +46,7 @@ CREATE TABLE `companies` (
     UNIQUE INDEX `companies_company_name_key`(`company_name`),
     UNIQUE INDEX `companies_company_code_key`(`company_code`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `financial_years` (
@@ -72,7 +72,7 @@ CREATE TABLE `financial_years` (
     INDEX `IX_financial_years_company_active`(`company_id`, `is_active`),
     UNIQUE INDEX `UQ_financial_years_company_dates`(`company_id`, `from_date`, `to_date`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `state_codes` (
@@ -83,7 +83,7 @@ CREATE TABLE `state_codes` (
 
     UNIQUE INDEX `state_codes_state_code_key`(`state_code`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `hsn_codes` (
@@ -95,7 +95,7 @@ CREATE TABLE `hsn_codes` (
 
     UNIQUE INDEX `hsn_codes_hsn_code_key`(`hsn_code`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `account_groups` (
@@ -118,7 +118,7 @@ CREATE TABLE `account_groups` (
     INDEX `IX_account_groups_company_parent`(`company_id`, `parent_group_id`),
     UNIQUE INDEX `UQ_account_groups_company_name`(`company_id`, `group_name`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `accounts` (
@@ -170,7 +170,7 @@ CREATE TABLE `accounts` (
     UNIQUE INDEX `UQ_accounts_company_name`(`company_id`, `account_name`),
     FULLTEXT INDEX `FT_accounts_name`(`account_name`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `broker_profiles` (
@@ -191,7 +191,7 @@ CREATE TABLE `broker_profiles` (
 
     UNIQUE INDEX `broker_profiles_account_id_key`(`account_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `qualities` (
@@ -222,7 +222,7 @@ CREATE TABLE `qualities` (
     INDEX `IX_qualities_company_status`(`company_id`, `status`, `is_deleted`),
     UNIQUE INDEX `UQ_qualities_company_name`(`company_id`, `quality_name`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `quality_gst_history` (
@@ -239,7 +239,7 @@ CREATE TABLE `quality_gst_history` (
 
     INDEX `IX_quality_gst_history_date`(`quality_id`, `apply_date`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `sale_invoices` (
@@ -298,7 +298,7 @@ CREATE TABLE `sale_invoices` (
     INDEX `IX_sale_invoices_type`(`company_id`, `invoice_type`),
     UNIQUE INDEX `UQ_sale_invoices_bill`(`company_id`, `financial_year_id`, `bill_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `sale_invoice_items` (
@@ -328,7 +328,7 @@ CREATE TABLE `sale_invoice_items` (
     INDEX `IX_sale_invoice_items_invoice`(`sale_invoice_id`),
     INDEX `IX_sale_invoice_items_quality`(`quality_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `purchase_invoices` (
@@ -385,7 +385,7 @@ CREATE TABLE `purchase_invoices` (
     INDEX `IX_purchase_invoices_payment`(`company_id`, `payment_status`),
     UNIQUE INDEX `UQ_purchase_invoices_bill`(`company_id`, `financial_year_id`, `bill_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `purchase_invoice_items` (
@@ -415,7 +415,7 @@ CREATE TABLE `purchase_invoice_items` (
     INDEX `IX_purchase_invoice_items_invoice`(`purchase_invoice_id`),
     INDEX `IX_purchase_invoice_items_quality`(`quality_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `challan_vouchers` (
@@ -456,7 +456,7 @@ CREATE TABLE `challan_vouchers` (
     INDEX `IX_challan_vouchers_party`(`company_id`, `party_id`),
     UNIQUE INDEX `UQ_challan_vouchers_number`(`company_id`, `financial_year_id`, `challan_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `challan_items` (
@@ -477,7 +477,7 @@ CREATE TABLE `challan_items` (
 
     INDEX `IX_challan_items_voucher`(`challan_voucher_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `journal_vouchers` (
@@ -507,7 +507,7 @@ CREATE TABLE `journal_vouchers` (
     INDEX `IX_journal_vouchers_date`(`company_id`, `voucher_date`),
     UNIQUE INDEX `UQ_journal_vouchers_number`(`company_id`, `financial_year_id`, `voucher_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `journal_voucher_lines` (
@@ -525,7 +525,7 @@ CREATE TABLE `journal_voucher_lines` (
     INDEX `IX_journal_voucher_lines_account`(`account_id`),
     INDEX `IX_journal_voucher_lines_bill`(`outstanding_bill_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `cash_bank_vouchers` (
@@ -563,7 +563,7 @@ CREATE TABLE `cash_bank_vouchers` (
     INDEX `IX_cash_bank_vouchers_party`(`company_id`, `party_id`),
     UNIQUE INDEX `UQ_cash_bank_vouchers_number`(`company_id`, `financial_year_id`, `voucher_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `cash_bank_allocations` (
@@ -575,7 +575,7 @@ CREATE TABLE `cash_bank_allocations` (
     INDEX `IX_cash_bank_allocations_voucher`(`cash_bank_voucher_id`),
     INDEX `IX_cash_bank_allocations_bill`(`outstanding_bill_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `job_vouchers` (
@@ -623,7 +623,7 @@ CREATE TABLE `job_vouchers` (
     INDEX `IX_job_vouchers_date`(`company_id`, `voucher_date`),
     UNIQUE INDEX `UQ_job_vouchers_bill`(`company_id`, `financial_year_id`, `bill_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `job_voucher_items` (
@@ -642,7 +642,7 @@ CREATE TABLE `job_voucher_items` (
 
     INDEX `IX_job_voucher_items_voucher`(`job_voucher_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `job_cost_entries` (
@@ -657,7 +657,7 @@ CREATE TABLE `job_cost_entries` (
     INDEX `IX_job_cost_entries_voucher`(`job_voucher_id`),
     INDEX `IX_job_cost_entries_packet`(`stock_packet_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `general_ledger_entries` (
@@ -681,7 +681,7 @@ CREATE TABLE `general_ledger_entries` (
     INDEX `IX_gl_entries_company_date`(`company_id`, `voucher_date`),
     INDEX `IX_gl_entries_source`(`source_voucher_type`, `source_voucher_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `outstanding_bills` (
@@ -708,7 +708,7 @@ CREATE TABLE `outstanding_bills` (
     INDEX `IX_outstanding_bills_due_date`(`company_id`, `due_date`),
     INDEX `IX_outstanding_bills_source`(`source_voucher_type`, `source_voucher_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `bank_reconciliations` (
@@ -727,7 +727,7 @@ CREATE TABLE `bank_reconciliations` (
     INDEX `IX_bank_reconciliations_voucher`(`cash_bank_voucher_id`),
     INDEX `IX_bank_reconciliations_status`(`match_status`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_packets` (
@@ -842,7 +842,7 @@ CREATE TABLE `stock_packets` (
     UNIQUE INDEX `UQ_stock_packets_company_cert_number`(`company_id`, `certificate_number`),
     FULLTEXT INDEX `FT_stock_packets_id`(`stock_id_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_movements` (
@@ -865,7 +865,7 @@ CREATE TABLE `stock_movements` (
     INDEX `IX_stock_movements_packet_date`(`stock_packet_id`, `created_at`),
     INDEX `IX_stock_movements_source`(`source_voucher_type`, `source_voucher_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_reservations` (
@@ -882,7 +882,7 @@ CREATE TABLE `stock_reservations` (
 
     INDEX `IX_stock_reservations_active`(`stock_packet_id`, `is_active`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_media` (
@@ -897,7 +897,7 @@ CREATE TABLE `stock_media` (
 
     INDEX `IX_stock_media_packet`(`stock_packet_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_audit_batches` (
@@ -916,7 +916,7 @@ CREATE TABLE `stock_audit_batches` (
     `updated_at` DATETIME(3) NOT NULL,
 
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `voucher_number_configs` (
@@ -939,7 +939,7 @@ CREATE TABLE `voucher_number_configs` (
 
     UNIQUE INDEX `UQ_voucher_number_configs`(`company_id`, `financial_year_id`, `voucher_type`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `voucher_number_sequences` (
@@ -952,7 +952,7 @@ CREATE TABLE `voucher_number_sequences` (
 
     UNIQUE INDEX `UQ_voucher_number_sequences`(`company_id`, `financial_year_id`, `voucher_type`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `system_settings` (
@@ -967,7 +967,7 @@ CREATE TABLE `system_settings` (
 
     UNIQUE INDEX `UQ_system_settings_key`(`company_id`, `setting_key`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `print_templates` (
@@ -986,7 +986,7 @@ CREATE TABLE `print_templates` (
 
     INDEX `IX_print_templates_company_type`(`company_id`, `voucher_type`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `backup_records` (
@@ -1004,7 +1004,7 @@ CREATE TABLE `backup_records` (
 
     INDEX `IX_backup_records_date`(`created_at`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `users` (
@@ -1038,7 +1038,7 @@ CREATE TABLE `users` (
     UNIQUE INDEX `users_email_key`(`email`(250)),
     UNIQUE INDEX `users_employee_code_key`(`employee_code`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `user_company_access` (
@@ -1051,7 +1051,7 @@ CREATE TABLE `user_company_access` (
 
     UNIQUE INDEX `UQ_user_company_access`(`user_id`, `company_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `user_sessions` (
@@ -1068,7 +1068,7 @@ CREATE TABLE `user_sessions` (
     UNIQUE INDEX `user_sessions_session_token_key`(`session_token`(250)),
     INDEX `IX_user_sessions_active`(`user_id`, `is_active`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `permission_templates` (
@@ -1084,7 +1084,7 @@ CREATE TABLE `permission_templates` (
     `version` INTEGER UNSIGNED NOT NULL DEFAULT 1,
 
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `page_permissions` (
@@ -1097,7 +1097,7 @@ CREATE TABLE `page_permissions` (
     INDEX `IX_page_permissions_user`(`user_id`),
     INDEX `IX_page_permissions_template`(`permission_template_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `module_permissions` (
@@ -1111,7 +1111,7 @@ CREATE TABLE `module_permissions` (
     INDEX `IX_module_permissions_user`(`user_id`),
     INDEX `IX_module_permissions_template`(`permission_template_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `activity_logs` (
@@ -1128,7 +1128,7 @@ CREATE TABLE `activity_logs` (
     INDEX `IX_activity_logs_user_date`(`user_id`, `created_at`),
     INDEX `IX_activity_logs_entity`(`entity_type`, `entity_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `login_history` (
@@ -1143,7 +1143,7 @@ CREATE TABLE `login_history` (
 
     INDEX `IX_login_history_user_date`(`user_id`, `created_at`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `audit_logs` (
@@ -1165,7 +1165,7 @@ CREATE TABLE `audit_logs` (
     INDEX `IX_audit_logs_company_date`(`company_id`, `created_at`),
     INDEX `IX_audit_logs_user_date`(`user_id`, `created_at`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `report_validation_logs` (
@@ -1183,7 +1183,7 @@ CREATE TABLE `report_validation_logs` (
     UNIQUE INDEX `report_validation_logs_certificate_no_key`(`certificate_no`),
     INDEX `IX_report_validation_company_date`(`company_id`, `validation_date`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `notification_records` (
@@ -1204,7 +1204,7 @@ CREATE TABLE `notification_records` (
     INDEX `IX_notifications_user_unread`(`user_id`, `is_read`, `created_at`),
     INDEX `IX_notifications_company_date`(`company_id`, `created_at`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `error_logs` (
@@ -1220,7 +1220,7 @@ CREATE TABLE `error_logs` (
 
     INDEX `IX_error_logs_severity_date`(`severity`, `created_at`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `dashboard_widgets` (
@@ -1238,7 +1238,7 @@ CREATE TABLE `dashboard_widgets` (
 
     INDEX `IX_dashboard_widgets_user`(`user_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `user_workspaces` (
@@ -1252,7 +1252,7 @@ CREATE TABLE `user_workspaces` (
 
     UNIQUE INDEX `user_workspaces_user_id_key`(`user_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `loans` (
@@ -1290,7 +1290,7 @@ CREATE TABLE `loans` (
     INDEX `IX_loans_date`(`company_id`, `loan_date`),
     UNIQUE INDEX `UQ_loans_number`(`company_id`, `financial_year_id`, `voucher_number`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `loan_repayments` (
@@ -1306,7 +1306,7 @@ CREATE TABLE `loan_repayments` (
     `created_at` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
 
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `app_notifications` (
@@ -1324,7 +1324,7 @@ CREATE TABLE `app_notifications` (
 
     INDEX `IX_app_notifications_company_read`(`company_id`, `is_read`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_conversions` (
@@ -1353,7 +1353,7 @@ CREATE TABLE `stock_conversions` (
     INDEX `IX_stock_conversions_date`(`company_id`, `conversion_date`),
     INDEX `IX_stock_conversions_source`(`source_packet_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `stock_conversion_outputs` (
@@ -1375,7 +1375,7 @@ CREATE TABLE `stock_conversion_outputs` (
 
     INDEX `IX_stock_conversion_outputs_conv`(`stock_conversion_id`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- CreateTable
 CREATE TABLE `exchange_rate_logs` (
@@ -1395,7 +1395,7 @@ CREATE TABLE `exchange_rate_logs` (
     INDEX `IX_exchange_rate_log_date`(`company_id`, `rate_date`),
     INDEX `IX_exchange_rate_log_pair_date`(`company_id`, `from_currency`, `to_currency`, `rate_date`),
     PRIMARY KEY (`id`)
-) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+) ENGINE=InnoDB DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 
 -- AddForeignKey
 ALTER TABLE `financial_years` ADD CONSTRAINT `financial_years_company_id_fkey` FOREIGN KEY (`company_id`) REFERENCES `companies`(`id`) ON DELETE RESTRICT ON UPDATE CASCADE;

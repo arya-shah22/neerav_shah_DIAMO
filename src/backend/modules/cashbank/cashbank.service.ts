@@ -5,7 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CashBankType, VoucherStatus, DebitCreditType, VoucherType, PaymentStatus, InvoiceStatus, InvoiceType } from '@prisma/client';
-import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 
 @Injectable()
 export class CashBankService {
@@ -487,33 +487,14 @@ export class CashBankService {
       throw new BadRequestException('Voucher configuration not found');
     }
 
-    const sequence = await this.prisma.voucherNumberSequence.upsert({
-      where: {
-        companyId_financialYearId_voucherType: {
-          companyId,
-          financialYearId,
-          voucherType: vType,
-        },
-      },
-      create: {
-        companyId,
-        financialYearId,
-        voucherType: vType,
-        currentNumber: 1,
-        lastGeneratedAt: new Date(),
-      },
-      update: {
-        currentNumber: { increment: 1 },
-        lastGeneratedAt: new Date(),
-      },
-    });
+    const nextNum = await nextVoucherSequenceNumber(this.prisma, companyId, financialYearId, vType);
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     const typeCode = type === CashBankType.CASH_PAYMENT ? 'CP' : type === CashBankType.CASH_RECEIPT ? 'CR' : type === CashBankType.BANK_PAYMENT ? 'BP' : 'BR';
 
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeCode, company.companyCode, date);
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode, date);
   }
 
   async previewVoucherNumber(companyId: number, financialYearId: number, transactionType: CashBankType, date: Date = new Date()): Promise<string> {

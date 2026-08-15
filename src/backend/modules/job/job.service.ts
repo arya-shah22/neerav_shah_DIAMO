@@ -5,7 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { JobType, VoucherStatus, StockStatus } from '@prisma/client';
-import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 import { getOrCreateDefaultAccount } from '../../utils/default-account-helper';
 
 @Injectable()
@@ -100,33 +100,14 @@ export class JobService {
       throw new BadRequestException('Voucher configuration not found');
     }
 
-    const sequence = await this.prisma.voucherNumberSequence.upsert({
-      where: {
-        companyId_financialYearId_voucherType: {
-          companyId,
-          financialYearId,
-          voucherType: dbVoucherType as any,
-        },
-      },
-      create: {
-        companyId,
-        financialYearId,
-        voucherType: dbVoucherType as any,
-        currentNumber: 1,
-        lastGeneratedAt: new Date(),
-      },
-      update: {
-        currentNumber: { increment: 1 },
-        lastGeneratedAt: new Date(),
-      },
-    });
+    const nextNum = await nextVoucherSequenceNumber(this.prisma, companyId, financialYearId, dbVoucherType as any);
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
     const typeCode = 'JW';
 
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeCode, company.companyCode, date);
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeCode, company.companyCode, date);
   }
 
   async previewVoucherNumber(companyId: number, financialYearId?: number, type: JobType = JobType.JOB_INCOME, date: Date = new Date()): Promise<string> {

@@ -39,6 +39,26 @@ function splitSqlStatements(sql: string): string[] {
     .filter((statement) => statement.length > 0);
 }
 
+/**
+ * Force every CREATE TABLE onto InnoDB. The app requires transactions, foreign
+ * keys and row locking (all the voucher/stock atomic-sequence logic depends on
+ * them) — MyISAM silently provides none of these. Because a client PC's MySQL
+ * may default to MyISAM (WAMP does), we cannot rely on the server default: we
+ * make the engine explicit. Setting it per-statement (rather than a SET SESSION
+ * default_storage_engine) is deliberate — Prisma runs statements over a pool, so
+ * a session variable would not reliably apply to each CREATE. Statements that
+ * already name an engine are left untouched.
+ */
+function forceInnoDb(statement: string): string {
+  if (!/^\s*CREATE TABLE/i.test(statement) || /\bENGINE\s*=/i.test(statement)) {
+    return statement;
+  }
+  // Insert ENGINE=InnoDB right after the closing paren of the column list.
+  const closeParen = statement.lastIndexOf(')');
+  if (closeParen === -1) return statement;
+  return `${statement.slice(0, closeParen + 1)} ENGINE=InnoDB${statement.slice(closeParen + 1)}`;
+}
+
 async function seedReferenceData(prisma: PrismaClient): Promise<void> {
   for (const state of STATE_CODES) {
     await prisma.stateCode.upsert({
@@ -120,7 +140,7 @@ export async function ensureDatabaseReady(databaseUrl: string): Promise<void> {
       const statements = splitSqlStatements(fs.readFileSync(schemaPath, 'utf-8'));
       console.log(`[DbBootstrap] Empty database — applying ${statements.length} schema statements`);
       for (const statement of statements) {
-        await prisma.$executeRawUnsafe(statement);
+        await prisma.$executeRawUnsafe(forceInnoDb(statement));
       }
       console.log('[DbBootstrap] Schema applied');
     } else {

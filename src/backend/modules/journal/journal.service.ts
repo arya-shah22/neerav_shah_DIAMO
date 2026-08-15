@@ -5,7 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { JournalType, VoucherStatus, DebitCreditType, VoucherType, PaymentStatus } from '@prisma/client';
-import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 
 @Injectable()
 export class JournalService {
@@ -65,31 +65,12 @@ export class JournalService {
       throw new BadRequestException('Voucher configuration not found');
     }
 
-    const sequence = await this.prisma.voucherNumberSequence.upsert({
-      where: {
-        companyId_financialYearId_voucherType: {
-          companyId,
-          financialYearId,
-          voucherType: VoucherType.JOURNAL_VOUCHER,
-        },
-      },
-      create: {
-        companyId,
-        financialYearId,
-        voucherType: VoucherType.JOURNAL_VOUCHER,
-        currentNumber: 1,
-        lastGeneratedAt: new Date(),
-      },
-      update: {
-        currentNumber: { increment: 1 },
-        lastGeneratedAt: new Date(),
-      },
-    });
+    const nextNum = await nextVoucherSequenceNumber(this.prisma, companyId, financialYearId, VoucherType.JOURNAL_VOUCHER);
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'JV', company.companyCode, date);
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'JV', company.companyCode, date);
   }
 
   async previewVoucherNumber(companyId: number, financialYearId: number, date: Date = new Date()): Promise<string> {
@@ -556,7 +537,11 @@ export class JournalService {
                 where: { id: bill.sourceVoucherId },
                 data: {
                   outstandingAmount: nextOutstanding,
-                  status: newStatus as any
+                  // newStatus is a PaymentStatus (UNPAID/PARTIAL); the invoice's
+                  // `status` column is InvoiceStatus (SAVED/APPROVED/...). Writing
+                  // it there throws "Data truncated" under strict SQL mode and
+                  // never restores the real payment status. Matches create().
+                  paymentStatus: newStatus as any
                 }
               });
             } else if (bill.sourceVoucherType === VoucherType.PURCHASE_INVOICE) {
@@ -564,7 +549,11 @@ export class JournalService {
                 where: { id: bill.sourceVoucherId },
                 data: {
                   outstandingAmount: nextOutstanding,
-                  status: newStatus as any
+                  // newStatus is a PaymentStatus (UNPAID/PARTIAL); the invoice's
+                  // `status` column is InvoiceStatus (SAVED/APPROVED/...). Writing
+                  // it there throws "Data truncated" under strict SQL mode and
+                  // never restores the real payment status. Matches create().
+                  paymentStatus: newStatus as any
                 }
               });
             }

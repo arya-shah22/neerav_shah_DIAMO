@@ -110,8 +110,10 @@ function expandGlob(pattern: string): string[] {
 export function findMysqldBinary(): string | null {
   const exe = process.platform === 'win32' ? 'mysqld.exe' : 'mysqld';
   const patterns = [
-    path.join(process.resourcesPath || '', 'bin', 'mysql', exe),
-    path.join(app.getAppPath(), 'resources', 'bin', 'mysql', exe),
+    // Bundled MySQL ships in a standard layout: resources/bin/mysql/{bin,share}.
+    // mysqld living under a `bin/` dir lets MySQL auto-detect its basedir/share.
+    path.join(process.resourcesPath || '', 'bin', 'mysql', 'bin', exe),
+    path.join(app.getAppPath(), 'resources', 'bin', 'mysql', 'bin', exe),
     ...(process.platform === 'win32'
       ? [
           `C:\\Program Files\\MySQL\\*\\bin\\${exe}`,
@@ -171,13 +173,23 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
   }
   console.log('[MySQLManager] Using mysqld binary at:', mysqldBin);
 
+  // basedir = the MySQL root (parent of bin/). Passing it and the messages dir
+  // explicitly means mysqld finds share/errmsg.sys and charsets no matter what
+  // the process working directory is — essential for the bundled copy, which is
+  // not launched from its own folder.
+  const mysqlBaseDir = path.dirname(path.dirname(mysqldBin));
+  const shareDir = path.join(mysqlBaseDir, 'share');
+  const baseArgs = fs.existsSync(shareDir)
+    ? [`--basedir=${mysqlBaseDir}`, `--lc-messages-dir=${shareDir}`]
+    : [];
+
   // Initialize data directory if empty
   try {
     const files = fs.readdirSync(dataDir);
     if (files.length === 0) {
       console.log('[MySQLManager] Initializing empty Database data folder at:', dataDir);
       const { spawnSync } = require('child_process');
-      spawnSync(mysqldBin, [`--initialize-insecure`, `--datadir=${dataDir}`], { stdio: 'inherit' });
+      spawnSync(mysqldBin, [...baseArgs, `--initialize-insecure`, `--datadir=${dataDir}`], { stdio: 'inherit' });
     }
   } catch (initErr) {
     console.error('[MySQLManager] Error initializing Database folder:', initErr);
@@ -191,6 +203,7 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
     // --initialize-insecure already creates root with an empty password, which is
     // what the default connection string expects.
     const mysqldArgs = [
+      ...baseArgs,
       `--datadir=${dataDir}`,
       `--port=${config.hostPort}`,
       '--mysqlx=OFF',

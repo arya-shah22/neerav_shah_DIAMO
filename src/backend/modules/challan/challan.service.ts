@@ -5,7 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { ChallanPurpose, ChallanStatus, StockStatus, VoucherType } from '@prisma/client';
-import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 
 export interface ChallanListFilters {
   purpose?: ChallanPurpose;
@@ -168,27 +168,8 @@ export class ChallanService {
         });
       }
 
-      // 1. Increment sequence atomically inside transaction
-      const sequence = await tx.voucherNumberSequence.upsert({
-        where: {
-          companyId_financialYearId_voucherType: {
-            companyId,
-            financialYearId,
-            voucherType: vType,
-          },
-        },
-        create: {
-          companyId,
-          financialYearId,
-          voucherType: vType,
-          currentNumber: 1,
-          lastGeneratedAt: new Date(),
-        },
-        update: {
-          currentNumber: { increment: 1 },
-          lastGeneratedAt: new Date(),
-        },
-      });
+      // 1. Increment sequence atomically inside transaction (race-safe via LAST_INSERT_ID)
+      const nextNum = await nextVoucherSequenceNumber(tx, companyId, financialYearId, vType);
 
       // Format voucher number using sequence inside transaction
       const company = await tx.company.findUnique({ where: { id: companyId } });
@@ -216,7 +197,7 @@ export class ChallanService {
       };
 
       const docDate = new Date(data.challanDate || new Date());
-      const voucherNumber = formatVoucherNumber(sequence.currentNumber, activeConfig, yearSuffix, typeAbbr, company?.companyCode || '', docDate);
+      const voucherNumber = formatVoucherNumber(nextNum, activeConfig, yearSuffix, typeAbbr, company?.companyCode || '', docDate);
 
       // 2. Validate items and lock packets
       const itemsList = Array.isArray(data.items) ? data.items : [];

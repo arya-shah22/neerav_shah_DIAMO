@@ -10,7 +10,8 @@
     "dev": "concurrently \"npm run dev:vite\" \"npm run dev:electron\"",
     "dev:vite": "vite",
     "dev:electron": "wait-on tcp:127.0.0.1:5173 && electron .",
-    "build": "tsc && vite build && electron-builder",
+    "build": "node scripts/fetch-mysql.js && tsc && vite build && electron-builder",
+    "fetch-mysql": "node scripts/fetch-mysql.js",
     "build:vite": "vite build",
     "lint": "eslint src --ext .ts,.tsx --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css}\"",
@@ -18,7 +19,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
     "prisma:seed": "ts-node prisma/seed.ts",
-    "db:gen-sql": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/schema.sql",
+    "db:gen-sql": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/schema.sql && node prisma/force-innodb.js",
     "db:reset": "prisma migrate reset --force",
     "typecheck": "tsc --noEmit",
     "verify:test-plan": "ts-node --project scripts/tsconfig.json scripts/verify-manual-test-plan.ts"

@@ -26,3 +26,6 @@ Thumbs.db
 # Build
 *.tsbuildinfo
 release/
+
+# Bundled MySQL server — fetched at build time by scripts/fetch-mysql.js, not committed
+resources/bin/mysql/

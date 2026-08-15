@@ -7,7 +7,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { InvoiceStatus, PaymentStatus, InvoiceType, DebitCreditType, MovementType, StockStatus } from '@prisma/client';
 import { generateStockIdNumber } from '../../utils/stock-id-generator';
-import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 import { getOrCreateDefaultAccount } from '../../utils/default-account-helper';
 
 function cleanUpper(val: unknown): string | null {
@@ -112,27 +112,8 @@ export class InvoiceService {
       throw new BadRequestException('Voucher configuration not found');
     }
 
-    // 2. Increment running sequence atomically
-    const sequence = await this.prisma.voucherNumberSequence.upsert({
-      where: {
-        companyId_financialYearId_voucherType: {
-          companyId,
-          financialYearId,
-          voucherType: type as any,
-        },
-      },
-      create: {
-        companyId,
-        financialYearId,
-        voucherType: type as any,
-        currentNumber: 1,
-        lastGeneratedAt: new Date(),
-      },
-      update: {
-        currentNumber: { increment: 1 },
-        lastGeneratedAt: new Date(),
-      },
-    });
+    // 2. Increment running sequence atomically (race-safe via LAST_INSERT_ID)
+    const nextNum = await nextVoucherSequenceNumber(this.prisma, companyId, financialYearId, type as any);
 
     // 3. Format the final string
     const startYear = fy.fromDate.getFullYear();
@@ -147,7 +128,7 @@ export class InvoiceService {
     else if (type === 'PURCHASE_RETURN') typeAbbr = 'PR';
     else if (type === 'PURCHASE_DEBIT_NOTE') typeAbbr = 'PDN';
 
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, typeAbbr, company.companyCode, date);
+    return formatVoucherNumber(nextNum, config, yearSuffix, typeAbbr, company.companyCode, date);
   }
 
   // ─── Helper: Enrich items with stock packet data ──────────────────────────

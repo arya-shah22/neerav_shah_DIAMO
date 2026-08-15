@@ -6,6 +6,7 @@ import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { CashBankService } from '../cashbank/cashbank.service';
 import {
+  Prisma,
   LoanType,
   InterestType,
   CompoundingFrequency,
@@ -14,7 +15,7 @@ import {
   DebitCreditType,
   CashBankType
 } from '@prisma/client';
-import { formatVoucherNumber } from '../../utils/voucher-number-formatter';
+import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 // eslint-disable-next-line @typescript-eslint/no-var-requires
 const PDFDocument = require('pdfkit');
 
@@ -122,31 +123,12 @@ export class LoanService {
       throw new BadRequestException('Voucher configuration not found');
     }
 
-    const sequence = await this.prisma.voucherNumberSequence.upsert({
-      where: {
-        companyId_financialYearId_voucherType: {
-          companyId,
-          financialYearId,
-          voucherType: VoucherType.LOAN_VOUCHER,
-        },
-      },
-      create: {
-        companyId,
-        financialYearId,
-        voucherType: VoucherType.LOAN_VOUCHER,
-        currentNumber: 1,
-        lastGeneratedAt: new Date(),
-      },
-      update: {
-        currentNumber: { increment: 1 },
-        lastGeneratedAt: new Date(),
-      },
-    });
+    const nextNum = await nextVoucherSequenceNumber(this.prisma, companyId, financialYearId, VoucherType.LOAN_VOUCHER);
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
     const yearSuffix = `${String(startYear).slice(-2)}${String(endYear).slice(-2)}`;
-    return formatVoucherNumber(sequence.currentNumber, config, yearSuffix, 'LN', company.companyCode, date);
+    return formatVoucherNumber(nextNum, config, yearSuffix, 'LN', company.companyCode, date);
   }
 
   async previewVoucherNumber(companyId: number, financialYearId: number, date: Date = new Date()): Promise<string> {
@@ -237,7 +219,8 @@ export class LoanService {
     companyId: number,
     financialYearId: number,
     isCash: boolean,
-    isReceipt: boolean
+    isReceipt: boolean,
+    tx?: Prisma.TransactionClient,
   ): Promise<string> {
     const company = await this.prisma.company.findUnique({ where: { id: companyId } });
     const fy = await this.prisma.financialYear.findUnique({ where: { id: financialYearId } });
@@ -274,29 +257,10 @@ export class LoanService {
       throw new BadRequestException('Voucher configuration not found');
     }
 
-    let sequence = await this.prisma.voucherNumberSequence.findFirst({
-      where: { companyId, financialYearId, voucherType: vType },
-    });
-    if (!sequence) {
-      sequence = await this.prisma.voucherNumberSequence.create({
-        data: {
-          companyId,
-          financialYearId,
-          voucherType: vType,
-          currentNumber: 0,
-          lastGeneratedAt: new Date(),
-        },
-      });
-    }
-
-    const nextNum = sequence.currentNumber + 1;
-    await this.prisma.voucherNumberSequence.update({
-      where: { id: sequence.id },
-      data: {
-        currentNumber: nextNum,
-        lastGeneratedAt: new Date(),
-      },
-    });
+    // Atomic, race-safe increment via LAST_INSERT_ID. When called inside a loan
+    // transaction the caller passes its tx so the three statements share that
+    // pinned connection (no nested transaction, no extra pool connection).
+    const nextNum = await nextVoucherSequenceNumber(tx ?? this.prisma, companyId, financialYearId, vType);
 
     const startYear = fy.fromDate.getFullYear();
     const endYear = fy.toDate.getFullYear();
@@ -395,7 +359,8 @@ export class LoanService {
         companyId,
         financialYearId,
         !isBank,
-        !isGiven
+        !isGiven,
+        tx,
       );
 
       await tx.cashBankVoucher.create({
@@ -546,7 +511,8 @@ export class LoanService {
         companyId,
         loan.financialYearId,
         !isBank,
-        isGiven
+        isGiven,
+        tx,
       );
 
       await tx.cashBankVoucher.create({
