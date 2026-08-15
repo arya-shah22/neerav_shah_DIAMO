@@ -230,6 +230,21 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch (migErr) {
       console.warn('[PrismaService] Deferred legacy invoice migration until database connection is established');
     }
+
+    try {
+      const cols = await this.$queryRawUnsafe<Array<{ COLUMN_NAME: string }>>(
+        `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name = 'qualities' AND column_name IN ('declaration_text', 'terms_conditions')`
+      );
+      const existingCols = new Set(cols.map((c) => c.COLUMN_NAME.toLowerCase()));
+      if (!existingCols.has('declaration_text')) {
+        await this.$executeRawUnsafe('ALTER TABLE `qualities` ADD COLUMN `declaration_text` TEXT NULL');
+      }
+      if (!existingCols.has('terms_conditions')) {
+        await this.$executeRawUnsafe('ALTER TABLE `qualities` ADD COLUMN `terms_conditions` TEXT NULL');
+      }
+    } catch {
+      // Columns already exist or restricted
+    }
   }
 
   async onModuleDestroy() {
