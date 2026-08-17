@@ -697,8 +697,9 @@ export class DashboardService {
     };
   }
 
-  async getBusinessAnalytics(companyId: number): Promise<IBusinessAnalyticsData> {
+  async getBusinessAnalytics(companyId: number, monthsCount: number = 6): Promise<IBusinessAnalyticsData> {
     const now = new Date();
+    const count = Number(monthsCount) === 12 ? 12 : 6;
 
     // 1. Fetch Sales Invoices & Items
     const salesInvoices = await this.prisma.saleInvoice.findMany({
@@ -718,12 +719,12 @@ export class DashboardService {
       select: { createdAt: true, caratWeight: true, totalCost: true, currentStatus: true },
     });
 
-    // Monthly aggregates map for past 6 months
+    // Monthly aggregates map for past rolling months (6 or 12)
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
     const monthlySalesMap = new Map<string, { sales: number; count: number }>();
     const monthlyPurchaseMap = new Map<string, { purchases: number; count: number }>();
 
-    for (let i = 5; i >= 0; i--) {
+    for (let i = count - 1; i >= 0; i--) {
       const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
       const mKey = `${monthNames[d.getMonth()]} ${d.getFullYear().toString().slice(-2)}`;
       monthlySalesMap.set(mKey, { sales: 0, count: 0 });

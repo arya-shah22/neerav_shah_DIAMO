@@ -36,6 +36,18 @@ export class FinancialYearController {
     }
   }
 
+  async handleUpdate(payload: { id: number; companyId: number; data: any }): Promise<IApiResponse> {
+    try {
+      const data = await this.fyService.update(payload.id, payload.companyId, payload.data);
+      return { success: true, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to update financial year',
+      };
+    }
+  }
+
   async handleActivate(payload: { id: number; companyId: number }): Promise<IApiResponse> {
     try {
       const data = await this.fyService.activate(payload.id, payload.companyId);
@@ -56,6 +68,18 @@ export class FinancialYearController {
       return {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to toggle status',
+      };
+    }
+  }
+
+  async handleDelete(payload: { id: number; companyId: number }): Promise<IApiResponse> {
+    try {
+      const data = await this.fyService.delete(payload.id, payload.companyId);
+      return { success: true, data };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to delete financial year',
       };
     }
   }

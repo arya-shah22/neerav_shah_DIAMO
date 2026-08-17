@@ -33,9 +33,9 @@ export class DashboardController {
     }
   }
 
-  async handleGetAnalytics(payload: { companyId: number }): Promise<IApiResponse<any>> {
+  async handleGetAnalytics(payload: { companyId: number; months?: number }): Promise<IApiResponse<any>> {
     try {
-      const data = await this.dashboardService.getBusinessAnalytics(payload.companyId);
+      const data = await this.dashboardService.getBusinessAnalytics(payload.companyId, payload.months);
       return { success: true, data };
     } catch (err) {
       return {

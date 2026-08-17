@@ -17,7 +17,16 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const filterParam = searchParams.get('filter'); // 'pending' | 'overdue' | null
-  const [selectedQuality, setSelectedQuality] = useState<string>('ALL');
+  const partyParam = searchParams.get('party') || searchParams.get('customer') || searchParams.get('supplier');
+  const monthYearParam = searchParams.get('monthYear'); // e.g. 'Aug 26'
+  const qualityParam = searchParams.get('quality');
+  const [selectedQuality, setSelectedQuality] = useState<string>(qualityParam || 'ALL');
+
+  useEffect(() => {
+    if (qualityParam) {
+      setSelectedQuality(qualityParam);
+    }
+  }, [qualityParam]);
 
   const { showToast } = useToast();
   const { companyId, isReady } = useActiveCompany();
@@ -162,7 +171,8 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
     });
   }, [companyId, activeFinancialYear?.id, type, getAllConfigs]);
 
-  // Filter invoices based on URL parameter, selected Quality & selected Month
+  // Filter invoices based on URL parameter, selected Quality, selected Month & Drill-Down params
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const filteredInvoices = useMemo(() => {
     return (rawInvoices || []).filter((inv) => {
       // 1. Payment status filter
@@ -170,7 +180,26 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
       if (filterParam === 'pending' && outstanding <= 0) return false;
       if (filterParam === 'overdue' && !isOverdue(inv)) return false;
 
-      // 2. Quality filter
+      // 2. Party Name filter (Drill-down from Analytics / Dashboard)
+      if (partyParam) {
+        const partyName = (inv.customer?.accountName || inv.supplier?.accountName || '').toLowerCase();
+        if (!partyName.includes(partyParam.toLowerCase())) {
+          return false;
+        }
+      }
+
+      // 3. Month-Year filter (Drill-down from Analytics e.g. 'Aug 26')
+      if (monthYearParam) {
+        const dateObj = new Date(inv.invoiceDate);
+        if (!isNaN(dateObj.getTime())) {
+          const invMonthKey = `${monthNames[dateObj.getMonth()]} ${dateObj.getFullYear().toString().slice(-2)}`;
+          if (invMonthKey.toLowerCase() !== monthYearParam.toLowerCase()) {
+            return false;
+          }
+        }
+      }
+
+      // 4. Quality filter
       if (selectedQuality !== 'ALL') {
         const hasQuality = (inv.items || []).some(
           (item) => item.quality?.qualityName === selectedQuality
@@ -178,7 +207,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         if (!hasQuality) return false;
       }
 
-      // 3. Month filter
+      // 5. Month filter (Dropdown)
       if (showMonthFilter && selectedMonth !== 'ALL') {
         const dateObj = new Date(inv.invoiceDate);
         if (!isNaN(dateObj.getTime())) {
@@ -188,7 +217,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
 
       return true;
     });
-  }, [rawInvoices, filterParam, selectedQuality, showMonthFilter, selectedMonth]);
+  }, [rawInvoices, filterParam, partyParam, monthYearParam, selectedQuality, showMonthFilter, selectedMonth]);
 
   // Compute Quality-specific summary breakdown for the filtered/selected quality
   const qualitySummary = useMemo(() => {
@@ -421,6 +450,57 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
           <Plus size={16} /> {newLabel}
         </Button>
       </div>
+
+      {/* Active Analytics Drill-Down Filter Banner */}
+      {(partyParam || monthYearParam) && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#eff6ff',
+          border: '1px solid #bfdbfe',
+          borderRadius: '10px',
+          padding: '10px 16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#1e40af', fontWeight: 600, flexWrap: 'wrap' }}>
+            <span>🔍 Active Analytics Filter:</span>
+            {partyParam && (
+              <span style={{ background: '#dbeafe', padding: '2px 8px', borderRadius: '6px', color: '#1e3a8a' }}>
+                Party: <strong>{partyParam}</strong>
+              </span>
+            )}
+            {monthYearParam && (
+              <span style={{ background: '#dbeafe', padding: '2px 8px', borderRadius: '6px', color: '#1e3a8a' }}>
+                Month: <strong>{monthYearParam}</strong>
+              </span>
+            )}
+            <span style={{ color: '#64748b', fontWeight: 500 }}>
+              ({filteredInvoices.length} matching {isCustomer ? 'sales' : 'purchases'})
+            </span>
+          </div>
+          <button
+            onClick={() => {
+              setSearchParams({});
+              setSelectedQuality('ALL');
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border: '1px solid #93c5fd',
+              background: '#ffffff',
+              color: '#1d4ed8',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            ✕ Clear Filter
+          </button>
+        </div>
+      )}
 
       {/* Control Bar: Filter Tabs & Quality Selector */}
       <div style={{

@@ -433,8 +433,10 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   // ─── Stage 1: Financial Year ─────────────────────────────
   ipcHandle(ipcMain, 'fy:list', (companyId: number) => fyController.handleList(companyId));
   ipcHandle(ipcMain, 'fy:create', (payload) => fyController.handleCreate(payload));
+  ipcHandle(ipcMain, 'fy:update', (payload) => fyController.handleUpdate(payload));
   ipcHandle(ipcMain, 'fy:activate', (payload) => fyController.handleActivate(payload));
   ipcHandle(ipcMain, 'fy:toggle-closed', (payload) => fyController.handleToggleClosed(payload));
+  ipcHandle(ipcMain, 'fy:delete', (payload) => fyController.handleDelete(payload));
 
   // ─── Stage 2: Account Group ────────────────────────────
   ipcHandle(ipcMain, 'account-group:list', (companyId: number) => accountGroupController.handleList(companyId));

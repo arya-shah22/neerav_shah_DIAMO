@@ -3,7 +3,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Plus, Edit2, Trash2, Gem, Eye, ChevronUp, ChevronDown, SlidersHorizontal, RefreshCw } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import { resolveHeaderAlias } from '../../../shared/constants/csv-header-map';
@@ -38,6 +38,10 @@ const ROUTES = {
 
 export const StockListPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const ageParam = searchParams.get('age'); // e.g. '0-30 Days', '31-60 Days', '61-90 Days', '90+ Days'
+  const qualityQueryParam = searchParams.get('quality');
+
   const { showToast } = useToast();
   const { activeCompany, companyId, isReady } = useActiveCompany();
   const [search, setSearch] = useState('');
@@ -56,7 +60,13 @@ export const StockListPage: React.FC = () => {
   const [rateSort, setRateSort] = useState<string>('');
   const [startDate, setStartDate] = useState<string>('');
   const [endDate, setEndDate] = useState<string>('');
-  const [qualityFilter, setQualityFilter] = useState<string>('');
+  const [qualityFilter, setQualityFilter] = useState<string>(qualityQueryParam || '');
+
+  useEffect(() => {
+    if (qualityQueryParam) {
+      setQualityFilter(qualityQueryParam);
+    }
+  }, [qualityQueryParam]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
 
   // Temporary ephemeral INR preview state
@@ -499,6 +509,22 @@ export const StockListPage: React.FC = () => {
       result.sort((a, b) => Number(b.targetSaleRate || 0) - Number(a.targetSaleRate || 0));
     }
 
+    // 16. Aging Bucket filter (Drill-down from Analytics)
+    if (ageParam) {
+      const nowTs = new Date().getTime();
+      result = result.filter((s) => {
+        if (s.currentStatus === 'SOLD') return false;
+        const packetDate = s.registrationDate || (s as any).createdAt;
+        if (!packetDate) return true;
+        const ageDays = Math.floor((nowTs - new Date(packetDate).getTime()) / (1000 * 60 * 60 * 24));
+        if (ageParam === '0-30 Days') return ageDays <= 30;
+        if (ageParam === '31-60 Days') return ageDays > 30 && ageDays <= 60;
+        if (ageParam === '61-90 Days') return ageDays > 60 && ageDays <= 90;
+        if (ageParam === '90+ Days') return ageDays > 90;
+        return true;
+      });
+    }
+
     return result;
   }, [
     stock,
@@ -519,6 +545,7 @@ export const StockListPage: React.FC = () => {
     qualityFilter,
     showMonthFilter,
     selectedMonth,
+    ageParam,
   ]);
 
   const columns: Column<IStockPacket>[] = [
@@ -895,6 +922,47 @@ export const StockListPage: React.FC = () => {
           </Button>
         </div>
       </div>
+
+      {/* Active Analytics Aging Drill-Down Filter Banner */}
+      {ageParam && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          background: '#fffbeb',
+          border: '1px solid #fde68a',
+          borderRadius: '10px',
+          padding: '10px 16px',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', color: '#92400e', fontWeight: 600, flexWrap: 'wrap' }}>
+            <span>⏳ Active Stock Aging Filter:</span>
+            <span style={{ background: '#fef3c7', padding: '2px 8px', borderRadius: '6px', color: '#78350f', fontWeight: 700 }}>
+              Holding Duration: {ageParam}
+            </span>
+            <span style={{ color: '#b45309', fontWeight: 500 }}>
+              ({processedStock.length} matching packets in vault)
+            </span>
+          </div>
+          <button
+            onClick={() => setSearchParams({})}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '4px 10px',
+              borderRadius: '6px',
+              border: '1px solid #f59e0b',
+              background: '#ffffff',
+              color: '#b45309',
+              fontSize: '12px',
+              fontWeight: 600,
+              cursor: 'pointer',
+            }}
+          >
+            ✕ Clear Aging Filter
+          </button>
+        </div>
+      )}
 
       {/* Filter and Search Bar controls */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', background: 'var(--color-surface)', border: '1px solid var(--color-border)', borderRadius: 'var(--radius-md)', padding: '16px' }}>

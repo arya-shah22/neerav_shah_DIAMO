@@ -3,17 +3,19 @@
 // Split layout: form entry (top) + grid listing (bottom)
 // ═══════════════════════════════════════════════════════════════
 
-import React, { useCallback, useEffect } from 'react';
-import { Calendar, CheckCircle, Lock, Plus, RefreshCw } from 'lucide-react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Calendar, CheckCircle, Lock, Plus, RefreshCw, Edit2, Trash2 } from 'lucide-react';
 import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useIpc } from '../../hooks/useIpc';
 import { useCompanyStore, formatFinancialYearLabel } from '../../state/company-store';
-import { Button, DateInput, Badge, Select, useToast } from '../../components/ui';
+import { Button, DateInput, Badge, Select, Modal, useToast } from '../../components/ui';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import {
   financialYearSchema,
   FinancialYearFormData,
+  editFinancialYearSchema,
+  EditFinancialYearFormData,
   suggestFinancialYearDates,
   getFinancialYearOptions,
 } from './fy.schema';
@@ -22,16 +24,23 @@ import type { IFinancialYear } from './fy.types';
 export const FinancialYearPage: React.FC = () => {
   const { showToast } = useToast();
   const activeCompany = useCompanyStore((s) => s.activeCompany);
+  const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const setActiveFinancialYear = useCompanyStore((s) => s.setActiveFinancialYear);
 
   const { data: years, loading, invoke: fetchYears } = useIpc<IFinancialYear[]>('fy:list');
   const { invoke: createYear, loading: creating } = useIpc<IFinancialYear>('fy:create');
+  const { invoke: updateYear, loading: updating } = useIpc<IFinancialYear>('fy:update');
   const { invoke: activateYear } = useIpc<IFinancialYear>('fy:activate');
   const { invoke: toggleClosed } = useIpc<IFinancialYear>('fy:toggle-closed');
+  const { invoke: deleteYear } = useIpc<void>('fy:delete');
+
+  // Edit Modal State
+  const [editingFy, setEditingFy] = useState<IFinancialYear | null>(null);
 
   const suggested = suggestFinancialYearDates();
   const fyOptions = getFinancialYearOptions();
 
+  // Create Form
   const {
     register,
     handleSubmit,
@@ -53,6 +62,25 @@ export const FinancialYearPage: React.FC = () => {
     },
   });
 
+  // Edit Form
+  const {
+    register: registerEdit,
+    handleSubmit: handleSubmitEdit,
+    reset: resetEdit,
+    control: controlEdit,
+    formState: { errors: editErrors },
+  } = useForm<EditFinancialYearFormData>({
+    resolver: zodResolver(editFinancialYearSchema),
+    defaultValues: {
+      fromDate: '',
+      toDate: '',
+      gstActive: true,
+      tcsActive: true,
+      accountEffect: true,
+      lockTransactionUptoDate: '',
+    },
+  });
+
   const watchedFromDate = watch('fromDate');
 
   const handleYearSelect = (startYear: number) => {
@@ -64,8 +92,8 @@ export const FinancialYearPage: React.FC = () => {
   };
 
   const selectedStartYear = watchedFromDate
-    ? new Date(watchedFromDate).getFullYear()
-    : new Date(suggested.fromDate).getFullYear();
+    ? Number(watchedFromDate.split('-')[0])
+    : Number(suggested.fromDate.split('-')[0]);
 
   const loadYears = useCallback(async () => {
     if (!activeCompany) return;
@@ -90,10 +118,13 @@ export const FinancialYearPage: React.FC = () => {
       },
     });
 
-    if (res.success) {
+    if (res.success && res.data) {
       showToast('Financial year created successfully', 'success');
+      if (data.isActive) {
+        setActiveFinancialYear(res.data);
+      }
       const next = suggestFinancialYearDates(
-        new Date(data.fromDate).getFullYear() + 1,
+        Number(data.fromDate.split('-')[0]) + 1,
       );
       reset({
         fromDate: next.fromDate,
@@ -107,6 +138,48 @@ export const FinancialYearPage: React.FC = () => {
       await loadYears();
     } else {
       showToast(res.error || 'Failed to create financial year', 'error');
+    }
+  };
+
+  const handleOpenEdit = (fy: IFinancialYear) => {
+    setEditingFy(fy);
+    const fromStr = new Date(fy.fromDate).toISOString().split('T')[0];
+    const toStr = new Date(fy.toDate).toISOString().split('T')[0];
+    let lockStr = '';
+    if (fy.lockTransactionUptoDate) {
+      lockStr = new Date(fy.lockTransactionUptoDate).toISOString().split('T')[0];
+    }
+    resetEdit({
+      fromDate: fromStr,
+      toDate: toStr,
+      gstActive: fy.gstActive,
+      tcsActive: fy.tcsActive,
+      accountEffect: fy.accountEffect,
+      lockTransactionUptoDate: lockStr,
+    });
+  };
+
+  const onSubmitEdit = async (data: EditFinancialYearFormData) => {
+    if (!activeCompany || !editingFy) return;
+
+    const res = await updateYear({
+      id: editingFy.id,
+      companyId: activeCompany.id,
+      data: {
+        ...data,
+        lockTransactionUptoDate: data.lockTransactionUptoDate || null,
+      },
+    });
+
+    if (res.success && res.data) {
+      showToast('Financial year settings updated successfully', 'success');
+      if (editingFy.isActive || activeFinancialYear?.id === editingFy.id) {
+        setActiveFinancialYear(res.data);
+      }
+      setEditingFy(null);
+      await loadYears();
+    } else {
+      showToast(res.error || 'Failed to update financial year', 'error');
     }
   };
 
@@ -125,11 +198,30 @@ export const FinancialYearPage: React.FC = () => {
   const handleToggleClosed = async (fy: IFinancialYear) => {
     if (!activeCompany) return;
     const res = await toggleClosed({ id: fy.id, companyId: activeCompany.id });
-    if (res.success) {
+    if (res.success && res.data) {
+      if (fy.isActive || activeFinancialYear?.id === fy.id) {
+        setActiveFinancialYear(res.data);
+      }
       showToast(fy.isClosed ? 'Financial year reopened' : 'Financial year closed', 'success');
       await loadYears();
     } else {
       showToast(res.error || 'Failed to update financial year', 'error');
+    }
+  };
+
+  const handleDelete = async (fy: IFinancialYear) => {
+    if (!activeCompany) return;
+    const label = `FY ${formatFinancialYearLabel(fy)}`;
+    if (!window.confirm(`Permanently delete ${label}? This cannot be undone.`)) {
+      return;
+    }
+
+    const res = await deleteYear({ id: fy.id, companyId: activeCompany.id });
+    if (res.success) {
+      showToast(`${label} deleted successfully`, 'success');
+      await loadYears();
+    } else {
+      showToast(res.error || 'Failed to delete financial year', 'error');
     }
   };
 
@@ -185,14 +277,14 @@ export const FinancialYearPage: React.FC = () => {
     {
       key: 'gstActive',
       header: 'GST',
-      width: '80px',
+      width: '70px',
       align: 'center',
       render: (row) => (row.gstActive ? 'Yes' : 'No'),
     },
     {
       key: 'tcsActive',
       header: 'TCS',
-      width: '80px',
+      width: '70px',
       align: 'center',
       render: (row) => (row.tcsActive ? 'Yes' : 'No'),
     },
@@ -208,12 +300,12 @@ export const FinancialYearPage: React.FC = () => {
     {
       key: 'actions',
       header: 'ACTIONS',
-      width: '200px',
+      width: '240px',
       align: 'center',
       render: (row) => (
-        <div style={{ display: 'flex', justifyContent: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '6px' }}>
           {!row.isActive && !row.isClosed && (
-            <Button variant="secondary" size="sm" onClick={() => handleActivate(row)}>
+            <Button variant="secondary" size="sm" onClick={() => handleActivate(row)} title="Set as active financial year">
               Activate
             </Button>
           )}
@@ -221,11 +313,43 @@ export const FinancialYearPage: React.FC = () => {
             variant="secondary"
             size="sm"
             onClick={() => handleToggleClosed(row)}
-            title={row.isClosed ? 'Reopen year' : 'Close year'}
+            title={row.isClosed ? 'Reopen year for editing' : 'Close year to lock postings'}
           >
-            <Lock size={14} />
+            <Lock size={13} />
             {row.isClosed ? 'Reopen' : 'Close'}
           </Button>
+          <button
+            onClick={() => handleOpenEdit(row)}
+            title="Edit Financial Year Dates & Settings"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--color-text-secondary)',
+              padding: '6px',
+              borderRadius: '4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            <Edit2 size={15} />
+          </button>
+          <button
+            onClick={() => handleDelete(row)}
+            title="Delete Financial Year"
+            style={{
+              background: 'none',
+              border: 'none',
+              cursor: 'pointer',
+              color: 'var(--color-danger)',
+              padding: '6px',
+              borderRadius: '4px',
+              display: 'inline-flex',
+              alignItems: 'center',
+            }}
+          >
+            <Trash2 size={15} />
+          </button>
         </div>
       ),
     },
@@ -304,7 +428,7 @@ export const FinancialYearPage: React.FC = () => {
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 error={errors.fromDate?.message}
-                hint="01/04/YYYY — click calendar to pick"
+                hint="01/04/YYYY"
               />
             )}
           />
@@ -319,7 +443,7 @@ export const FinancialYearPage: React.FC = () => {
                 onChange={field.onChange}
                 onBlur={field.onBlur}
                 error={errors.toDate?.message}
-                hint="31/03/YYYY — click calendar to pick"
+                hint="31/03/YYYY"
               />
             )}
           />
@@ -406,6 +530,97 @@ export const FinancialYearPage: React.FC = () => {
           emptyDescription="Create the first financial year for this company using the form above."
         />
       </div>
+
+      {/* Edit Financial Year Modal */}
+      {editingFy && (
+        <Modal
+          isOpen={true}
+          onClose={() => setEditingFy(null)}
+          title={`Edit FY ${formatFinancialYearLabel(editingFy)} Settings`}
+          size="md"
+        >
+          <form onSubmit={handleSubmitEdit(onSubmitEdit)} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {/* Editable Dates Panel */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+              <Controller
+                name="fromDate"
+                control={controlEdit}
+                render={({ field }) => (
+                  <DateInput
+                    label="Date From (Start Date)"
+                    required
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={editErrors.fromDate?.message}
+                    hint="Start of the financial period"
+                  />
+                )}
+              />
+              <Controller
+                name="toDate"
+                control={controlEdit}
+                render={({ field }) => (
+                  <DateInput
+                    label="Date To (End Date)"
+                    required
+                    value={field.value}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={editErrors.toDate?.message}
+                    hint="End of the financial period"
+                  />
+                )}
+              />
+            </div>
+
+            <div>
+              <Controller
+                name="lockTransactionUptoDate"
+                control={controlEdit}
+                render={({ field }) => (
+                  <DateInput
+                    label="Lock Transactions Upto Date"
+                    value={field.value || ''}
+                    onChange={field.onChange}
+                    onBlur={field.onBlur}
+                    error={editErrors.lockTransactionUptoDate?.message}
+                    hint="Freeze all historical vouchers dated on or before this date (leave blank for no lock)"
+                  />
+                )}
+              />
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', padding: '16px', background: '#f8fafc', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)' }}>Compliance & Posting Flags:</span>
+              
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', cursor: 'pointer' }}>
+                <input type="checkbox" {...registerEdit('gstActive')} style={{ accentColor: 'var(--color-accent)' }} />
+                <span><strong>GST Active</strong> — Computes GST tax calculations on sales and purchases</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', cursor: 'pointer' }}>
+                <input type="checkbox" {...registerEdit('tcsActive')} style={{ accentColor: 'var(--color-accent)' }} />
+                <span><strong>TCS Active</strong> — Enforces TCS validation rules under Income Tax Sec 206C</span>
+              </label>
+
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', fontSize: '13px', cursor: 'pointer' }}>
+                <input type="checkbox" {...registerEdit('accountEffect')} style={{ accentColor: 'var(--color-accent)' }} />
+                <span><strong>Account Effect</strong> — Posts transaction balances to the General Ledger</span>
+              </label>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+              <Button variant="secondary" type="button" onClick={() => setEditingFy(null)}>
+                Cancel
+              </Button>
+              <Button variant="primary" type="submit" loading={updating}>
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };

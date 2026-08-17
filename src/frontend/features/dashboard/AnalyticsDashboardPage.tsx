@@ -4,9 +4,11 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   TrendingUp, BarChart3, PieChart, Users, RefreshCw,
-  Award, ShoppingCart, ShoppingBag, Clock
+  Award, ShoppingCart, ShoppingBag, Clock, ArrowUpRight,
+  ChevronRight, Calendar
 } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -23,23 +25,25 @@ const formatCurrency = (val: number) => {
 };
 
 export const AnalyticsDashboardPage: React.FC = () => {
+  const navigate = useNavigate();
   const { activeCompany, companyId } = useActiveCompany();
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
 
+  const [timeframe, setTimeframe] = useState<6 | 12>(6);
   const [analytics, setAnalytics] = useState<IBusinessAnalyticsData | null>(null);
   const { invoke: getAnalytics, loading } = useIpc<IBusinessAnalyticsData>('dashboard:get-analytics');
 
   const fetchAnalytics = useCallback(async () => {
     if (!companyId) return;
     try {
-      const res = await getAnalytics({ companyId });
+      const res = await getAnalytics({ companyId, months: timeframe });
       if (res.success && res.data) {
         setAnalytics(res.data);
       }
     } catch (err) {
       console.error('Failed to load business analytics:', err);
     }
-  }, [companyId, getAnalytics]);
+  }, [companyId, timeframe, getAnalytics]);
 
   useEffect(() => {
     fetchAnalytics();
@@ -62,6 +66,8 @@ export const AnalyticsDashboardPage: React.FC = () => {
           justifyContent: 'space-between',
           alignItems: 'center',
           boxShadow: '0 10px 25px -5px rgba(15, 23, 42, 0.25)',
+          flexWrap: 'wrap',
+          gap: '16px',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
@@ -83,35 +89,86 @@ export const AnalyticsDashboardPage: React.FC = () => {
             <h1 style={{ fontSize: '22px', fontWeight: 700, margin: 0, letterSpacing: '-0.02em' }}>
               Business Analytics & Executive Insights
             </h1>
-            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <p style={{ fontSize: '13px', color: '#94a3b8', margin: '4px 0 0 0', display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
               <span>🏢 <strong>{activeCompany?.companyName || 'DIAMO ERP'}</strong></span>
               <span>📅 FY {activeFinancialYear ? formatFinancialYearLabel(activeFinancialYear) : '2026-27'}</span>
-              <span>📊 Real-Time Financial & Stock Telemetry</span>
+              <span>📊 Real-Time Financial & Stock Telemetry ({timeframe}-Month Window)</span>
             </p>
           </div>
         </div>
 
-        <Button
-          variant="secondary"
-          size="sm"
-          onClick={fetchAnalytics}
-          disabled={loading}
-          style={{
-            display: 'inline-flex',
-            alignItems: 'center',
-            gap: '8px',
-            padding: '8px 16px',
-            background: 'rgba(255, 255, 255, 0.12)',
-            color: '#ffffff',
-            border: '1px solid rgba(255, 255, 255, 0.25)',
-            borderRadius: '8px',
-            fontWeight: 600,
-            whiteSpace: 'nowrap',
-          }}
-        >
-          <RefreshCw size={14} className={loading ? 'spin' : ''} />
-          Refresh Analytics
-        </Button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          {/* Configurable Rolling Window Toggle */}
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              padding: '4px',
+              borderRadius: '10px',
+              border: '1px solid rgba(255, 255, 255, 0.18)',
+            }}
+          >
+            <span style={{ fontSize: '11px', color: '#94a3b8', padding: '0 6px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <Calendar size={13} /> Timeframe:
+            </span>
+            <button
+              onClick={() => setTimeframe(6)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: timeframe === 6 ? '#38bdf8' : 'transparent',
+                color: timeframe === 6 ? '#0f172a' : '#ffffff',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              6 Months
+            </button>
+            <button
+              onClick={() => setTimeframe(12)}
+              style={{
+                padding: '6px 14px',
+                borderRadius: '6px',
+                border: 'none',
+                background: timeframe === 12 ? '#38bdf8' : 'transparent',
+                color: timeframe === 12 ? '#0f172a' : '#ffffff',
+                fontWeight: 700,
+                fontSize: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+            >
+              12 Months
+            </button>
+          </div>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={fetchAnalytics}
+            disabled={loading}
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '8px 16px',
+              background: 'rgba(255, 255, 255, 0.12)',
+              color: '#ffffff',
+              border: '1px solid rgba(255, 255, 255, 0.25)',
+              borderRadius: '8px',
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <RefreshCw size={14} className={loading ? 'spin' : ''} />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {/* 2. Top Visual Telemetry Grid: Monthly Revenue & Profit Trends */}
@@ -122,16 +179,35 @@ export const AnalyticsDashboardPage: React.FC = () => {
             <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ShoppingCart size={18} color="#2563eb" /> Monthly Sales Performance
             </h3>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>6-Month Revenue Output</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+              {timeframe}-Month Revenue Output (Click to view invoices)
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {(analytics?.monthlySalesTrend || []).map((st, idx) => {
               const pct = Math.round((st.sales / maxSales) * 100);
               return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div
+                  key={idx}
+                  onClick={() => navigate(`/transactions/sales?monthYear=${encodeURIComponent(st.month)}`)}
+                  title={`Click to open Sales Register for ${st.month}`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
-                    <span>{st.month}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#1e40af' }}>
+                      {st.month} <ArrowUpRight size={12} color="#3b82f6" />
+                    </span>
                     <span>{formatCurrency(st.sales)} ({st.invoices} Inv)</span>
                   </div>
                   <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
@@ -149,16 +225,35 @@ export const AnalyticsDashboardPage: React.FC = () => {
             <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
               <ShoppingBag size={18} color="#16a34a" /> Monthly Purchase Inward
             </h3>
-            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>6-Month Stock Inward</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>
+              {timeframe}-Month Stock Inward (Click to view bills)
+            </span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             {(analytics?.monthlyPurchaseTrend || []).map((pt, idx) => {
               const pct = Math.round((pt.purchases / maxPurchases) * 100);
               return (
-                <div key={idx} style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <div
+                  key={idx}
+                  onClick={() => navigate(`/transactions/purchases?monthYear=${encodeURIComponent(pt.month)}`)}
+                  title={`Click to open Purchase Register for ${pt.month}`}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', fontWeight: 600 }}>
-                    <span>{pt.month}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#15803d' }}>
+                      {pt.month} <ArrowUpRight size={12} color="#16a34a" />
+                    </span>
                     <span>{formatCurrency(pt.purchases)} ({pt.bills} Bills)</span>
                   </div>
                   <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
@@ -194,8 +289,17 @@ export const AnalyticsDashboardPage: React.FC = () => {
             </thead>
             <tbody>
               {(analytics?.monthlyProfitTrend || []).map((pr, idx) => (
-                <tr key={idx} style={{ borderBottom: '1px solid var(--color-border)' }}>
-                  <td style={{ padding: '10px 8px', fontWeight: 600 }}>{pr.month}</td>
+                <tr
+                  key={idx}
+                  onClick={() => navigate(`/transactions/sales?monthYear=${encodeURIComponent(pr.month)}`)}
+                  title={`Click to open Sales for ${pr.month}`}
+                  style={{ borderBottom: '1px solid var(--color-border)', cursor: 'pointer', transition: 'background 0.15s ease' }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <td style={{ padding: '10px 8px', fontWeight: 600, color: '#2563eb' }}>
+                    {pr.month} <ArrowUpRight size={11} style={{ display: 'inline' }} />
+                  </td>
                   <td style={{ padding: '10px 8px', textAlign: 'right' }}>{formatCurrency(pr.grossRevenue)}</td>
                   <td style={{ padding: '10px 8px', textAlign: 'right', color: 'var(--color-text-secondary)' }}>{formatCurrency(pr.purchaseCost)}</td>
                   <td style={{ padding: '10px 8px', textAlign: 'right', fontWeight: 700, color: pr.grossProfit > 0 ? '#16a34a' : 'var(--color-text-primary)' }}>
@@ -223,9 +327,31 @@ export const AnalyticsDashboardPage: React.FC = () => {
             {(analytics?.stockAgingProfile || []).map((ag, idx) => {
               const pct = Math.round((ag.value / maxAgingValue) * 100);
               return (
-                <div key={idx} style={{ background: '#f8fafc', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                <div
+                  key={idx}
+                  onClick={() => navigate(`/inventory/stock?age=${encodeURIComponent(ag.range)}`)}
+                  title={`Click to filter Diamond Inventory by ${ag.range} holding duration`}
+                  style={{
+                    background: '#f8fafc',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    border: '1px solid #e2e8f0',
+                    cursor: 'pointer',
+                    transition: 'transform 0.15s ease, box-shadow 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.06)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'translateY(0)';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', fontWeight: 700, marginBottom: '4px' }}>
-                    <span>{ag.range}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '4px', color: '#0f172a' }}>
+                      {ag.range} <ChevronRight size={14} color="#64748b" />
+                    </span>
                     <span style={{ color: '#0f172a' }}>{formatCurrency(ag.value)}</span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: 'var(--color-text-secondary)' }}>
@@ -250,6 +376,7 @@ export const AnalyticsDashboardPage: React.FC = () => {
             <h3 style={{ fontSize: '14px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <PieChart size={16} color="#06b6d4" /> Quality Grade Revenue Share
             </h3>
+            <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Click to filter sales</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -257,12 +384,31 @@ export const AnalyticsDashboardPage: React.FC = () => {
               <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '20px' }}>No sales quality logs found</div>
             ) : (
               (analytics?.qualityWiseShare || []).slice(0, 5).map((q, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '12px' }}>
+                <div
+                  key={idx}
+                  onClick={() => navigate(`/transactions/sales?quality=${encodeURIComponent(q.qualityName)}`)}
+                  title={`Click to view sales invoices for quality ${q.qualityName}`}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    background: '#f8fafc',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdfa')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                >
                   <div>
                     <strong style={{ color: 'var(--color-text-primary)' }}>{q.qualityName}</strong>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>{q.carats} Carats</div>
                   </div>
-                  <span style={{ fontWeight: 700, color: '#0891b2' }}>{formatCurrency(q.salesValue)}</span>
+                  <span style={{ fontWeight: 700, color: '#0891b2', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {formatCurrency(q.salesValue)} <ArrowUpRight size={12} />
+                  </span>
                 </div>
               ))
             )}
@@ -275,6 +421,7 @@ export const AnalyticsDashboardPage: React.FC = () => {
             <h3 style={{ fontSize: '14px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Users size={16} color="#2563eb" /> Top 5 Customer Clients
             </h3>
+            <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Click to view client sales</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -282,12 +429,31 @@ export const AnalyticsDashboardPage: React.FC = () => {
               <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '20px' }}>No customer sales logs found</div>
             ) : (
               (analytics?.topCustomers || []).map((c, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '12px' }}>
+                <div
+                  key={idx}
+                  onClick={() => navigate(`/transactions/sales?party=${encodeURIComponent(c.customerName)}`)}
+                  title={`Click to view sales invoices for customer ${c.customerName}`}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    background: '#f8fafc',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#eff6ff')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                >
                   <div>
                     <strong style={{ color: 'var(--color-text-primary)' }}>{c.customerName}</strong>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>{c.invoiceCount} Invoices</div>
                   </div>
-                  <span style={{ fontWeight: 700, color: '#2563eb' }}>{formatCurrency(c.totalSpent)}</span>
+                  <span style={{ fontWeight: 700, color: '#2563eb', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {formatCurrency(c.totalSpent)} <ArrowUpRight size={12} />
+                  </span>
                 </div>
               ))
             )}
@@ -300,6 +466,7 @@ export const AnalyticsDashboardPage: React.FC = () => {
             <h3 style={{ fontSize: '14px', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '6px' }}>
               <Award size={16} color="#16a34a" /> Top 5 Diamond Suppliers
             </h3>
+            <span style={{ fontSize: '10px', color: 'var(--color-text-muted)' }}>Click to view supplier purchases</span>
           </div>
 
           <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
@@ -307,12 +474,31 @@ export const AnalyticsDashboardPage: React.FC = () => {
               <div style={{ fontSize: '12px', color: 'var(--color-text-secondary)', textAlign: 'center', padding: '20px' }}>No supplier purchase logs found</div>
             ) : (
               (analytics?.topSuppliers || []).map((s, idx) => (
-                <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 10px', background: '#f8fafc', borderRadius: '6px', fontSize: '12px' }}>
+                <div
+                  key={idx}
+                  onClick={() => navigate(`/transactions/purchases?party=${encodeURIComponent(s.supplierName)}`)}
+                  title={`Click to view purchase bills for supplier ${s.supplierName}`}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 10px',
+                    background: '#f8fafc',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    cursor: 'pointer',
+                    transition: 'background 0.15s ease',
+                  }}
+                  onMouseEnter={(e) => (e.currentTarget.style.background = '#f0fdf4')}
+                  onMouseLeave={(e) => (e.currentTarget.style.background = '#f8fafc')}
+                >
                   <div>
                     <strong style={{ color: 'var(--color-text-primary)' }}>{s.supplierName}</strong>
                     <div style={{ fontSize: '10px', color: 'var(--color-text-secondary)' }}>{s.billCount} Bills</div>
                   </div>
-                  <span style={{ fontWeight: 700, color: '#16a34a' }}>{formatCurrency(s.totalPurchased)}</span>
+                  <span style={{ fontWeight: 700, color: '#16a34a', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    {formatCurrency(s.totalPurchased)} <ArrowUpRight size={12} />
+                  </span>
                 </div>
               ))
             )}

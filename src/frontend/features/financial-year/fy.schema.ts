@@ -23,39 +23,55 @@ export const financialYearSchema = z
     lockTransactionUptoDate: z.string().optional(),
   })
   .superRefine((data, ctx) => {
-    const from = new Date(data.fromDate);
-    const to = new Date(data.toDate);
+    // Timezone-safe string date parsing
+    const fromParts = data.fromDate.split('-').map(Number);
+    const toParts = data.toDate.split('-').map(Number);
 
-    if (from >= to) {
+    if (fromParts.length !== 3 || toParts.length !== 3) return;
+
+    const [fromY, fromM, fromD] = fromParts;
+    const [toY, toM, toD] = toParts;
+
+    if (data.fromDate >= data.toDate) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'End date must be after start date',
+        message: 'End date must be strictly after start date',
         path: ['toDate'],
       });
     }
 
-    if (from.getMonth() !== 3 || from.getDate() !== 1) {
+    if (fromM !== 4 || fromD !== 1) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Financial year must start on April 1st',
+        message: 'Financial year must start on April 1st (01/04)',
         path: ['fromDate'],
       });
     }
 
-    if (to.getMonth() !== 2 || to.getDate() !== 31) {
+    if (toM !== 3 || toD !== 31) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
-        message: 'Financial year must end on March 31st',
+        message: 'Financial year must end on March 31st (31/03)',
         path: ['toDate'],
       });
     }
 
-    if (data.lockTransactionUptoDate) {
-      const lock = new Date(data.lockTransactionUptoDate);
-      if (lock < from || lock > to) {
+    if (toY !== fromY + 1) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Financial year must span exactly one fiscal period (April to March)',
+        path: ['toDate'],
+      });
+    }
+
+    if (data.lockTransactionUptoDate && data.lockTransactionUptoDate.trim()) {
+      const fromIso = data.fromDate;
+      const toIso = data.toDate;
+      const lockIso = data.lockTransactionUptoDate;
+      if (lockIso < fromIso || lockIso > toIso) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
-          message: 'Lock date must be within the financial year',
+          message: 'Lock date must be within the financial year (between start date and end date)',
           path: ['lockTransactionUptoDate'],
         });
       }
@@ -63,6 +79,46 @@ export const financialYearSchema = z
   });
 
 export type FinancialYearFormData = z.infer<typeof financialYearSchema>;
+
+export const editFinancialYearSchema = z
+  .object({
+    fromDate: z
+      .string()
+      .min(1, 'Start date is required')
+      .regex(dateRegex, 'Invalid date format'),
+    toDate: z
+      .string()
+      .min(1, 'End date is required')
+      .regex(dateRegex, 'Invalid date format'),
+    gstActive: z.boolean().default(true),
+    tcsActive: z.boolean().default(true),
+    accountEffect: z.boolean().default(true),
+    lockTransactionUptoDate: z.string().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (data.fromDate >= data.toDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'End date must be strictly after start date',
+        path: ['toDate'],
+      });
+    }
+
+    if (data.lockTransactionUptoDate && data.lockTransactionUptoDate.trim()) {
+      const fromIso = data.fromDate;
+      const toIso = data.toDate;
+      const lockIso = data.lockTransactionUptoDate;
+      if (lockIso < fromIso || lockIso > toIso) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Lock date must be within the financial year dates',
+          path: ['lockTransactionUptoDate'],
+        });
+      }
+    }
+  });
+
+export type EditFinancialYearFormData = z.infer<typeof editFinancialYearSchema>;
 
 /**
  * Build a list of selectable FY start years (current ± 5).
