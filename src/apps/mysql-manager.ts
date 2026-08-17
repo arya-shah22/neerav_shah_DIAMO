@@ -72,16 +72,25 @@ export function saveDatabaseConfig(config: IDatabaseConfig): void {
   }
 }
 
+// Prisma connection-pool tuning appended to every DATABASE_URL. Without an
+// explicit limit Prisma defaults to num_cpus*2+1 connections, which starves
+// under multi-PC (HOST + several CLIENTs) load and makes the UI hang while
+// queries wait for a free connection. A larger pool + longer wait avoids that;
+// 15 per app stays well under MySQL's max_connections even with several clients.
+const POOL_PARAMS = 'connection_limit=15&pool_timeout=20';
+
 export function getConnectionString(config: IDatabaseConfig): string {
-  if (config.role === 'CLIENT') {
-    const userPass = config.dbPass ? `${config.dbUser}:${config.dbPass}` : config.dbUser;
-    return `mysql://${userPass}@${config.hostIp}:${config.hostPort}/${config.dbName}`;
-  }
   const userPass = config.dbPass ? `${config.dbUser}:${config.dbPass}` : config.dbUser;
-  if (process.platform === 'win32') {
-    return `mysql://${userPass}@127.0.0.1:${config.hostPort}/${config.dbName}`;
+  let url: string;
+  if (config.role === 'CLIENT') {
+    url = `mysql://${userPass}@${config.hostIp}:${config.hostPort}/${config.dbName}`;
+  } else if (process.platform === 'win32') {
+    url = `mysql://${userPass}@127.0.0.1:${config.hostPort}/${config.dbName}`;
+  } else {
+    url = `mysql://${userPass}@localhost/${config.dbName}?socket=/tmp/mysql_diamo.sock`;
   }
-  return `mysql://${userPass}@localhost/${config.dbName}?socket=/tmp/mysql_diamo.sock`;
+  const sep = url.includes('?') ? '&' : '?';
+  return `${url}${sep}${POOL_PARAMS}`;
 }
 
 /** Resolve a single-`*` path pattern against the filesystem (e.g. wamp64/bin/mysql/*\/bin/mysqld.exe). */
@@ -208,6 +217,13 @@ export async function ensureEmbeddedMySQLRunning(config: IDatabaseConfig): Promi
       `--port=${config.hostPort}`,
       '--mysqlx=OFF',
       '--bind-address=0.0.0.0',
+      // Multi-user (HOST + LAN CLIENTs) tuning. The defaults (128 MB buffer pool)
+      // are undersized once several PCs share this server, causing disk-bound
+      // queries that make the host UI sluggish. These are pure-performance knobs
+      // with no durability trade-off (innodb-flush-log-at-trx-commit left at its
+      // safe default of 1 so no committed financial data can be lost).
+      '--innodb-buffer-pool-size=512M',
+      '--max-connections=200',
     ];
 
     if (process.platform !== 'win32') {
