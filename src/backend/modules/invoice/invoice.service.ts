@@ -719,14 +719,14 @@ export class InvoiceService {
       // 2. Create Double-Entry General Ledger Postings
       const isSalesBook = invoiceType === 'SALE_INVOICE' || invoiceType === 'SALE_DEBIT_NOTE';
       const isSalesReturn = invoiceType === 'SALE_RETURN';
-      const isPurchaseBook = invoiceType === 'PURCHASE_INVOICE' || invoiceType === 'PURCHASE_DEBIT_NOTE';
-      const isPurchaseReturn = invoiceType === 'PURCHASE_RETURN';
+      const isPurchaseInvoice = invoiceType === 'PURCHASE_INVOICE';
+      const isPurchaseReduction = invoiceType === 'PURCHASE_RETURN' || invoiceType === 'PURCHASE_DEBIT_NOTE';
 
       let partyDebitCredit: DebitCreditType = DebitCreditType.DEBIT;
       if (isSalesBook) partyDebitCredit = DebitCreditType.DEBIT;
       else if (isSalesReturn) partyDebitCredit = DebitCreditType.CREDIT;
-      else if (isPurchaseBook) partyDebitCredit = DebitCreditType.CREDIT;
-      else if (isPurchaseReturn) partyDebitCredit = DebitCreditType.DEBIT;
+      else if (isPurchaseInvoice) partyDebitCredit = DebitCreditType.CREDIT;
+      else if (isPurchaseReduction) partyDebitCredit = DebitCreditType.DEBIT;
 
       // Compute INR normalized amounts for General Ledger entries (GL is always in INR)
       const toGl = (v: number) => transactionCurrency === 'USD' ? Math.round(v * exchangeRate * 100) / 100 : v;
@@ -759,8 +759,8 @@ export class InvoiceService {
       let revenueDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
       if (isSalesBook) revenueDebitCredit = DebitCreditType.CREDIT;
       else if (isSalesReturn) revenueDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseBook) revenueDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseReturn) revenueDebitCredit = DebitCreditType.CREDIT;
+      else if (isPurchaseInvoice) revenueDebitCredit = DebitCreditType.DEBIT;
+      else if (isPurchaseReduction) revenueDebitCredit = DebitCreditType.CREDIT;
 
       // Revenue / Purchase Expense Posting
       await tx.generalLedgerEntry.create({
@@ -783,8 +783,8 @@ export class InvoiceService {
       let taxDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
       if (isSalesBook) taxDebitCredit = DebitCreditType.CREDIT;
       else if (isSalesReturn) taxDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseBook) taxDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseReturn) taxDebitCredit = DebitCreditType.CREDIT;
+      else if (isPurchaseInvoice) taxDebitCredit = DebitCreditType.DEBIT;
+      else if (isPurchaseReduction) taxDebitCredit = DebitCreditType.CREDIT;
 
       // CGST Posting
       if (totalCgst > 0) {
@@ -1653,14 +1653,14 @@ export class InvoiceService {
       // 4. Re-create ledger entries
       const isSalesBook = invoiceType === 'SALE_INVOICE' || invoiceType === 'SALE_DEBIT_NOTE';
       const isSalesReturn = invoiceType === 'SALE_RETURN';
-      const isPurchaseBook = invoiceType === 'PURCHASE_INVOICE' || invoiceType === 'PURCHASE_DEBIT_NOTE';
-      const isPurchaseReturn = invoiceType === 'PURCHASE_RETURN';
+      const isPurchaseInvoice = invoiceType === 'PURCHASE_INVOICE';
+      const isPurchaseReduction = invoiceType === 'PURCHASE_RETURN' || invoiceType === 'PURCHASE_DEBIT_NOTE';
 
       let partyDebitCredit: DebitCreditType = DebitCreditType.DEBIT;
       if (isSalesBook) partyDebitCredit = DebitCreditType.DEBIT;
       else if (isSalesReturn) partyDebitCredit = DebitCreditType.CREDIT;
-      else if (isPurchaseBook) partyDebitCredit = DebitCreditType.CREDIT;
-      else if (isPurchaseReturn) partyDebitCredit = DebitCreditType.DEBIT;
+      else if (isPurchaseInvoice) partyDebitCredit = DebitCreditType.CREDIT;
+      else if (isPurchaseReduction) partyDebitCredit = DebitCreditType.DEBIT;
 
       // Party Posting
       await tx.generalLedgerEntry.create({
@@ -1683,8 +1683,8 @@ export class InvoiceService {
       let revenueDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
       if (isSalesBook) revenueDebitCredit = DebitCreditType.CREDIT;
       else if (isSalesReturn) revenueDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseBook) revenueDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseReturn) revenueDebitCredit = DebitCreditType.CREDIT;
+      else if (isPurchaseInvoice) revenueDebitCredit = DebitCreditType.DEBIT;
+      else if (isPurchaseReduction) revenueDebitCredit = DebitCreditType.CREDIT;
 
       // Revenue / Purchase Expense Posting
       await tx.generalLedgerEntry.create({
@@ -1707,8 +1707,8 @@ export class InvoiceService {
       let taxDebitCredit: DebitCreditType = DebitCreditType.CREDIT;
       if (isSalesBook) taxDebitCredit = DebitCreditType.CREDIT;
       else if (isSalesReturn) taxDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseBook) taxDebitCredit = DebitCreditType.DEBIT;
-      else if (isPurchaseReturn) taxDebitCredit = DebitCreditType.CREDIT;
+      else if (isPurchaseInvoice) taxDebitCredit = DebitCreditType.DEBIT;
+      else if (isPurchaseReduction) taxDebitCredit = DebitCreditType.CREDIT;
 
       if (totalCgst > 0) {
         await tx.generalLedgerEntry.create({
