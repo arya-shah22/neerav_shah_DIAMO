@@ -8,7 +8,6 @@ import { useNavigate } from 'react-router-dom';
 import {
   PanelLeftClose,
   PanelLeft,
-  Search,
   Bell,
   User,
   ChevronDown,
@@ -317,23 +316,6 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
         </div>
       </div>
 
-      {/* Global Search */}
-      <div style={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 'var(--spacing-sm)',
-        padding: 'var(--spacing-xs) var(--spacing-md)',
-        background: 'var(--color-bg)',
-        border: '1px solid var(--color-border)',
-        borderRadius: 'var(--radius-md)',
-        width: '360px',
-        cursor: 'pointer',
-      }}>
-        <Search size={14} color="var(--color-text-muted)" />
-        <span style={{ fontSize: 'var(--text-label)', color: 'var(--color-text-muted)', flex: 1 }}>
-          Search... (Ctrl+K)
-        </span>
-      </div>
 
       {/* Right Section */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
