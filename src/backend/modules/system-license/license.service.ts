@@ -5,6 +5,7 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import os from 'os';
+import { RELEASE_NOTES } from '../../../shared/constants/release-notes';
 
 /**
  * Version of the build running on THIS machine.
@@ -125,26 +126,11 @@ export class LicenseService {
     const osPlatform = `${os.type()} ${os.release()} (${os.arch()})`;
     const cpuModel = os.cpus()[0]?.model || 'Generic CPU';
 
-    // 6. Release Patch Logs (Local Change History)
-    let installedPatches: any[] = [];
-    try {
-      const patchSetting = await this.prisma.systemSetting.findFirst({
-        where: { companyId, settingKey: 'INSTALLED_PATCH_LOGS' },
-      });
-      if (patchSetting && patchSetting.settingValue && Array.isArray(patchSetting.settingValue)) {
-        installedPatches = patchSetting.settingValue as any[];
-      }
-    } catch (e) {
-      console.warn('Failed to load installed patch logs:', e);
-    }
-
-    const defaultLogs = [
-      { version: 'v1.0.0', date: '2026-07-23', description: 'Production Release. Completed Ledger, Cash/Bank Vouchers, and automated Backup management features.' },
-      { version: 'v0.9.8', date: '2026-07-15', description: 'Beta Release. Integrated customizable invoice templates and supervisor security lockouts.' },
-      { version: 'v0.9.0', date: '2026-06-01', description: 'Initial Alpha Build. Implemented core database schemas, inventory packages, and multi-currency registers.' },
-    ];
-
-    const changeLogs = [...installedPatches, ...defaultLogs];
+    // 6. Release notes — the real, per-build history shipped in RELEASE_NOTES.
+    // Previously this showed invented entries (v1.0.0/v0.9.8/v0.9.0) merged with
+    // INSTALLED_PATCH_LOGS from the SHARED database, which the old simulated
+    // updater filled with fabricated patch rows and which every LAN PC saw.
+    const changeLogs = RELEASE_NOTES;
 
     return {
       license: {

@@ -225,37 +225,7 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
           </div>
         )}
 
-        {/* Card 3: System / Build specifications */}
-        {data && (
-          <div style={{
-            background: 'var(--color-surface)',
-            border: '1px solid var(--color-border)',
-            borderRadius: '12px',
-            padding: '24px',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '16px',
-            boxShadow: 'var(--shadow-sm)',
-          }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Execution Host Properties</h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', fontSize: '12px' }}>
-              <div>
-                <span style={{ color: 'var(--color-text-secondary)', display: 'block', marginBottom: '2px' }}>OPERATING SYSTEM</span>
-                <span style={{ fontWeight: 600 }}>{data.system.osPlatform}</span>
-              </div>
-              <div>
-                <span style={{ color: 'var(--color-text-secondary)', display: 'block', marginBottom: '2px' }}>CPU ARCHITECTURE</span>
-                <span style={{ fontWeight: 600 }}>{data.system.cpuModel}</span>
-              </div>
-              <div>
-                <span style={{ color: 'var(--color-text-secondary)', display: 'block', marginBottom: '2px' }}>MEMORY RESERVATION</span>
-                <span style={{ fontWeight: 600 }}>{data.system.processMemoryMb} MB RAM</span>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Card 4: Change logs timeline */}
+        {/* Card 3: Change logs timeline */}
         {data && (
           <div style={{
             background: 'var(--color-surface)',

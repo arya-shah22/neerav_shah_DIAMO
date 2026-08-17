@@ -1,0 +1,47 @@
+// ═══════════════════════════════════════════════════════════════
+// DIAMO ERP — Release Notes
+//
+// Shipped with the build so the Settings screen can show real history offline:
+// the repository is private, so an installed app cannot read GitHub's release
+// feed, and LAN client PCs may have no internet at all.
+//
+// Add a new entry at the TOP whenever a version is released — newest first.
+// ═══════════════════════════════════════════════════════════════
+
+export interface IReleaseNote {
+  version: string;
+  date: string; // YYYY-MM-DD
+  description: string;
+}
+
+export const RELEASE_NOTES: IReleaseNote[] = [
+  {
+    version: 'v0.0.5',
+    date: '2026-08-17',
+    description:
+      'Version information now shows the build actually installed on this PC. Software updates are delivered from the Host PC to connected LAN PCs automatically, without needing an internet connection.',
+  },
+  {
+    version: 'v0.0.4',
+    date: '2026-08-17',
+    description:
+      'Performance tuning for multi-PC use: a larger database cache and higher connection limits keep the Host responsive while several PCs are connected.',
+  },
+  {
+    version: 'v0.0.3',
+    date: '2026-08-17',
+    description:
+      'Multi-PC support over the local network. Client PCs can now connect to the Host database, and automatically find the Host again if its network address changes.',
+  },
+  {
+    version: 'v0.0.2',
+    date: '2026-08-17',
+    description:
+      'The Windows installer now includes its own database server, so DIAMO ERP runs on a PC with no WAMP or XAMPP installed.',
+  },
+  {
+    version: 'v0.0.1',
+    date: '2026-08-17',
+    description: 'Version baseline for the new release series.',
+  },
+];
