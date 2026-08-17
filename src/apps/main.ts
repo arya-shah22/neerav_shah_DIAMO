@@ -67,17 +67,27 @@ import { autoUpdater } from 'electron-updater';
 autoUpdater.autoDownload = true;
 autoUpdater.autoInstallOnAppQuit = true;
 
+function safeSend(channel: string, ...args: any[]): void {
+  try {
+    if (mainWindow && !mainWindow.isDestroyed() && mainWindow.webContents && !mainWindow.webContents.isDestroyed()) {
+      mainWindow.webContents.send(channel, ...args);
+    }
+  } catch (err) {
+    // Ignore frame lifecycle / disposal errors during hot reloads or window closure
+  }
+}
+
 function setupAutoUpdater(): void {
   if (isDev) return;
 
   autoUpdater.on('update-available', (info: any) => {
     console.log(`[AutoUpdater] Update available: v${info.version}`);
-    mainWindow?.webContents.send('app:update-available', info);
+    safeSend('app:update-available', info);
   });
 
   autoUpdater.on('update-downloaded', (info: any) => {
     console.log(`[AutoUpdater] Update downloaded: v${info.version}`);
-    mainWindow?.webContents.send('app:update-downloaded', info);
+    safeSend('app:update-downloaded', info);
   });
 
   autoUpdater.on('error', (err: any) => {
@@ -160,7 +170,7 @@ async function runStartupBackupChecks(nestContext: INestApplicationContext) {
           console.log(`[Backup] Running automated startup backup...`);
           await backupService.createBackup(companyId, 'AUTO', 'Automatic startup database snapshot');
           startupBackupTriggered = true;
-          mainWindow?.webContents.send('backup:completed');
+          safeSend('backup:completed');
         }
 
         // Missed schedule catch-up run check: only if mode is SCHEDULE or BOTH
@@ -191,7 +201,7 @@ async function runStartupBackupChecks(nestContext: INestApplicationContext) {
           if (shouldBackup) {
             console.log(`[Backup] Missed scheduled backup detected for company ${companyId}. Running catch-up...`);
             await backupService.createBackup(companyId, 'SCHEDULED', 'Offline scheduled catch-up backup on launch');
-            mainWindow?.webContents.send('backup:completed');
+            safeSend('backup:completed');
           }
         }
       }
@@ -237,7 +247,7 @@ async function runActiveScheduledBackupChecks(nestContext: INestApplicationConte
             console.log(`[Backup] Running automated background scheduled backup...`);
             await backupService.createBackup(companyId, 'SCHEDULED', 'Automated background scheduled backup');
             scheduledBackupTriggered = true;
-            mainWindow?.webContents.send('backup:completed');
+            safeSend('backup:completed');
           }
         }
       }
