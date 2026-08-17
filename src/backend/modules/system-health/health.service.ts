@@ -197,7 +197,7 @@ export class HealthService {
       'journal_vouchers',
       'cash_bank_vouchers',
       'users',
-      'audit_log',
+      'audit_logs',
     ];
 
     const results = [];
