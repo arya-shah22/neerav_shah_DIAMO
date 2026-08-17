@@ -38,7 +38,6 @@ export function startHostDiscoveryBeacon(dbPort: number = 3306): void {
       console.log(`[LAN Discovery] Host beacon active on UDP port ${UDP_PORT}`);
     });
 
-    const localIp = getLocalIpAddress();
     const hostname = os.hostname();
 
     const sendBeacon = () => {
@@ -46,7 +45,9 @@ export function startHostDiscoveryBeacon(dbPort: number = 3306): void {
       const payload: ILanHostInfo = {
         role: 'DIAMO_HOST',
         hostname,
-        ip: localIp,
+        // Recompute each tick so the beacon reflects the host's CURRENT IP after a
+        // DHCP change / network restart, instead of a stale one-time snapshot.
+        ip: getLocalIpAddress(),
         port: dbPort,
         timestamp: Date.now(),
       };

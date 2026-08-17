@@ -165,8 +165,44 @@ export async function ensureDatabaseReady(databaseUrl: string): Promise<void> {
 
     // ─── 3. Seed reference data + Super Admin ───────────────
     await seedReferenceData(prisma);
+
+    // ─── 4. Open LAN access for CLIENT PCs ───────────────────
+    // The bundled MySQL is initialized with only `<user>@localhost`, so a CLIENT
+    // PC connecting over the LAN is rejected at authentication with error 1130
+    // ("Host '<name>' is not allowed to connect to this MySQL server") — even
+    // though mysqld binds 0.0.0.0 and the port is reachable. Create a matching
+    // `<user>@'%'` account so clients using the same credentials can connect.
+    // Non-fatal: a failure here only affects multi-PC (HOST/CLIENT) use.
+    try {
+      const dbUser = decodeURIComponent(parsed.username) || 'root';
+      const dbPass = decodeURIComponent(parsed.password);
+      await ensureLanAccess(prisma, dbUser, dbPass);
+      console.log(`[DbBootstrap] LAN access ensured for '${dbUser}'@'%'`);
+    } catch (lanErr) {
+      console.warn('[DbBootstrap] Could not ensure LAN access — CLIENT PCs may fail to connect:', lanErr);
+    }
+
     console.log('[DbBootstrap] Database is ready');
   } finally {
     await prisma.$disconnect();
   }
+}
+
+/**
+ * Create/refresh a `<user>@'%'` account so CLIENT PCs on the LAN can authenticate
+ * against this HOST's MySQL. Runs as the local root, which holds the global
+ * privileges needed for CREATE USER / GRANT. Idempotent — safe on every launch.
+ *
+ * SECURITY NOTE: this mirrors the host's own credentials. With the default
+ * root/empty-password setup that means any device on the LAN can connect as root
+ * with no password. That matches the app's existing single-trusted-LAN model;
+ * set a database password in setup to lock it down.
+ */
+async function ensureLanAccess(prisma: PrismaClient, dbUser: string, dbPass: string): Promise<void> {
+  const u = dbUser.replace(/'/g, "''");
+  const p = dbPass.replace(/'/g, "''");
+  await prisma.$executeRawUnsafe(`CREATE USER IF NOT EXISTS '${u}'@'%' IDENTIFIED BY '${p}'`);
+  await prisma.$executeRawUnsafe(`ALTER USER '${u}'@'%' IDENTIFIED BY '${p}'`);
+  await prisma.$executeRawUnsafe(`GRANT ALL PRIVILEGES ON *.* TO '${u}'@'%' WITH GRANT OPTION`);
+  await prisma.$executeRawUnsafe('FLUSH PRIVILEGES');
 }

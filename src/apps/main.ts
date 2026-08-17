@@ -51,9 +51,9 @@ import 'reflect-metadata';
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import path from 'path';
 import { registerIpcHandlers, registerSetupIpcHandlers } from './ipc-handlers';
-import { loadDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
+import { loadDatabaseConfig, saveDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
 import { ensureDatabaseReady } from './db-bootstrap';
-import { startHostDiscoveryBeacon, stopLanDiscovery } from './lan-discovery';
+import { startHostDiscoveryBeacon, stopLanDiscovery, discoverHostsOnLan } from './lan-discovery';
 
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
@@ -324,6 +324,34 @@ app.whenReady().then(async () => {
   let databaseBootstrapError: string | null = null;
   try {
     const dbConfig = loadDatabaseConfig();
+
+    // CLIENT mode: the host's LAN IP can change (DHCP lease, router/network
+    // restart), which would leave the cached hostIp pointing at a dead address.
+    // When autoDiscover is on, re-run LAN discovery at startup and adopt the
+    // host's CURRENT advertised IP before we build the connection string — this
+    // runs before NestJS/Prisma connect below, so the fresh IP is used.
+    if (dbConfig.role === 'CLIENT' && dbConfig.isConfigured && dbConfig.autoDiscover) {
+      try {
+        const hosts = await discoverHostsOnLan(3000);
+        if (hosts.length > 0) {
+          // Prefer a host still advertising the cached IP; else take the first found.
+          const match = hosts.find((h) => h.ip === dbConfig.hostIp) || hosts[0];
+          if (match.ip !== dbConfig.hostIp || match.port !== dbConfig.hostPort) {
+            console.log(
+              `[Main] CLIENT auto-discovery updated host ${dbConfig.hostIp}:${dbConfig.hostPort} -> ${match.ip}:${match.port}`
+            );
+            dbConfig.hostIp = match.ip;
+            dbConfig.hostPort = match.port;
+            saveDatabaseConfig(dbConfig);
+          }
+        } else {
+          console.warn('[Main] CLIENT auto-discovery found no host beacon; using cached hostIp', dbConfig.hostIp);
+        }
+      } catch (discErr) {
+        console.warn('[Main] CLIENT auto-discovery failed; using cached hostIp:', discErr);
+      }
+    }
+
     process.env.DATABASE_URL = getConnectionString(dbConfig);
 
     if (dbConfig.role === 'HOST' && dbConfig.isConfigured) {
