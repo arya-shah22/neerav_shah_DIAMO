@@ -591,6 +591,27 @@ export class InvoiceService {
         });
       }
 
+      let extraChargesList: Array<{ name: string; hsn?: string; amount: number }> = Array.isArray(data.extraCharges) ? data.extraCharges : [];
+      if (extraChargesList.length === 0 && typeof data.narration === 'string' && data.narration.includes('__EXTRA_CHARGES__:')) {
+        try {
+          const m = data.narration.match(/__EXTRA_CHARGES__:(.*?)(?:__END__|$)/);
+          if (m && m[1]) extraChargesList = JSON.parse(m[1]);
+        } catch {}
+      }
+      const totalExtraCharges = extraChargesList.reduce((acc, c) => {
+        const amt = Number(c.amount) || 0;
+        const cCurr = (c as any).currency || transactionCurrency;
+        if (cCurr === transactionCurrency) return acc + amt;
+        if (cCurr === 'USD' && transactionCurrency === 'INR') {
+          return acc + Math.round(amt * exchangeRate * 100) / 100;
+        }
+        if (cCurr === 'INR' && transactionCurrency === 'USD') {
+          return acc + Math.round((amt / (exchangeRate > 0 ? exchangeRate : 1)) * 100) / 100;
+        }
+        return acc + amt;
+      }, 0);
+      totalGrossAmount += totalExtraCharges;
+
       const calculatedAddValue = (totalGrossAmount * addPct) / 100;
       const calculatedLessValue = (totalGrossAmount * lessPct) / 100;
       const taxableTotal = totalGrossAmount + calculatedAddValue - calculatedLessValue;
@@ -1456,6 +1477,27 @@ export class InvoiceService {
       if (data.totalCgst !== undefined) totalCgst = Number(data.totalCgst);
       if (data.totalSgst !== undefined) totalSgst = Number(data.totalSgst);
       if (data.totalIgst !== undefined) totalIgst = Number(data.totalIgst);
+
+      let extraChargesList: Array<{ name: string; hsn?: string; amount: number }> = Array.isArray(data.extraCharges) ? data.extraCharges : [];
+      if (extraChargesList.length === 0 && typeof data.narration === 'string' && data.narration.includes('__EXTRA_CHARGES__:')) {
+        try {
+          const m = data.narration.match(/__EXTRA_CHARGES__:(.*?)(?:__END__|$)/);
+          if (m && m[1]) extraChargesList = JSON.parse(m[1]);
+        } catch {}
+      }
+      const totalExtraCharges = extraChargesList.reduce((acc, c) => {
+        const amt = Number(c.amount) || 0;
+        const cCurr = (c as any).currency || transactionCurrency;
+        if (cCurr === transactionCurrency) return acc + amt;
+        if (cCurr === 'USD' && transactionCurrency === 'INR') {
+          return acc + Math.round(amt * exchangeRate * 100) / 100;
+        }
+        if (cCurr === 'INR' && transactionCurrency === 'USD') {
+          return acc + Math.round((amt / (exchangeRate > 0 ? exchangeRate : 1)) * 100) / 100;
+        }
+        return acc + amt;
+      }, 0);
+      totalGrossAmount += totalExtraCharges;
 
       const calculatedAddValue = (totalGrossAmount * addPct) / 100;
       const calculatedLessValue = (totalGrossAmount * lessPct) / 100;

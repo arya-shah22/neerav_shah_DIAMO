@@ -34,6 +34,7 @@ export interface IPrintItemTableConfig {
   showDiscountColumn: boolean;
   showPurityColumn: boolean;
   showPacketIdColumn: boolean;
+  showExtraChargesTable?: boolean;
 }
 
 /** Footer section toggles and custom text */
@@ -127,6 +128,7 @@ export const DEFAULT_LAYOUT_CONFIG: IPrintLayoutConfig = {
     showDiscountColumn: false,
     showPurityColumn: true,
     showPacketIdColumn: true,
+    showExtraChargesTable: true,
   },
   footer: {
     showBankDetails: true,

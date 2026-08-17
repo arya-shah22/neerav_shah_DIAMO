@@ -33,6 +33,14 @@ interface QualityObj {
   gstPct?: number;
 }
 
+interface ExtraChargeItem {
+  id: string;
+  name: string;
+  hsn: string;
+  currency: 'USD' | 'INR';
+  amount: number;
+}
+
 interface IStockPacket {
   id: number;
   stockIdNumber: string;
@@ -44,6 +52,64 @@ interface IStockPacket {
   originalCurrency?: 'USD' | 'INR';
   transactionCurrency?: 'USD' | 'INR';
 }
+
+function formatInvoiceCurrencyDual(inv: any): string {
+  const curr = inv.transactionCurrency || 'INR';
+  const isUsd = curr === 'USD';
+  const netAmt = Number(inv.netAmount || 0);
+  const exRate = Number(inv.exchangeRate) || 1;
+  const netAlt = inv.netAmountAlt && Number(inv.netAmountAlt) > 0
+    ? Number(inv.netAmountAlt)
+    : (isUsd ? netAmt * exRate : (exRate > 1 ? netAmt / exRate : 0));
+
+  if (isUsd) {
+    const primaryStr = `$${netAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const altStr = netAlt > 0 ? ` (₹${netAlt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : '';
+    return `${primaryStr}${altStr}`;
+  } else {
+    const primaryStr = `₹${netAmt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    const altStr = netAlt > 0 ? ` ($${netAlt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})` : '';
+    return `${primaryStr}${altStr}`;
+  }
+}
+
+const PRESET_CHARGES = [
+  {
+    name: 'Insured Shipping (Brinks / Malca-Amit)',
+    shortLabel: '🚚 Insured Shipping',
+    hsn: '9968',
+    defaultInr: 5000,
+    defaultUsd: 60,
+  },
+  {
+    name: 'GIA / IGI Lab Inscription & Cert Fee',
+    shortLabel: '🔬 Lab / Inscription Fee',
+    hsn: '9983',
+    defaultInr: 3500,
+    defaultUsd: 45,
+  },
+  {
+    name: 'Customs Clearance & Documentation',
+    shortLabel: '🏛️ Customs Clearance',
+    hsn: '9968',
+    defaultInr: 4000,
+    defaultUsd: 50,
+  },
+  {
+    name: 'Transit Insurance Charges',
+    shortLabel: '🛡️ Transit Insurance',
+    hsn: '9971',
+    defaultInr: 2500,
+    defaultUsd: 30,
+  },
+  {
+    name: 'Boiling, Polishing & Processing Fee',
+    shortLabel: '✨ Processing / Boiling',
+    hsn: '9988',
+    defaultInr: 2000,
+    defaultUsd: 25,
+  },
+];
 
 export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const { id: editId } = useParams<{ id: string }>();
@@ -116,6 +182,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const [previewVoucherNo, setPreviewVoucherNo] = useState('');
   const [editLoaded, setEditLoaded] = useState(false);
   const [parentInvoices, setParentInvoices] = useState<IInvoice[]>([]);
+  const [extraCharges, setExtraCharges] = useState<ExtraChargeItem[]>([]);
 
   const { invoke: fetchAccounts } = useIpc<AccountObj[]>('account:list');
   const { invoke: fetchQualities } = useIpc<QualityObj[]>('quality:list');
@@ -373,8 +440,26 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         }
         setValue('totalCgst', Number(inv.totalCgst) || 0);
         setValue('totalSgst', Number(inv.totalSgst) || 0);
-        setValue('totalIgst', Number(inv.totalIgst) || 0);
-        setValue('narration', inv.narration || '');
+        let cleanNarr = inv.narration || '';
+        if (cleanNarr && cleanNarr.includes('__EXTRA_CHARGES__:')) {
+          try {
+            const match = cleanNarr.match(/__EXTRA_CHARGES__:(.*?)(?:__END__|$)/);
+            if (match && match[1]) {
+              const parsed = JSON.parse(match[1]);
+              if (Array.isArray(parsed)) {
+                setExtraCharges(parsed.map((p: any, idx: number) => ({
+                  id: p.id || 'ec_' + idx,
+                  name: p.name || 'Charge',
+                  hsn: p.hsn || '9968',
+                  currency: p.currency || (inv.transactionCurrency as any) || 'USD',
+                  amount: Number(p.amount) || 0,
+                })));
+              }
+            }
+          } catch {}
+          cleanNarr = cleanNarr.replace(/__EXTRA_CHARGES__:.*?__END__/g, '').trim();
+        }
+        setValue('narration', cleanNarr);
         if (inv.items && inv.items.length > 0) {
           setValue('items', inv.items.map((it) => ({
             qualityId: it.qualityId,
@@ -442,6 +527,60 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     }
   };
 
+  const handleApplyPresetCharge = (preset: typeof PRESET_CHARGES[0]) => {
+    const invCurr = (watch('transactionCurrency') as 'USD' | 'INR') || 'USD';
+    const isUsd = invCurr === 'USD';
+    const defaultAmount = isUsd ? preset.defaultUsd : preset.defaultInr;
+
+    const newCharge: ExtraChargeItem = {
+      id: 'ec_' + Math.random().toString(36).substring(2, 9),
+      name: preset.name,
+      hsn: preset.hsn,
+      currency: invCurr,
+      amount: defaultAmount,
+    };
+
+    setExtraCharges((prev) => [...prev, newCharge]);
+    showToast(`Added "${preset.name}" to extra charges`, 'info');
+  };
+
+  const handleAddCustomCharge = () => {
+    const invCurr = (watch('transactionCurrency') as 'USD' | 'INR') || 'USD';
+    const newCharge: ExtraChargeItem = {
+      id: 'ec_' + Math.random().toString(36).substring(2, 9),
+      name: 'Supplementary Charge',
+      hsn: '9968',
+      currency: invCurr,
+      amount: 0,
+    };
+    setExtraCharges((prev) => [...prev, newCharge]);
+  };
+
+  const handleRemoveCharge = (id: string) => {
+    setExtraCharges((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const handleUpdateCharge = (id: string, field: 'name' | 'hsn' | 'currency' | 'amount', val: any) => {
+    setExtraCharges((prev) =>
+      prev.map((c) => (c.id === id ? { ...c, [field]: field === 'amount' ? (Number(val) || 0) : val } : c))
+    );
+  };
+
+  const getConvertedChargeAmount = (chg: ExtraChargeItem) => {
+    const invCurr = watch('transactionCurrency') || 'USD';
+    const exRate = Number(watch('exchangeRate')) || 1;
+    const amt = Number(chg.amount) || 0;
+    const chgCurr = chg.currency || invCurr;
+    if (chgCurr === invCurr) return amt;
+    if (chgCurr === 'USD' && invCurr === 'INR') {
+      return Math.round(amt * exRate * 100) / 100;
+    }
+    if (chgCurr === 'INR' && invCurr === 'USD') {
+      return Math.round((amt / (exRate > 0 ? exRate : 1)) * 100) / 100;
+    }
+    return amt;
+  };
+
   // Find active party object to check state code
   const selectedPartyObj = parties.find((p) => p.id === watchedCustomerId);
 
@@ -473,9 +612,11 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
     };
   });
 
-  const calculatedAddValue = (grossTotal * watchedAddPct) / 100;
-  const calculatedLessValue = (grossTotal * watchedLessPct) / 100;
-  const taxableTotal = grossTotal + calculatedAddValue - calculatedLessValue;
+  const totalExtraCharges = extraCharges.reduce((acc, c) => acc + getConvertedChargeAmount(c), 0);
+
+  const calculatedAddValue = ((grossTotal + totalExtraCharges) * watchedAddPct) / 100;
+  const calculatedLessValue = ((grossTotal + totalExtraCharges) * watchedLessPct) / 100;
+  const taxableTotal = grossTotal + totalExtraCharges + calculatedAddValue - calculatedLessValue;
 
   let cgstTotal = 0;
   let sgstTotal = 0;
@@ -521,11 +662,24 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
 
   const onSubmit = async (data: InvoiceFormData) => {
     if (!companyId) return;
+
+    let cleanNarration = (data.narration || '').replace(/__EXTRA_CHARGES__:.*?__END__/g, '').trim();
+    if (extraCharges.length > 0) {
+      cleanNarration = `${cleanNarration ? cleanNarration + ' ' : ''}__EXTRA_CHARGES__:${JSON.stringify(extraCharges)}__END__`.trim();
+    }
+
+    const payload = {
+      ...data,
+      extraCharges,
+      totalExtraCharges,
+      narration: cleanNarration,
+    };
+
     let res;
     if (isEditMode) {
-      res = await updateInvoice({ id: Number(editId), companyId, data });
+      res = await updateInvoice({ id: Number(editId), companyId, data: payload as any });
     } else {
-      res = await createInvoice({ companyId, data });
+      res = await createInvoice({ companyId, data: payload as any });
     }
     if (res.success) {
       showToast(isEditMode ? 'Transaction updated successfully' : 'Transaction created successfully', 'success');
@@ -577,22 +731,19 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
 
         {needReference && (
           <div style={{ marginBottom: '20px', background: 'var(--color-row-alt)', padding: '16px', borderRadius: 'var(--radius-lg)', border: '1px solid var(--color-border)' }}>
-            <label style={{ fontSize: '13px', fontWeight: 600, display: 'block', marginBottom: '8px', color: 'var(--color-primary)' }}>
-              Link Reference {isCustomer ? 'Sales Invoice' : 'Purchase Invoice'} *
-            </label>
-            <select
-              style={{ width: '100%', padding: '10px', borderRadius: 'var(--radius-md)', background: 'var(--color-surface)', border: '1px solid var(--color-border)', color: 'var(--color-primary)' }}
-              value={watch('referenceInvoiceId') || ''}
-              onChange={(e) => handleSelectReference(e.target.value)}
+            <Select
+              label={`Link Reference ${isCustomer ? 'Sales Invoice' : 'Purchase Invoice'} *`}
+              options={parentInvoices.map((parent) => ({
+                value: String(parent.id),
+                label: `${parent.voucherNumber} (${isCustomer ? parent.customer?.accountName : parent.supplier?.accountName}) — Date: ${new Date(parent.invoiceDate).toLocaleDateString('en-IN')} — Net: ${formatInvoiceCurrencyDual(parent)}`,
+              }))}
+              value={watch('referenceInvoiceId') ? String(watch('referenceInvoiceId')) : ''}
+              onChange={(val) => handleSelectReference(val)}
+              placeholder={`Search and select parent ${isCustomer ? 'sales' : 'purchase'} invoice...`}
               disabled={isEditMode}
-            >
-              <option value="">-- Search and Select Parent Invoice --</option>
-              {parentInvoices.map((parent) => (
-                <option key={parent.id} value={parent.id}>
-                  {parent.voucherNumber} ({parent.customer?.accountName}) — Date: {new Date(parent.invoiceDate).toLocaleDateString('en-IN')} — Net: ₹{Number(parent.netAmount).toLocaleString('en-IN')}
-                </option>
-              ))}
-            </select>
+              searchable={true}
+              clearable={true}
+            />
             {watch('referenceBillNumber') && (
               <span style={{ display: 'block', fontSize: '12px', color: 'var(--color-accent)', marginTop: '8px', fontWeight: 500 }}>
                 Linked Invoice Number: <strong>{watch('referenceBillNumber')}</strong>
@@ -1069,6 +1220,248 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
           <Plus size={14} /> Add Row
         </Button>
 
+        {/* EXTRA / SUPPLEMENTARY CHARGES SECTION */}
+        <div style={{ borderTop: '1px solid var(--color-border)', margin: '24px 0' }} />
+
+        <div style={{
+          background: 'var(--color-surface)',
+          border: '1px solid var(--color-border)',
+          borderRadius: 'var(--radius-lg)',
+          padding: '20px',
+          marginBottom: '24px',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+            <div>
+              <h3 style={{ fontSize: '15px', fontWeight: 700, margin: 0, color: 'var(--color-primary)' }}>
+                Extra / Supplementary Charges
+              </h3>
+              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                Add insured shipping, lab certification fees, customs clearance, or custom service charges
+              </span>
+            </div>
+            {totalExtraCharges > 0 && (
+              <div style={{
+                background: 'rgba(2, 132, 199, 0.1)',
+                border: '1px solid var(--color-accent)',
+                borderRadius: 'var(--radius-md)',
+                padding: '6px 12px',
+                fontSize: '13px',
+                fontWeight: 700,
+                color: 'var(--color-accent)'
+              }}>
+                Total Extra Charges: {watch('transactionCurrency') === 'USD' ? `$${totalExtraCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${totalExtraCharges.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+              </div>
+            )}
+          </div>
+
+          {/* Quick Preset Buttons Strip */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+            flexWrap: 'wrap',
+            marginBottom: '16px',
+            padding: '10px 14px',
+            background: 'var(--color-row-alt)',
+            borderRadius: 'var(--radius-md)',
+            border: '1px solid var(--color-border)'
+          }}>
+            <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+              ⚡ Quick Presets:
+            </span>
+            {PRESET_CHARGES.map((preset) => (
+              <button
+                key={preset.name}
+                type="button"
+                onClick={() => handleApplyPresetCharge(preset)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '5px 10px',
+                  borderRadius: '6px',
+                  border: '1px solid var(--color-border)',
+                  background: 'var(--color-surface)',
+                  color: 'var(--color-text-primary)',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 1px 2px rgba(0,0,0,0.03)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-accent)';
+                  e.currentTarget.style.color = 'var(--color-accent)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.borderColor = 'var(--color-border)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }}
+              >
+                <span>{preset.shortLabel}</span>
+                <span style={{ fontSize: '10px', opacity: 0.75, background: 'var(--color-bg-card)', padding: '1px 4px', borderRadius: '3px' }}>
+                  {watch('transactionCurrency') === 'USD' ? `$${preset.defaultUsd}` : `₹${preset.defaultInr.toLocaleString('en-IN')}`}
+                </span>
+              </button>
+            ))}
+          </div>
+
+          {/* Extra Charges Table */}
+          {extraCharges.length > 0 ? (
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginBottom: '16px' }}>
+              <thead>
+                <tr style={{ borderBottom: '1px solid var(--color-border)', textAlign: 'left', background: 'var(--color-row-alt)' }}>
+                  <th style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', width: '40px' }}>#</th>
+                  <th style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)' }}>CHARGE DESCRIPTION *</th>
+                  <th style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', width: '120px' }}>SAC / HSN</th>
+                  <th style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', width: '120px' }}>CURRENCY</th>
+                  <th style={{ padding: '8px 12px', fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', width: '180px', textAlign: 'right' }}>
+                    AMOUNT *
+                  </th>
+                  <th style={{ padding: '8px 12px', width: '50px' }}></th>
+                </tr>
+              </thead>
+              <tbody>
+                {extraCharges.map((charge, cIdx) => (
+                  <tr key={charge.id} style={{ borderBottom: '1px solid var(--color-border)', verticalAlign: 'middle' }}>
+                    <td style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+                      {cIdx + 1}
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <input
+                        type="text"
+                        value={charge.name}
+                        onChange={(e) => handleUpdateCharge(charge.id, 'name', e.target.value)}
+                        placeholder="e.g. Insured Shipping, Laboratory Fee"
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface)',
+                          color: 'var(--color-text-primary)',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <input
+                        type="text"
+                        value={charge.hsn}
+                        onChange={(e) => handleUpdateCharge(charge.id, 'hsn', e.target.value)}
+                        placeholder="SAC Code"
+                        style={{
+                          width: '100%',
+                          padding: '7px 10px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface)',
+                          color: 'var(--color-text-primary)',
+                          fontSize: '13px',
+                          textAlign: 'center',
+                        }}
+                      />
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <select
+                        value={charge.currency || watch('transactionCurrency') || 'USD'}
+                        onChange={(e) => handleUpdateCharge(charge.id, 'currency', e.target.value as any)}
+                        style={{
+                          width: '100%',
+                          padding: '7px 8px',
+                          borderRadius: 'var(--radius-sm)',
+                          border: '1px solid var(--color-border)',
+                          background: 'var(--color-surface)',
+                          color: 'var(--color-text-primary)',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                        }}
+                      >
+                        <option value="USD">USD ($)</option>
+                        <option value="INR">INR (₹)</option>
+                      </select>
+                    </td>
+                    <td style={{ padding: '8px 12px' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '2px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', width: '100%', gap: '4px' }}>
+                          <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
+                            {charge.currency === 'USD' ? '$' : '₹'}
+                          </span>
+                          <input
+                            type="number"
+                            step="0.01"
+                            min="0"
+                            value={charge.amount || ''}
+                            onChange={(e) => handleUpdateCharge(charge.id, 'amount', e.target.value)}
+                            placeholder="0.00"
+                            style={{
+                              width: '100%',
+                              padding: '7px 10px',
+                              borderRadius: 'var(--radius-sm)',
+                              border: '1px solid var(--color-border)',
+                              background: 'var(--color-surface)',
+                              color: 'var(--color-text-primary)',
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              textAlign: 'right',
+                            }}
+                          />
+                        </div>
+                        {charge.currency !== watch('transactionCurrency') && (
+                          <span style={{ fontSize: '10px', color: 'var(--color-accent)', fontWeight: 500 }}>
+                            ≈ {watch('transactionCurrency') === 'USD' ? '$' : '₹'}{getConvertedChargeAmount(charge).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+                    <td style={{ padding: '8px 12px', textAlign: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveCharge(charge.id)}
+                        style={{
+                          background: 'none',
+                          border: 'none',
+                          cursor: 'pointer',
+                          color: 'var(--color-danger, #ef4444)',
+                          padding: '4px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                        }}
+                        title="Remove Charge"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ) : (
+            <div style={{
+              padding: '16px',
+              textAlign: 'center',
+              color: 'var(--color-text-secondary)',
+              fontSize: '13px',
+              border: '1px dashed var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              marginBottom: '16px'
+            }}>
+              No extra charges added yet. Click a quick preset above or add a custom charge below.
+            </div>
+          )}
+
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={handleAddCustomCharge}
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px' }}
+          >
+            <Plus size={14} /> Add Extra Charge
+          </Button>
+        </div>
+
         <div style={{ borderTop: '1px solid var(--color-border)', margin: '24px 0' }} />
 
         {/* SUMMARY & TOTALS */}
@@ -1114,6 +1507,13 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                     <span>Gross Amount:</span>
                     <span style={{ fontWeight: 600 }}>{currSymbol}{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
+
+                  {totalExtraCharges > 0 && (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '13px', color: 'var(--color-primary)' }}>
+                      <span>Extra Charges:</span>
+                      <span style={{ fontWeight: 600 }}>+{currSymbol}{totalExtraCharges.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
 
                   {/* Add % and Less % Fields inside Summary Panel */}
                   <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>

@@ -605,6 +605,20 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                     const finalAmt = getFinalAmount();
                     const altInrVal = data.totalAmountAlt ? Number(data.totalAmountAlt) : Math.round(finalAmt * docExchRate * 100) / 100;
 
+                    const extraChargesList: Array<{ name: string; hsn?: string; amount: number }> = (() => {
+                      if (Array.isArray(data.extraCharges) && data.extraCharges.length > 0) {
+                        return data.extraCharges;
+                      }
+                      const narr = data.narration || data.remarks || '';
+                      if (typeof narr === 'string' && narr.includes('__EXTRA_CHARGES__:')) {
+                        try {
+                          const m = narr.match(/__EXTRA_CHARGES__:(.*?)(?:__END__|$)/);
+                          if (m && m[1]) return JSON.parse(m[1]);
+                        } catch {}
+                      }
+                      return [];
+                    })();
+
                     return (
                       <>
                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.72em' : '0.9em' }}>
@@ -655,6 +669,52 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                             })}
                           </tbody>
                         </table>
+
+                        {extraChargesList.length > 0 && (cfg.itemTable.showExtraChargesTable ?? true) && (
+                          <div style={{ marginTop: isCompact ? '4px' : '8px', marginBottom: '4px' }}>
+                            <div style={{ fontSize: isCompact ? '0.72em' : '0.82em', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px', color: '#1e293b' }}>
+                              Supplementary & Extra Charges:
+                            </div>
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.7em' : '0.85em' }}>
+                              <thead>
+                                <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                  <th style={{ padding: isCompact ? '2px 4px' : '4px 6px', textAlign: 'left', width: '30px' }}>#</th>
+                                  <th style={{ padding: isCompact ? '2px 4px' : '4px 6px', textAlign: 'left' }}>Charge Description</th>
+                                  <th style={{ padding: isCompact ? '2px 4px' : '4px 6px', textAlign: 'center', width: '90px' }}>SAC / HSN</th>
+                                  <th style={{ padding: isCompact ? '2px 4px' : '4px 6px', textAlign: 'right', width: '130px' }}>Amount ({isDocUsd ? '$' : '₹'})</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {extraChargesList.map((chg: any, cIdx) => {
+                                  const chgCurr = chg.currency || (isDocUsd ? 'USD' : 'INR');
+                                  const chgAmt = Number(chg.amount || 0);
+                                  const isSameCurr = (chgCurr === 'USD' && isDocUsd) || (chgCurr === 'INR' && !isDocUsd);
+                                  let finalChgAmt = chgAmt;
+                                  if (chgCurr === 'USD' && !isDocUsd) finalChgAmt = Math.round(chgAmt * docExchRate * 100) / 100;
+                                  if (chgCurr === 'INR' && isDocUsd) finalChgAmt = Math.round((chgAmt / (docExchRate > 0 ? docExchRate : 1)) * 100) / 100;
+
+                                  return (
+                                    <tr key={cIdx} style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                      <td style={{ padding: isCompact ? '2px 4px' : '4px 6px' }}>{cIdx + 1}</td>
+                                      <td style={{ padding: isCompact ? '2px 4px' : '4px 6px', fontWeight: 600 }}>
+                                        {chg.name}
+                                        {!isSameCurr && (
+                                          <span style={{ fontSize: '0.85em', color: '#64748b', fontWeight: 400, marginLeft: '6px' }}>
+                                            ({chgCurr === 'USD' ? `$${chgAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${chgAmt.toLocaleString('en-IN')}`})
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td style={{ padding: isCompact ? '2px 4px' : '4px 6px', textAlign: 'center', fontSize: '0.85em' }}>{chg.hsn || '9968'}</td>
+                                      <td style={{ padding: isCompact ? '2px 4px' : '4px 6px', textAlign: 'right', fontWeight: 700 }}>
+                                        {isDocUsd ? `$${finalChgAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}` : `₹${finalChgAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
 
                         {/* Total & Summary */}
                         <div style={{ borderTop: '2px solid #000', paddingTop: isCompact ? '3px' : '6px', marginTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: isCompact ? '0.8em' : '0.95em' }}>

@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Plus, Trash2, FileText, Eye, Edit2, Printer, AlertTriangle, Filter, Sparkles, Scale, Layers } from 'lucide-react';
+import { Plus, Trash2, FileText, Eye, Edit2, Printer, AlertTriangle, Filter, Sparkles, Scale, Layers, TrendingUp } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
-import { Button, Badge, useToast } from '../../components/ui';
+import { Button, Badge, useToast, Input } from '../../components/ui';
 import { IInvoice, InvoiceType } from './invoice.types';
 import { PrintTemplate } from '../../components/ui/PrintTemplate';
 import { useCompanyStore } from '../../state/company-store';
@@ -21,6 +21,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
   const monthYearParam = searchParams.get('monthYear'); // e.g. 'Aug 26'
   const qualityParam = searchParams.get('quality');
   const [selectedQuality, setSelectedQuality] = useState<string>(qualityParam || 'ALL');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
     if (qualityParam) {
@@ -175,6 +176,18 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
   const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const filteredInvoices = useMemo(() => {
     return (rawInvoices || []).filter((inv) => {
+      // 0. Search query filter (Voucher Number, Supplier / Customer Original Bill No, Customer / Supplier, Broker)
+      if (search.trim()) {
+        const q = search.toLowerCase().trim();
+        const voucherNo = (inv.voucherNumber || '').toLowerCase();
+        const billNo = (inv.billNumber || '').toLowerCase();
+        const partyName = (inv.customer?.accountName || inv.supplier?.accountName || '').toLowerCase();
+        const brokerName = (inv.broker?.accountName || '').toLowerCase();
+        if (!voucherNo.includes(q) && !billNo.includes(q) && !partyName.includes(q) && !brokerName.includes(q)) {
+          return false;
+        }
+      }
+
       // 1. Payment status filter
       const outstanding = Number(inv.outstandingAmount ?? (Number(inv.netAmount || 0) - Number(inv.jamaAmount || 0)));
       if (filterParam === 'pending' && outstanding <= 0) return false;
@@ -217,27 +230,41 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
 
       return true;
     });
-  }, [rawInvoices, filterParam, partyParam, monthYearParam, selectedQuality, showMonthFilter, selectedMonth]);
+  }, [rawInvoices, search, filterParam, partyParam, monthYearParam, selectedQuality, showMonthFilter, selectedMonth]);
 
-  // Compute Quality-specific summary breakdown for the filtered/selected quality
+  // Compute Quality-specific summary breakdown with multi-currency and weighted average rate
   const qualitySummary = useMemo(() => {
     let totalCarats = 0;
-    let totalValue = 0;
+    let totalValueInr = 0;
+    let totalValueUsd = 0;
     let itemCount = 0;
 
     filteredInvoices.forEach((inv) => {
+      const isUsd = inv.transactionCurrency === 'USD';
+      const exRate = Number(inv.exchangeRate) || 1;
+
       (inv.items || []).forEach((item) => {
         if (selectedQuality === 'ALL' || item.quality?.qualityName === selectedQuality) {
           const cts = Number(item.carats || 0);
           const val = Number(item.netAmount || (cts * Number(item.rate || 0)));
           totalCarats += cts;
-          totalValue += val;
           itemCount++;
+
+          if (isUsd) {
+            totalValueUsd += val;
+            totalValueInr += Math.round(val * exRate * 100) / 100;
+          } else {
+            totalValueInr += val;
+            totalValueUsd += Math.round((val / (exRate > 0 ? exRate : 1)) * 100) / 100;
+          }
         }
       });
     });
 
-    return { totalCarats, totalValue, itemCount };
+    const avgRateInr = totalCarats > 0 ? totalValueInr / totalCarats : 0;
+    const avgRateUsd = totalCarats > 0 ? totalValueUsd / totalCarats : 0;
+
+    return { totalCarats, totalValueInr, totalValueUsd, avgRateInr, avgRateUsd, itemCount };
   }, [filteredInvoices, selectedQuality]);
 
   const columns: Column<IInvoice>[] = [
@@ -248,27 +275,34 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
       render: (row) => {
         const overdue = isOverdue(row);
         return (
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <FileText size={16} color={overdue ? '#dc2626' : 'var(--color-accent)'} />
-            <span style={{ fontWeight: 600, color: overdue ? '#dc2626' : 'var(--color-primary)' }}>
-              {row.voucherNumber}
-            </span>
-            {overdue && (
-              <span
-                style={{
-                  fontSize: '10px',
-                  fontWeight: 700,
-                  backgroundColor: '#fee2e2',
-                  color: '#dc2626',
-                  padding: '2px 6px',
-                  borderRadius: '4px',
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: '3px',
-                }}
-                title="Payment Overdue!"
-              >
-                <AlertTriangle size={10} /> OVERDUE
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <FileText size={16} color={overdue ? '#dc2626' : 'var(--color-accent)'} />
+              <span style={{ fontWeight: 600, color: overdue ? '#dc2626' : 'var(--color-primary)' }}>
+                {row.voucherNumber}
+              </span>
+              {overdue && (
+                <span
+                  style={{
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    padding: '2px 6px',
+                    borderRadius: '4px',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '3px',
+                  }}
+                  title="Payment Overdue!"
+                >
+                  <AlertTriangle size={10} /> OVERDUE
+                </span>
+              )}
+            </div>
+            {row.billNumber && row.billNumber !== row.voucherNumber && (
+              <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)', paddingLeft: '24px' }}>
+                {isCustomer ? 'Ref Bill:' : 'Supplier Bill:'} <strong style={{ color: 'var(--color-text-primary)' }}>{row.billNumber}</strong>
               </span>
             )}
           </div>
@@ -502,7 +536,7 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         </div>
       )}
 
-      {/* Control Bar: Filter Tabs & Quality Selector */}
+      {/* Control Bar: Live Search Bar, Filter Tabs & Quality Selector */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -514,8 +548,17 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
         borderRadius: '12px',
         padding: '12px 16px',
       }}>
+        {/* Live Search Input */}
+        <div style={{ flex: '1 1 240px', maxWidth: '320px' }}>
+          <Input
+            placeholder={`Search voucher, ${isCustomer ? 'customer' : 'supplier'}, broker...`}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+
         {/* Payment Filter Tabs */}
-        <div style={{ display: 'flex', gap: '8px' }}>
+        <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
           <button
             onClick={() => setSearchParams({})}
             style={{
@@ -678,8 +721,32 @@ export const InvoiceListPage: React.FC<ListPageProps> = ({ type }) => {
               Total {isCustomer ? 'Sales' : 'Purchase'} Value
             </div>
             <div style={{ fontSize: '14px', fontWeight: 700, color: '#16a34a' }}>
-              ₹{qualitySummary.totalValue.toLocaleString('en-IN', { minimumFractionDigits: 2 })}
+              ₹{qualitySummary.totalValueInr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
             </div>
+            {qualitySummary.totalValueUsd > 0 && (
+              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                (${qualitySummary.totalValueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <div style={{ background: 'var(--color-surface)', padding: '8px', borderRadius: '8px', border: '1px solid var(--color-border)' }}>
+            <TrendingUp size={16} color="#8b5cf6" />
+          </div>
+          <div>
+            <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 600 }}>
+              Weighted Avg Cost / Carat
+            </div>
+            <div style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-primary)' }}>
+              ₹{qualitySummary.avgRateInr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / Ct
+            </div>
+            {qualitySummary.avgRateUsd > 0 && (
+              <div style={{ fontSize: '11px', color: 'var(--color-text-secondary)', fontWeight: 500 }}>
+                (${qualitySummary.avgRateUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} / Ct)
+              </div>
+            )}
           </div>
         </div>
       </div>

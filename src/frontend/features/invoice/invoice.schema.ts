@@ -101,6 +101,17 @@ export const invoiceItemSchema = z.object({
   bgm: z.string().optional(),
 });
 
+export const extraChargeSchema = z.object({
+  id: z.string().optional(),
+  name: z.string().min(1, 'Charge name is required'),
+  hsn: z.string().optional().default('9968'),
+  currency: z.enum(['USD', 'INR']).optional().default('USD'),
+  amount: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? 0 : Number(val)),
+    z.number().min(0)
+  ),
+});
+
 export const invoiceSchema = z.object({
   financialYearId: z.number({ required_error: 'Financial year is required' }),
   invoiceType: z.enum([
@@ -129,7 +140,9 @@ export const invoiceSchema = z.object({
   transactionCurrency: z.enum(['USD', 'INR']).default('INR'),
   exchangeRate: z.number().positive().default(1),
   items: z.array(invoiceItemSchema).min(1, 'At least one item must be added'),
+  extraCharges: z.array(extraChargeSchema).optional().default([]),
 });
 
 export type InvoiceFormData = z.infer<typeof invoiceSchema>;
 export type InvoiceItemFormData = z.infer<typeof invoiceItemSchema>;
+export type ExtraChargeFormData = z.infer<typeof extraChargeSchema>;

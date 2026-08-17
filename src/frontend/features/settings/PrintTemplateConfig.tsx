@@ -525,6 +525,13 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
             <ToggleRow label="Show Discount Column" checked={config.itemTable.showDiscountColumn} onChange={(v) => updateConfig('itemTable', 'showDiscountColumn', v)} />
             <ToggleRow label="Show Purity/Carat" checked={config.itemTable.showPurityColumn} onChange={(v) => updateConfig('itemTable', 'showPurityColumn', v)} />
             <ToggleRow label="Show Packet ID Reference" checked={config.itemTable.showPacketIdColumn} onChange={(v) => updateConfig('itemTable', 'showPacketIdColumn', v)} />
+            {selectedDocType === 'SALE_DEBIT_NOTE' && (
+              <ToggleRow
+                label="Show Supplementary / Extra Charges Table"
+                checked={config.itemTable.showExtraChargesTable ?? true}
+                onChange={(v) => updateConfig('itemTable', 'showExtraChargesTable', v)}
+              />
+            )}
           </>
         )}
 
@@ -1093,6 +1100,38 @@ export const PrintTemplateConfig: React.FC<PrintTemplateConfigProps> = ({ compan
                           ))}
                         </tbody>
                       </table>
+
+                      {selectedDocType === 'SALE_DEBIT_NOTE' && (config.itemTable.showExtraChargesTable ?? true) && (
+                        <div style={{ marginTop: isCompact ? '4px' : '6px', marginBottom: '4px' }}>
+                          <div style={{ fontSize: isCompact ? '0.70em' : '0.80em', fontWeight: 700, textTransform: 'uppercase', marginBottom: '2px', color: '#1e293b' }}>
+                            Supplementary & Extra Charges:
+                          </div>
+                          <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: isCompact ? '0.68em' : '0.80em' }}>
+                            <thead>
+                              <tr style={{ background: '#f1f5f9', borderBottom: '1px solid #cbd5e1' }}>
+                                <th style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'left', width: '25px' }}>#</th>
+                                <th style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'left' }}>Charge Description</th>
+                                <th style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'center', width: '80px' }}>SAC / HSN</th>
+                                <th style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'right', width: '100px' }}>Amount ($ / ₹)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px' }}>1</td>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px', fontWeight: 600 }}>Insured Armored Shipping</td>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'center', fontSize: '0.85em' }}>9968</td>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'right', fontWeight: 700 }}>$60.00</td>
+                              </tr>
+                              <tr style={{ borderBottom: '1px solid #e2e8f0' }}>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px' }}>2</td>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px', fontWeight: 600 }}>Lab Inscription Fee</td>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'center', fontSize: '0.85em' }}>9983</td>
+                                <td style={{ padding: isCompact ? '2px 4px' : '3px 6px', textAlign: 'right', fontWeight: 700 }}>$45.00</td>
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      )}
                     </div>
                   )}
 
