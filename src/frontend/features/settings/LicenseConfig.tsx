@@ -27,6 +27,43 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
 
+  // LAN update distribution: the HOST publishes an installer that CLIENT PCs
+  // then pull automatically (the private repo makes GitHub updates unreachable).
+  const [lanUpdate, setLanUpdate] = useState<any | null>(null);
+  const [publishing, setPublishing] = useState(false);
+
+  const refreshLanUpdateStatus = async () => {
+    try {
+      const res = (await window.api?.invoke('update:lan-status')) as any;
+      if (res?.success) setLanUpdate(res.data);
+    } catch {
+      // Older build without the handler — hide the section rather than error.
+    }
+  };
+
+  useEffect(() => {
+    refreshLanUpdateStatus();
+  }, []);
+
+  const handlePublishLanUpdate = async () => {
+    setPublishing(true);
+    try {
+      const res = (await window.api?.invoke('update:publish-lan')) as any;
+      if (!res?.success) {
+        if (res?.error !== 'Selection cancelled') {
+          showToast(res?.error || 'Failed to share the update', 'error');
+        }
+        return;
+      }
+      setLanUpdate({ ...(lanUpdate || {}), ...res.data });
+      showToast(res.data.message || 'Update shared with LAN PCs', 'success');
+    } catch (err: any) {
+      showToast(err?.message || 'Failed to share the update', 'error');
+    } finally {
+      setPublishing(false);
+    }
+  };
+
   const handleManualCheckForUpdates = async () => {
     try {
       const res = await checkForUpdates({ companyId });
@@ -340,6 +377,43 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
                 <DownloadCloud size={14} /> {checkingUpdate ? 'Checking...' : 'Check for Updates'}
               </Button>
             </div>
+
+            {lanUpdate?.role === 'HOST' && (
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                <span style={{ fontWeight: 700 }}>Network Update</span>
+                <span style={{ color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  {lanUpdate.published
+                    ? `Sharing v${lanUpdate.version} with LAN PCs. They install it on their next start.`
+                    : 'Share an installer so LAN PCs update themselves — no internet needed.'}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handlePublishLanUpdate}
+                  disabled={publishing}
+                  style={{
+                    fontSize: '11px',
+                    padding: '4px 10px',
+                    border: '1px solid var(--color-border)',
+                    background: 'var(--color-surface)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    alignSelf: 'flex-start',
+                  }}
+                >
+                  <DownloadCloud size={14} /> {publishing ? 'Sharing...' : 'Share Update with LAN PCs'}
+                </Button>
+              </div>
+            )}
+
+            {lanUpdate?.role === 'CLIENT' && (
+              <div style={{ borderTop: '1px solid var(--color-border)', paddingTop: '10px' }}>
+                <span style={{ color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
+                  Updates are delivered from the Host PC ({lanUpdate.hostIp}) automatically.
+                </span>
+              </div>
+            )}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <span style={{ color: 'var(--color-text-secondary)' }}>Uptime stats: </span>

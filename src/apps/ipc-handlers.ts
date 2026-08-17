@@ -34,6 +34,7 @@ import { UserWorkspaceController } from '../backend/modules/user-workspace/works
 import { ExchangeRateController } from '../backend/modules/exchange-rate/exchange-rate.controller';
 import { loadDatabaseConfig, saveDatabaseConfig, IDatabaseConfig } from './mysql-manager';
 import { discoverHostsOnLan } from './lan-discovery';
+import { publishUpdateToLan, getLanUpdateStatus } from './lan-update-server';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import { PrismaService } from '../backend/database/prisma.service';
 import type { IApiResponse } from '../shared/types/common.types';
@@ -150,11 +151,43 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
   }));
 
   ipcMain.handle('system:version', async () => ({
-    app: '1.0.0',
+    // Real build version, not a hardcoded string — see getAppVersion in license.service.
+    app: app?.getVersion?.() || '0.0.0',
     node: process.versions.node,
     electron: process.versions.electron,
     chrome: process.versions.chrome,
   }));
+
+  // ─── LAN update distribution (HOST publishes, CLIENTs pull) ──
+  ipcMain.handle('update:lan-status', async () => {
+    const config = loadDatabaseConfig();
+    return { success: true, data: { ...getLanUpdateStatus(), role: config.role, hostIp: config.hostIp } };
+  });
+
+  ipcMain.handle('update:publish-lan', async () => {
+    try {
+      const config = loadDatabaseConfig();
+      if (config.role !== 'HOST') {
+        return { success: false, error: 'Only the HOST PC can publish updates to the network.' };
+      }
+      const window = BrowserWindow.getFocusedWindow();
+      if (!window) return { success: false, error: 'No active window found' };
+
+      const result = await dialog.showOpenDialog(window, {
+        title: 'Select the DIAMO ERP installer to share with LAN PCs',
+        properties: ['openFile'],
+        filters: [{ name: 'DIAMO ERP Installer', extensions: ['exe'] }],
+      });
+      if (result.canceled || result.filePaths.length === 0) {
+        return { success: false, error: 'Selection cancelled' };
+      }
+
+      const status = await publishUpdateToLan(result.filePaths[0]);
+      return { success: true, data: status };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Failed to publish the update' };
+    }
+  });
 
   ipcMain.handle('system:check-update', async () => {
     try {

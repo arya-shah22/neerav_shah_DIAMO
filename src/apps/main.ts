@@ -54,6 +54,7 @@ import { registerIpcHandlers, registerSetupIpcHandlers } from './ipc-handlers';
 import { loadDatabaseConfig, saveDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
 import { ensureDatabaseReady } from './db-bootstrap';
 import { startHostDiscoveryBeacon, stopLanDiscovery, discoverHostsOnLan } from './lan-discovery';
+import { startLanUpdateServer, stopLanUpdateServer, LAN_UPDATE_PORT } from './lan-update-server';
 
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
@@ -79,6 +80,22 @@ function safeSend(channel: string, ...args: any[]): void {
 
 function setupAutoUpdater(): void {
   if (isDev) return;
+
+  // The source repo is private, so GitHub's release feed is unreachable from an
+  // installed app. A CLIENT therefore updates from its HOST over the LAN: the
+  // HOST publishes an installer and serves it as a generic electron-updater feed.
+  try {
+    const dbConfig = loadDatabaseConfig();
+    if (dbConfig.role === 'CLIENT' && dbConfig.hostIp) {
+      autoUpdater.setFeedURL({
+        provider: 'generic',
+        url: `http://${dbConfig.hostIp}:${LAN_UPDATE_PORT}/`,
+      } as any);
+      console.log(`[AutoUpdater] CLIENT update feed -> http://${dbConfig.hostIp}:${LAN_UPDATE_PORT}/`);
+    }
+  } catch (feedErr) {
+    console.error('[AutoUpdater] Could not configure update feed:', feedErr);
+  }
 
   autoUpdater.on('update-available', (info: any) => {
     console.log(`[AutoUpdater] Update available: v${info.version}`);
@@ -379,6 +396,8 @@ app.whenReady().then(async () => {
       }
 
       startHostDiscoveryBeacon(dbConfig.hostPort);
+      // Serve published installers so LAN CLIENTs can auto-update from this HOST.
+      startLanUpdateServer();
     }
   } catch (dbInitErr) {
     console.error('[Main] Embedded DB / LAN discovery initialization error:', dbInitErr);
@@ -448,6 +467,7 @@ app.on('window-all-closed', () => {
 app.on('before-quit', async () => {
   try {
     stopLanDiscovery();
+    stopLanUpdateServer();
     stopEmbeddedMySQL();
   } catch (_e) {}
 

@@ -16,6 +16,24 @@ export const StatusFooter: React.FC = () => {
     new Date().toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }),
   );
 
+  // Real build version of this machine — previously hardcoded to "v1.0.0".
+  const [appVersion, setAppVersion] = useState('');
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = (await window.api?.invoke('system:version')) as { app?: string } | undefined;
+        if (!cancelled && res?.app) setAppVersion(`v${String(res.app).replace(/^v/, '')}`);
+      } catch {
+        // Leave blank rather than showing a version we cannot verify.
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(
@@ -62,7 +80,7 @@ export const StatusFooter: React.FC = () => {
           <Clock size={10} />
           <span>{currentTime}</span>
         </div>
-        <span style={{ opacity: 0.4 }}>v1.0.0</span>
+        <span style={{ opacity: 0.4 }}>{appVersion}</span>
       </div>
     </footer>
   );
