@@ -113,7 +113,75 @@ export const StockConversionListPage: React.FC = () => {
     {
       key: 'totalOutputCarats',
       header: 'Output Carats',
-      render: (row) => `${Number(row.totalOutputCarats).toFixed(3)} ct (${row.outputItems?.length || 0} pkts)`,
+      render: (row) => {
+        const items = row.outputItems || [];
+        const packetCount = items.length;
+
+        return (
+          <div style={{ position: 'relative', display: 'inline-block' }} className="output-pkts-wrapper">
+            <span style={{ fontWeight: 600 }}>
+              {Number(row.totalOutputCarats).toFixed(3)} ct{' '}
+              <span
+                style={{
+                  color: 'var(--color-primary)',
+                  cursor: packetCount > 0 ? 'pointer' : 'default',
+                  borderBottom: packetCount > 0 ? '1px dashed var(--color-primary)' : 'none',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                }}
+              >
+                ({packetCount} pkts)
+              </span>
+            </span>
+
+            {packetCount > 0 && (
+              <div
+                className="output-pkts-popover"
+                style={{
+                  display: 'none',
+                  position: 'absolute',
+                  top: '100%',
+                  left: 0,
+                  zIndex: 999,
+                  backgroundColor: 'var(--color-surface, #ffffff)',
+                  border: '1px solid var(--color-border, #e2e8f0)',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  boxShadow: '0 10px 25px -5px rgba(0, 0, 0, 0.18), 0 8px 10px -6px rgba(0, 0, 0, 0.1)',
+                  padding: '10px 14px',
+                  minWidth: '260px',
+                  maxWidth: '340px',
+                  marginTop: '4px',
+                  pointerEvents: 'none',
+                }}
+              >
+                <div style={{ fontSize: '11px', fontWeight: 700, color: 'var(--color-text-secondary)', textTransform: 'uppercase', marginBottom: '8px', borderBottom: '1px solid var(--color-border)', paddingBottom: '4px', display: 'flex', justifyContent: 'space-between' }}>
+                  <span>Generated Stones</span>
+                  <span>{packetCount} Packets</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                  {items.map((item, idx) => {
+                    const stId = item.outputPacket?.stockIdNumber || `Packet #${item.outputPacketId}`;
+                    const grade = [item.shape, item.color, item.clarity].filter(Boolean).join(' ');
+                    return (
+                      <div key={item.id || idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--color-primary)' }}>
+                          {stId}
+                        </span>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          {grade && <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{grade}</span>}
+                          <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>
+                            {Number(item.carats).toFixed(3)} ct
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'weightLoss',
@@ -227,6 +295,12 @@ export const StockConversionListPage: React.FC = () => {
         emptyTitle="No Stock Conversions"
         emptyDescription="No stock quality transformations matching your filters."
       />
+
+      <style>{`
+        .output-pkts-wrapper:hover .output-pkts-popover {
+          display: block !important;
+        }
+      `}</style>
     </div>
   );
 };
