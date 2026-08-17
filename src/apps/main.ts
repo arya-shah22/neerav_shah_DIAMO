@@ -54,7 +54,7 @@ import { registerIpcHandlers, registerSetupIpcHandlers } from './ipc-handlers';
 import { loadDatabaseConfig, saveDatabaseConfig, ensureEmbeddedMySQLRunning, getConnectionString, stopEmbeddedMySQL } from './mysql-manager';
 import { ensureDatabaseReady } from './db-bootstrap';
 import { startHostDiscoveryBeacon, stopLanDiscovery, discoverHostsOnLan } from './lan-discovery';
-import { startLanUpdateServer, stopLanUpdateServer, LAN_UPDATE_PORT } from './lan-update-server';
+import { startLanUpdateServer, stopLanUpdateServer, autoPublishUpdate, LAN_UPDATE_PORT } from './lan-update-server';
 
 // Keep a global reference to prevent garbage collection
 let mainWindow: BrowserWindow | null = null;
@@ -398,6 +398,14 @@ app.whenReady().then(async () => {
       startHostDiscoveryBeacon(dbConfig.hostPort);
       // Serve published installers so LAN CLIENTs can auto-update from this HOST.
       startLanUpdateServer();
+      // If the installer for this build is still sitting in Downloads/Desktop,
+      // start sharing it automatically — installing the update on the HOST is
+      // then the only step needed to roll it out to every CLIENT.
+      autoPublishUpdate()
+        .then((published) => {
+          if (published) console.log(`[LanUpdate] Auto-published v${published.version} for LAN clients`);
+        })
+        .catch((autoErr) => console.warn('[LanUpdate] Auto-publish failed:', autoErr));
     }
   } catch (dbInitErr) {
     console.error('[Main] Embedded DB / LAN discovery initialization error:', dbInitErr);

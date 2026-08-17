@@ -16,6 +16,18 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v0.0.7',
+    date: '2026-08-18',
+    description:
+      'Sharing an update with connected PCs is now automatic. Installing a new version on the Host PC is all that is needed — the other PCs receive and install it themselves the next time they start.',
+  },
+  {
+    version: 'v0.0.6',
+    date: '2026-08-18',
+    description:
+      'Settings screen tidy-up: removed the Execution Host Properties panel, and this release notes list now shows the real version history instead of placeholder entries.',
+  },
+  {
     version: 'v0.0.5',
     date: '2026-08-17',
     description:

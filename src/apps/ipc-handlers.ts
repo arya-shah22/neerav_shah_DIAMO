@@ -34,7 +34,7 @@ import { UserWorkspaceController } from '../backend/modules/user-workspace/works
 import { ExchangeRateController } from '../backend/modules/exchange-rate/exchange-rate.controller';
 import { loadDatabaseConfig, saveDatabaseConfig, IDatabaseConfig } from './mysql-manager';
 import { discoverHostsOnLan } from './lan-discovery';
-import { publishUpdateToLan, getLanUpdateStatus } from './lan-update-server';
+import { publishUpdateToLan, getLanUpdateStatus, findLocalInstaller } from './lan-update-server';
 import { serializeForIpc } from '../backend/utils/serialize-for-ipc';
 import { PrismaService } from '../backend/database/prisma.service';
 import type { IApiResponse } from '../shared/types/common.types';
@@ -170,11 +170,19 @@ export function registerIpcHandlers(ipcMain: IpcMain, nestApp: INestApplicationC
       if (config.role !== 'HOST') {
         return { success: false, error: 'Only the HOST PC can publish updates to the network.' };
       }
+      // Normally the installer for this build is still on disk (Downloads,
+      // Desktop, or beside the app), so nothing needs to be selected.
+      const discovered = findLocalInstaller(app.getVersion());
+      if (discovered) {
+        return { success: true, data: await publishUpdateToLan(discovered) };
+      }
+
+      // Nothing found — ask where the installer is, rather than failing.
       const window = BrowserWindow.getFocusedWindow();
       if (!window) return { success: false, error: 'No active window found' };
 
       const result = await dialog.showOpenDialog(window, {
-        title: 'Select the DIAMO ERP installer to share with LAN PCs',
+        title: 'Locate the DIAMO ERP installer (DIAMO ERP Setup <version>.exe)',
         properties: ['openFile'],
         filters: [{ name: 'DIAMO ERP Installer', extensions: ['exe'] }],
       });

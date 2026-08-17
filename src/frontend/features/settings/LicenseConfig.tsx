@@ -353,8 +353,8 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
                 <span style={{ fontWeight: 700 }}>Network Update</span>
                 <span style={{ color: 'var(--color-text-secondary)', lineHeight: 1.5 }}>
                   {lanUpdate.published
-                    ? `Sharing v${lanUpdate.version} with LAN PCs. They install it on their next start.`
-                    : 'Share an installer so LAN PCs update themselves — no internet needed.'}
+                    ? `Sharing v${lanUpdate.version} with LAN PCs. They install it the next time they start.`
+                    : 'LAN PCs update from this Host automatically after you install a new version here. Use the button only if they have not received it.'}
                 </span>
                 <Button
                   variant="ghost"
