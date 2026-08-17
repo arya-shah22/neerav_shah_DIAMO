@@ -24,6 +24,7 @@ export const QualityListPage: React.FC = () => {
 
   const { data: qualities, loading, invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
   const { invoke: deleteQuality } = useIpc('quality:delete');
+  const { invoke: updateQuality } = useIpc('quality:update');
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
@@ -40,6 +41,18 @@ export const QualityListPage: React.FC = () => {
       await refresh();
     } else {
       showToast(res.error || 'Delete failed', 'error');
+    }
+  };
+
+  const handleToggleStatus = async (row: IQuality) => {
+    if (!companyId) return;
+    const newStatus = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE';
+    const res = await updateQuality({ id: row.id, companyId, data: { status: newStatus } });
+    if (res.success) {
+      showToast(`Status updated to ${newStatus}`, 'success');
+      await refresh();
+    } else {
+      showToast(res.error || 'Failed to update status', 'error');
     }
   };
 
@@ -85,7 +98,19 @@ export const QualityListPage: React.FC = () => {
       width: '100px',
       render: (row) => {
         const variant = row.status === 'ACTIVE' ? 'success' : row.status === 'INACTIVE' ? 'warning' : 'danger';
-        return <Badge variant={variant}>{row.status}</Badge>;
+        return (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleToggleStatus(row);
+            }}
+            style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            title="Click to toggle status"
+          >
+            <Badge variant={variant}>{row.status}</Badge>
+          </button>
+        );
       },
     },
     {
