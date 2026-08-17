@@ -161,25 +161,28 @@ export const Select: React.FC<SelectProps> = ({
     if (!triggerRef.current) return;
     const rect = triggerRef.current.getBoundingClientRect();
     const searchHeight = searchable ? 40 : 0;
-    const desiredHeight = Math.min(
-      listMaxHeight + searchHeight,
-      filteredOptionsWithCreatable.length * OPTION_HEIGHT_PX + searchHeight,
-    );
+    const totalOptions = Math.max(1, filteredOptionsWithCreatable.length);
+    const contentListHeight = Math.min(listMaxHeight, totalOptions * OPTION_HEIGHT_PX);
+    const totalDropdownHeight = contentListHeight + searchHeight;
+
     const spaceBelow = window.innerHeight - rect.bottom - 8;
     const spaceAbove = rect.top - 8;
-    const openAbove = spaceBelow < desiredHeight && spaceAbove > spaceBelow;
+    const openAbove = spaceBelow < totalDropdownHeight && spaceAbove > spaceBelow;
+    
     const availableSpace = openAbove ? spaceAbove : spaceBelow;
     const maxHeight = Math.max(OPTION_HEIGHT_PX * 3, Math.min(listMaxHeight, availableSpace - searchHeight));
+    const finalHeight = Math.min(maxHeight, contentListHeight) + searchHeight;
 
-    // Ensure dropdown stays within right boundary of screen
-    const maxLeft = window.innerWidth - rect.width - 16;
+    // Ensure dropdown stays within screen boundary
+    const width = rect.width;
+    const maxLeft = window.innerWidth - width - 16;
     const left = Math.max(16, Math.min(rect.left, maxLeft));
 
     setDropdownPos({
-      top: openAbove ? rect.top - maxHeight - searchHeight - 4 : rect.bottom + 4,
+      top: openAbove ? Math.max(8, rect.top - finalHeight - 4) : rect.bottom + 4,
       left,
-      width: rect.width,
-      maxHeight,
+      width,
+      maxHeight: Math.min(maxHeight, contentListHeight),
     });
   }, [filteredOptionsWithCreatable.length, listMaxHeight, searchable]);
 

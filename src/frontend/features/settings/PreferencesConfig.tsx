@@ -4,10 +4,19 @@
 
 import React, { useState, useEffect } from 'react';
 import { useIpc } from '../../hooks/useIpc';
-import { Button, useToast } from '../../components/ui';
+import { Button, useToast, Select, SelectOption } from '../../components/ui';
 import { ISystemPreferences } from '../../../shared/types/preferences.types';
 import { formatDate, formatTime } from '../../../shared/utils/formatters';
 import { Calendar, Clock, Save, ShieldCheck, RefreshCw, LogIn } from 'lucide-react';
+
+const LANDING_PAGE_OPTIONS: SelectOption[] = [
+  { value: '/dashboard', label: '🏠 Dashboard Overview (/dashboard)' },
+  { value: '/transactions/sales/new', label: '🧾 New Sale Invoice (/transactions/sales/new)' },
+  { value: '/transactions/purchases/new', label: '🛍️ New Purchase Bill (/transactions/purchases/new)' },
+  { value: '/inventory/stock', label: '💎 Stock Inventory (/inventory/stock)' },
+  { value: '/vouchers/cash-bank', label: '💵 Cash & Bank Book (/vouchers/cash-bank)' },
+  { value: '/reports/ledger', label: '📊 General Ledger (/reports/ledger)' },
+];
 
 interface PreferencesConfigProps {
   companyId: number;
@@ -23,6 +32,9 @@ export const PreferencesConfig: React.FC<PreferencesConfigProps> = ({ companyId 
   // Component States
   const [preferences, setPreferences] = useState<ISystemPreferences | null>(null);
   const [liveTime, setLiveTime] = useState<Date>(new Date());
+  const [landingPage, setLandingPage] = useState<string>(
+    localStorage.getItem('diamo_landing_page') || '/dashboard'
+  );
 
   // Update live preview clock
   useEffect(() => {
@@ -255,35 +267,22 @@ export const PreferencesConfig: React.FC<PreferencesConfigProps> = ({ companyId 
             </div>
           </label>
 
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>
-              Default Startup Landing Page
-            </label>
-            <select
-              value={localStorage.getItem('diamo_landing_page') || '/dashboard'}
-              onChange={(e) => {
-                localStorage.setItem('diamo_landing_page', e.target.value);
-                showToast(`Default landing page updated to ${e.target.selectedOptions[0].text}`, 'success');
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px', maxWidth: '420px' }}>
+            <Select
+              label="Default Startup Landing Page"
+              options={LANDING_PAGE_OPTIONS}
+              value={landingPage}
+              onChange={(val) => {
+                setLandingPage(val);
+                localStorage.setItem('diamo_landing_page', val);
+                const selected = LANDING_PAGE_OPTIONS.find((o) => o.value === val);
+                showToast(`Default landing page updated to ${selected?.label || val}`, 'success');
               }}
-              style={{
-                width: '340px',
-                padding: '10px 14px',
-                borderRadius: '8px',
-                border: '1px solid var(--color-border)',
-                background: 'var(--color-bg)',
-                color: 'var(--color-text-primary)',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-              }}
-            >
-              <option value="/dashboard">🏠 Dashboard Overview (/dashboard)</option>
-              <option value="/transactions/sales/new">🧾 New Sale Invoice (/transactions/sales/new)</option>
-              <option value="/transactions/purchases/new">🛍️ New Purchase Bill (/transactions/purchases/new)</option>
-              <option value="/inventory/stock">💎 Stock Inventory (/inventory/stock)</option>
-              <option value="/vouchers/cash-bank">💵 Cash & Bank Book (/vouchers/cash-bank)</option>
-              <option value="/reports/ledger">📊 General Ledger (/reports/ledger)</option>
-            </select>
+              searchable={false}
+              clearable={false}
+              fullWidth={true}
+              placeholder="Select landing page..."
+            />
             <span style={{ fontSize: '11px', color: '#64748b' }}>
               Select which screen opens immediately after login.
             </span>
