@@ -4,6 +4,7 @@
 // ═══════════════════════════════════════════════════════════════
 
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { createPortal } from 'react-dom';
 import { Printer, Search, Check, X, ShieldAlert, ArrowLeft, FileText } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
@@ -35,10 +36,19 @@ interface ILedgerResponse {
 }
 
 export const LedgerBookPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const accountIdParam = searchParams.get('accountId');
+
   const { activeCompany, companyId, isReady } = useActiveCompany();
   const { showToast } = useToast();
   
-  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>([]);
+  const [selectedAccountIds, setSelectedAccountIds] = useState<number[]>(() => {
+    if (accountIdParam) {
+      const parsed = Number(accountIdParam);
+      return !isNaN(parsed) && parsed > 0 ? [parsed] : [];
+    }
+    return [];
+  });
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -79,6 +89,15 @@ export const LedgerBookPage: React.FC = () => {
       showToast(res.error || 'Failed to fetch ledger statements', 'error');
     }
   }, [companyId, selectedAccountIds, startDate, endDate, getLedger, showToast]);
+
+  useEffect(() => {
+    if (accountIdParam) {
+      const parsed = Number(accountIdParam);
+      if (!isNaN(parsed) && parsed > 0) {
+        setSelectedAccountIds([parsed]);
+      }
+    }
+  }, [accountIdParam]);
 
   useEffect(() => {
     loadLedgers();

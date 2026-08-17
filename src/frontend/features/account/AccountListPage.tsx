@@ -4,12 +4,13 @@
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, Edit2, Trash2, Users } from 'lucide-react';
+import { Plus, Edit2, Trash2, Users, ArrowUpRight } from 'lucide-react';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
-import { Button, Badge, Input, useToast } from '../../components/ui';
+import { Button, Badge, Input, Select, useToast } from '../../components/ui';
 import { IAccount } from './account.types';
+import type { IAccountGroup } from '../account-group/account-group.types';
 
 const ROUTES = {
   new: '/masters/accounting/accounts/new',
@@ -21,17 +22,28 @@ export const AccountListPage: React.FC = () => {
   const { showToast } = useToast();
   const { companyId, isReady, activeCompany } = useActiveCompany();
   const [search, setSearch] = useState('');
+  const [selectedGroupId, setSelectedGroupId] = useState<number | 'ALL'>('ALL');
 
   const { data: accounts, loading, invoke: fetchAccounts } = useIpc<IAccount[]>('account:list');
+  const { data: groups, invoke: fetchGroups } = useIpc<IAccountGroup[]>('account-group:list');
   const { invoke: deleteAccount } = useIpc('account:delete');
   const { invoke: updateStatus } = useIpc('account:update-status');
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
-    await fetchAccounts({ companyId, search: search || undefined });
-  }, [companyId, fetchAccounts, search]);
+    await Promise.all([
+      fetchAccounts({
+        companyId,
+        search: search || undefined,
+        groupId: selectedGroupId !== 'ALL' ? selectedGroupId : undefined,
+      }),
+      fetchGroups(companyId),
+    ]);
+  }, [companyId, fetchAccounts, fetchGroups, search, selectedGroupId]);
 
-  useEffect(() => { refresh(); }, [refresh]);
+  useEffect(() => {
+    refresh();
+  }, [refresh]);
 
   const handleDelete = async (id: number, name: string) => {
     if (!companyId || !confirm(`Permanently delete account "${name}"? This cannot be undone.`)) return;
@@ -70,8 +82,8 @@ export const AccountListPage: React.FC = () => {
   };
 
   const allAccounts = accounts || [];
-  const systemAccounts = allAccounts.filter(a => isPremadeAccount(a.accountName));
-  const userAccounts = allAccounts.filter(a => !isPremadeAccount(a.accountName));
+  const systemAccounts = allAccounts.filter((a) => isPremadeAccount(a.accountName));
+  const userAccounts = allAccounts.filter((a) => !isPremadeAccount(a.accountName));
 
   const columns: Column<IAccount>[] = [
     {
@@ -113,21 +125,41 @@ export const AccountListPage: React.FC = () => {
       header: 'RUNNING BALANCE',
       render: (row) => {
         const bal = row.balance ?? 0;
-        if (bal > 0) {
-          return (
-            <span style={{ fontWeight: 600, color: 'var(--color-success)' }}>
-              ₹ {bal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Dr
-            </span>
-          );
-        } else if (bal < 0) {
-          return (
-            <span style={{ fontWeight: 600, color: 'var(--color-danger)' }}>
-              ₹ {Math.abs(bal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr
-            </span>
-          );
-        }
-        return <span style={{ color: 'var(--color-text-secondary)' }}>₹ 0.00</span>;
-      }
+        return (
+          <div
+            onClick={(e) => {
+              e.stopPropagation();
+              navigate(`/reports/ledger?accountId=${row.id}`);
+            }}
+            title={`Click to view General Ledger Statement for ${row.accountName}`}
+            style={{
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '4px',
+              padding: '3px 8px',
+              borderRadius: '6px',
+              transition: 'all 0.15s ease',
+            }}
+            onMouseEnter={(e) => (e.currentTarget.style.background = 'rgba(59, 130, 246, 0.08)')}
+            onMouseLeave={(e) => (e.currentTarget.style.background = 'transparent')}
+          >
+            {bal > 0 ? (
+              <span style={{ fontWeight: 600, color: 'var(--color-success)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                ₹ {bal.toLocaleString('en-IN', { minimumFractionDigits: 2 })} Dr <ArrowUpRight size={12} />
+              </span>
+            ) : bal < 0 ? (
+              <span style={{ fontWeight: 600, color: 'var(--color-danger)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                ₹ {Math.abs(bal).toLocaleString('en-IN', { minimumFractionDigits: 2 })} Cr <ArrowUpRight size={12} />
+              </span>
+            ) : (
+              <span style={{ color: 'var(--color-text-secondary)', display: 'inline-flex', alignItems: 'center', gap: '3px' }}>
+                ₹ 0.00 <ArrowUpRight size={12} color="var(--color-text-muted)" />
+              </span>
+            )}
+          </div>
+        );
+      },
     },
     {
       key: 'status',
@@ -156,10 +188,10 @@ export const AccountListPage: React.FC = () => {
       width: '120px',
       render: (row) => (
         <div style={{ display: 'flex', gap: '4px' }}>
-          <Button variant="ghost" size="sm" onClick={() => navigate(ROUTES.edit(row.id))}>
+          <Button variant="ghost" size="sm" onClick={() => navigate(ROUTES.edit(row.id))} title="Edit Account">
             <Edit2 size={14} />
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id, row.accountName)}>
+          <Button variant="ghost" size="sm" onClick={() => handleDelete(row.id, row.accountName)} title="Delete Account">
             <Trash2 size={14} color="var(--color-danger)" />
           </Button>
         </div>
@@ -186,7 +218,7 @@ export const AccountListPage: React.FC = () => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
           <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Account Master</h1>
           <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>Ledger accounts for {activeCompany?.companyName}</p>
@@ -201,19 +233,47 @@ export const AccountListPage: React.FC = () => {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: '12px', maxWidth: '400px' }}>
-        <Input
-          placeholder="Search accounts..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-        />
+      {/* Filter Bar: Search & Account Group Dropdown */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '16px', flexWrap: 'wrap' }}>
+        <div style={{ flex: '1', minWidth: '240px', maxWidth: '380px' }}>
+          <Input
+            placeholder="Search accounts by name or GSTIN..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div style={{ width: '280px' }}>
+          <Select
+            value={String(selectedGroupId)}
+            onChange={(v) => setSelectedGroupId(v === 'ALL' ? 'ALL' : Number(v))}
+            options={[
+              { value: 'ALL', label: 'All Account Groups' },
+              ...(groups || []).map((g) => ({
+                value: String(g.id),
+                label: `${g.groupName} (${g.nature})`,
+              })),
+            ]}
+            searchable={true}
+            clearable={false}
+          />
+        </div>
+        {selectedGroupId !== 'ALL' && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelectedGroupId('ALL')}
+            style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}
+          >
+            Clear Group Filter
+          </Button>
+        )}
       </div>
 
-      {/* Section 1: System Pre-made Accounts (Only rendered if system accounts exist) */}
+      {/* Section 1: System Pre-made Accounts (Rendered if system accounts match the active filter) */}
       {systemAccounts.length > 0 && (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
-            System Pre-made Accounts
+            System Pre-made Accounts ({systemAccounts.length})
           </h3>
           <DataGrid
             columns={columns}
@@ -228,7 +288,7 @@ export const AccountListPage: React.FC = () => {
       {systemAccounts.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '12px' }}>
           <h3 style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', borderBottom: '1px solid var(--color-border)', paddingBottom: '6px' }}>
-            User-made Accounts
+            User-made Accounts ({userAccounts.length})
           </h3>
           <DataGrid
             columns={columns}
