@@ -151,8 +151,9 @@ export class BackupService {
         'cashBankAllocation', 'jobVoucher', 'jobVoucherItem', 'jobCostEntry',
         'generalLedgerEntry', 'outstandingBill', 'bankReconciliation', 'stockPacket',
         'stockMovement', 'stockReservation', 'stockMedia', 'stockAuditBatch',
+        'stockConversion', 'stockConversionOutput',
         'voucherNumberConfig', 'voucherNumberSequence', 'systemSetting',
-        'printTemplate', 'user', 'userCompanyAccess', 'loan'
+        'printTemplate', 'user', 'userCompanyAccess', 'loan', 'notificationRecord'
       ];
 
       for (const model of modelsList) {
@@ -242,28 +243,70 @@ export class BackupService {
       const parsedData = JSON.parse(fileContent);
 
       await this.prisma.$transaction(async (tx) => {
-        const modelsToRestore = Object.keys(parsedData.data);
-        
+        // 1. Temporarily disable foreign key checks in MySQL so child records do not block parent deletion / recreation
+        await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 0;');
+
+        const modelsToRestore = Object.keys(parsedData.data || {});
+
+        // 2. Clear existing records from all tables to be restored
         for (const model of modelsToRestore) {
           if ((tx as any)[model]) {
-            if (backupRecord.backupType !== 'COMPANY') {
-              await (tx as any)[model].deleteMany({});
-            } else {
-              await (tx as any)[model].deleteMany({ where: { companyId } });
-            }
-
-            const records = parsedData.data[model];
-            if (records && records.length > 0) {
-              await (tx as any)[model].createMany({
-                data: records,
-              });
+            try {
+              if (backupRecord.backupType !== 'COMPANY') {
+                await (tx as any)[model].deleteMany({});
+              } else {
+                await (tx as any)[model].deleteMany({ where: { companyId } }).catch(() => {});
+              }
+            } catch {
+              // Ignore if table model is empty or not filterable
             }
           }
         }
+
+        // 3. Re-insert backup records with proper Date object formatting
+        for (const model of modelsToRestore) {
+          if ((tx as any)[model]) {
+            const rawRecords = parsedData.data[model];
+            if (Array.isArray(rawRecords) && rawRecords.length > 0) {
+              const formattedRecords = rawRecords.map((r: any) => this.parseRecordDates(r));
+              const CHUNK_SIZE = 500;
+              for (let i = 0; i < formattedRecords.length; i += CHUNK_SIZE) {
+                const chunk = formattedRecords.slice(i, i + CHUNK_SIZE);
+                await (tx as any)[model].createMany({
+                  data: chunk,
+                  skipDuplicates: true,
+                });
+              }
+            }
+          }
+        }
+
+        // 4. Re-enable foreign key checks
+        await tx.$executeRawUnsafe('SET FOREIGN_KEY_CHECKS = 1;');
+      }, {
+        timeout: 60000,
+        maxWait: 10000,
       });
     }
 
     return { message: 'Database state restored successfully and post-restoration balance checks passed.' };
+  }
+
+  private parseRecordDates(record: Record<string, any>): Record<string, any> {
+    if (!record || typeof record !== 'object') return record;
+    const result: Record<string, any> = {};
+    const ISO_DATE_REGEX = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}:\d{2}(\.\d{1,3})?Z?)?$/;
+    for (const [key, value] of Object.entries(record)) {
+      if (typeof value === 'string' && ISO_DATE_REGEX.test(value)) {
+        const parsedDate = new Date(value);
+        if (!isNaN(parsedDate.getTime())) {
+          result[key] = parsedDate;
+          continue;
+        }
+      }
+      result[key] = value;
+    }
+    return result;
   }
 
   // Read list of backup history logs

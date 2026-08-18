@@ -186,26 +186,40 @@ export class QualityService {
   async delete(id: number, companyId: number) {
     await this.get(id, companyId);
 
-    const activeStock = await this.prisma.stockPacket.count({
-      where: { qualityId: id, isDeleted: false },
-    });
-    if (activeStock > 0) {
-      throw new BadRequestException('Cannot delete quality referenced by stock packets');
-    }
+    return this.prisma.$transaction(async (tx) => {
+      // 1. Find all stock packets (active and archived) belonging to this quality
+      const packets = await tx.stockPacket.findMany({
+        where: { qualityId: id },
+        select: { id: true },
+      });
+      const packetIds = packets.map((p) => p.id);
 
-    const archivedStock = await this.prisma.stockPacket.findMany({
-      where: { qualityId: id, isDeleted: true },
-      select: { id: true },
-    });
-    for (const packet of archivedStock) {
-      await this.prisma.stockMovement.deleteMany({ where: { stockPacketId: packet.id } });
-      await this.prisma.stockReservation.deleteMany({ where: { stockPacketId: packet.id } });
-      await this.prisma.stockMedia.deleteMany({ where: { stockPacketId: packet.id } });
-      await this.prisma.stockPacket.delete({ where: { id: packet.id } });
-    }
+      if (packetIds.length > 0) {
+        // Unlink references to these stock packets in transaction lines
+        await tx.saleInvoiceItem.updateMany({ where: { stockPacketId: { in: packetIds } }, data: { stockPacketId: null } });
+        await tx.purchaseInvoiceItem.updateMany({ where: { stockPacketId: { in: packetIds } }, data: { stockPacketId: null } });
+        await tx.challanItem.updateMany({ where: { stockPacketId: { in: packetIds } }, data: { stockPacketId: null } });
+        await tx.jobVoucherItem.updateMany({ where: { stockPacketId: { in: packetIds } }, data: { stockPacketId: null } });
+        await tx.stockConversionOutput.deleteMany({ where: { outputPacketId: { in: packetIds } } });
+        await tx.stockConversion.deleteMany({ where: { sourcePacketId: { in: packetIds } } });
 
-    await this.prisma.qualityGstHistory.deleteMany({ where: { qualityId: id } });
-    return this.prisma.quality.delete({ where: { id } });
+        // Delete movements, reservations, media, and packets
+        await tx.stockMovement.deleteMany({ where: { stockPacketId: { in: packetIds } } });
+        await tx.stockReservation.deleteMany({ where: { stockPacketId: { in: packetIds } } });
+        await tx.stockMedia.deleteMany({ where: { stockPacketId: { in: packetIds } } });
+        await tx.stockPacket.deleteMany({ where: { id: { in: packetIds } } });
+      }
+
+      // 2. Delete quality conversions
+      await tx.stockConversionOutput.deleteMany({ where: { outputQualityId: id } });
+      await tx.stockConversion.deleteMany({ where: { sourceQualityId: id } });
+
+      // 3. Delete quality GST history
+      await tx.qualityGstHistory.deleteMany({ where: { qualityId: id } });
+
+      // 4. Delete the quality record
+      return tx.quality.delete({ where: { id } });
+    });
   }
 
   async listHsnCodes() {

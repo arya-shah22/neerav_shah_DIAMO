@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.2',
+    date: '2026-08-18',
+    description:
+      'Backup restoration enhancement & cascading deletions: Fixed database constraint errors during backup restores by safely managing foreign key checks and date deserialization; added full cascading deletion for Products, Stock Packets, and Companies with informative confirmation prompts.',
+  },
+  {
     version: 'v1.0.0.1',
     date: '2026-08-18',
     description:

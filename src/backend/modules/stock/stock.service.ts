@@ -822,26 +822,23 @@ export class StockService {
   }
 
   async delete(id: number, companyId: number, userId?: number) {
-    const existing = await this.get(id, companyId);
-    await this.assertStockCanBeDeleted(id);
-
-    if (existing.currentStatus === StockStatus.SOLD) {
-      throw new BadRequestException('Cannot delete stock that has been sold');
-    }
+    await this.get(id, companyId);
 
     return this.prisma.$transaction(async (tx) => {
-      await this.recordMovement(tx, {
-        stockPacketId: id,
-        movementDate: new Date(),
-        movementType: MovementType.ARCHIVE,
-        previousStatus: existing.currentStatus,
-        newStatus: StockStatus.ARCHIVED,
-        carats: Number(existing.caratWeight),
-        pieces: existing.pieceCount,
-        remarks: 'Stock packet archived / deleted',
-        userId,
-      });
+      // 1. Unlink stockPacketId references in transaction lines so vouchers remain valid
+      await tx.saleInvoiceItem.updateMany({ where: { stockPacketId: id }, data: { stockPacketId: null } });
+      await tx.purchaseInvoiceItem.updateMany({ where: { stockPacketId: id }, data: { stockPacketId: null } });
+      await tx.challanItem.updateMany({ where: { stockPacketId: id }, data: { stockPacketId: null } });
+      await tx.jobVoucherItem.updateMany({ where: { stockPacketId: id }, data: { stockPacketId: null } });
+      await tx.stockConversionOutput.deleteMany({ where: { outputPacketId: id } });
+      await tx.stockConversion.deleteMany({ where: { sourcePacketId: id } });
 
+      // 2. Clean up movements, reservations, media
+      await tx.stockMovement.deleteMany({ where: { stockPacketId: id } });
+      await tx.stockReservation.deleteMany({ where: { stockPacketId: id } });
+      await tx.stockMedia.deleteMany({ where: { stockPacketId: id } });
+
+      // 3. Mark as deleted/archived
       return tx.stockPacket.update({
         where: { id },
         data: {
@@ -905,31 +902,7 @@ export class StockService {
     }
   }
 
-  private async assertStockCanBeDeleted(stockPacketId: number) {
-    const [saleItems, purchaseItems, challanItems, jobItems, activeReservations] = await Promise.all([
-      this.prisma.saleInvoiceItem.count({ where: { stockPacketId } }),
-      this.prisma.purchaseInvoiceItem.count({ where: { stockPacketId } }),
-      this.prisma.challanItem.count({ where: { stockPacketId } }),
-      this.prisma.jobVoucherItem.count({ where: { stockPacketId } }),
-      this.prisma.stockReservation.count({ where: { stockPacketId, isActive: true } }),
-    ]);
 
-    if (saleItems > 0) {
-      throw new BadRequestException('Cannot delete stock referenced by sale invoices');
-    }
-    if (purchaseItems > 0) {
-      throw new BadRequestException('Cannot delete stock referenced by purchase invoices');
-    }
-    if (challanItems > 0) {
-      throw new BadRequestException('Cannot delete stock referenced by challan vouchers');
-    }
-    if (jobItems > 0) {
-      throw new BadRequestException('Cannot delete stock referenced by job vouchers');
-    }
-    if (activeReservations > 0) {
-      throw new BadRequestException('Cannot delete stock with active reservations');
-    }
-  }
 
   private async purgeSoftDeletedPacket(id: number) {
     await this.prisma.stockMovement.deleteMany({ where: { stockPacketId: id } });

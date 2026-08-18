@@ -148,10 +148,10 @@ export const StockListPage: React.FC = () => {
   useEffect(() => { refresh(); }, [refresh]);
 
   const handleDelete = async (id: number, stockId: string) => {
-    if (!companyId || !confirm(`Archive stock packet "${stockId}"? This cannot be undone.`)) return;
+    if (!companyId || !confirm(`Permanently delete stock packet "${stockId}"? All movements and attachments for this packet will be removed. This cannot be undone.`)) return;
     const res = await deleteStock({ id, companyId });
     if (res.success) {
-      showToast('Stock packet archived', 'success');
+      showToast('Stock packet deleted successfully', 'success');
       await refresh();
     } else {
       showToast(res.error || 'Delete failed', 'error');

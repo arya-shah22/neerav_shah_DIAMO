@@ -38,11 +38,11 @@ export const CompanyListPage: React.FC = () => {
   }, [refresh]);
 
   const handleDelete = async (id: number, name: string) => {
-    if (!confirm(`Permanently delete ${name}? All masters for this company will be removed. This cannot be undone.`)) return;
+    if (!confirm(`Permanently delete company "${name}"? All connected transactions, invoices, stock, accounts, and financial data for this company will be permanently erased. This cannot be undone.`)) return;
 
     const res = await deleteCompany(id);
     if (res.success) {
-      showToast('Company deleted successfully', 'success');
+      showToast('Company and all connected records deleted successfully', 'success');
       await refresh();
       await loadCompanyContext();
     } else {

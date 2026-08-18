@@ -34,10 +34,10 @@ export const QualityListPage: React.FC = () => {
   useEffect(() => { refresh(); }, [refresh]);
 
   const handleDelete = async (id: number, name: string) => {
-    if (!companyId || !confirm(`Permanently delete quality "${name}"? This cannot be undone.`)) return;
+    if (!companyId || !confirm(`Permanently delete quality "${name}"? All connected stock packets and records for this quality will also be deleted. This cannot be undone.`)) return;
     const res = await deleteQuality({ id, companyId });
     if (res.success) {
-      showToast('Quality deleted', 'success');
+      showToast('Quality and connected stock deleted successfully', 'success');
       await refresh();
     } else {
       showToast(res.error || 'Delete failed', 'error');
