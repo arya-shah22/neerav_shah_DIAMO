@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.0.1',
+    date: '2026-08-18',
+    description:
+      'Backup & Recovery Management UI update: Added horizontal scrolling support to the Backup Archive History grid, enabling full visibility of checksums, file sizes, and recovery action buttons on all screen sizes.',
+  },
+  {
     version: 'v1.0.0.0',
     date: '2026-08-18',
     description:

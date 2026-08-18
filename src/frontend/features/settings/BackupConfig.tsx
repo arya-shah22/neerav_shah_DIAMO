@@ -310,7 +310,7 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
   }
 
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '400px 1fr', gap: '24px', width: '100%', alignItems: 'start' }}>
+    <div style={{ display: 'grid', gridTemplateColumns: '400px minmax(0, 1fr)', gap: '24px', width: '100%', alignItems: 'start' }}>
       {/* Column 1: Backup Configuration Controls */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
         {/* Ad-hoc Manual Backup */}
@@ -534,7 +534,7 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
       </div>
 
       {/* Column 2: Backup History Log Registry */}
-      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0, width: '100%' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 700, color: 'var(--color-primary)', display: 'flex', alignItems: 'center', gap: '8px' }}>
             <HardDrive size={18} /> Backup Archive History
@@ -564,14 +564,16 @@ export const BackupConfig: React.FC<BackupConfigProps> = ({ companyId }) => {
           </div>
         </div>
 
-        <DataGrid
-          columns={columns}
-          data={history}
-          keyField="id"
-          loading={loadingHistory || restoringBackup}
-          emptyTitle="No backups found"
-          emptyDescription="You have not created any manual or automatic backups yet."
-        />
+        <div style={{ width: '100%', minWidth: 0, overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <DataGrid
+            columns={columns}
+            data={history}
+            keyField="id"
+            loading={loadingHistory || restoringBackup}
+            emptyTitle="No backups found"
+            emptyDescription="You have not created any manual or automatic backups yet."
+          />
+        </div>
       </div>
 
       {/* Delete All Confirmation Modal */}
