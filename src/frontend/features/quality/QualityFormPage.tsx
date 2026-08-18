@@ -58,7 +58,7 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
       openingBalancePcs: 0,
       openingBalanceRate: 0,
       status: 'ACTIVE',
-      gstPct: 3,
+      gstPct: 1.5,
       cessPct: 0,
       isService: false,
     },
@@ -77,8 +77,8 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
   useEffect(() => {
     const hsn = hsnCodes.find((h) => h.hsnCode === selectedHsn);
     if (hsn && !isEdit) {
-      setValue('gstPct', Number(hsn.gstPct));
-      setValue('cessPct', Number(hsn.cessPct));
+      setValue('gstPct', Number(hsn.gstPct != null ? hsn.gstPct : 1.5));
+      setValue('cessPct', Number(hsn.cessPct != null ? hsn.cessPct : 0));
     }
   }, [selectedHsn, hsnCodes, setValue, isEdit]);
 
@@ -169,7 +169,7 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
             required
             options={hsnCodes.map((h) => ({
               value: h.hsnCode,
-              label: `${h.hsnCode} (${h.gstPct}%)`,
+              label: h.description ? h.description : `${h.hsnCode} (${h.gstPct}%)`,
             }))}
             creatable
           />

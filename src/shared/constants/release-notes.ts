@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.0.0',
+    date: '2026-08-18',
+    description:
+      'Standardized diamond HSN master codes (Natural Diamond 71023910 & CVD 71049120) with automated GST calculation, dynamic on-the-fly custom HSN persistence, and system preferences custom dropdown.',
+  },
+  {
     version: 'v0.0.7',
     date: '2026-08-18',
     description:

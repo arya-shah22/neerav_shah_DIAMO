@@ -5,6 +5,7 @@
 import { Injectable, Inject, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 import { AccountStatus, UqcType } from '@prisma/client';
+import { HSN_CODES } from '../../../shared/constants/seed-data';
 
 @Injectable()
 export class QualityService {
@@ -98,16 +99,17 @@ export class QualityService {
         },
       });
 
-      if (data.hsnNumber) {
+      if (data.hsnNumber && typeof data.hsnNumber === 'string' && (data.hsnNumber as string).trim()) {
+        const cleanHsn = (data.hsnNumber as string).trim();
         await tx.hsnCode.upsert({
-          where: { hsnCode: data.hsnNumber as string },
+          where: { hsnCode: cleanHsn },
           update: {},
           create: {
-            hsnCode: data.hsnNumber as string,
-            description: `Custom HSN: ${data.hsnNumber}`,
-            gstPct: Number(data.gstPct) || 3.00,
-            cessPct: Number(data.cessPct) || 0
-          }
+            hsnCode: cleanHsn,
+            description: cleanHsn,
+            gstPct: Number(data.gstPct) || 1.50,
+            cessPct: Number(data.cessPct) || 0,
+          },
         });
       }
 
@@ -146,16 +148,17 @@ export class QualityService {
       throw new BadRequestException('Min level cannot exceed max level');
     }
 
-    if (data.hsnNumber) {
+    if (data.hsnNumber && typeof data.hsnNumber === 'string' && (data.hsnNumber as string).trim()) {
+      const cleanHsn = (data.hsnNumber as string).trim();
       await this.prisma.hsnCode.upsert({
-        where: { hsnCode: data.hsnNumber as string },
+        where: { hsnCode: cleanHsn },
         update: {},
         create: {
-          hsnCode: data.hsnNumber as string,
-          description: `Custom HSN: ${data.hsnNumber}`,
-          gstPct: Number(data.gstPct) || Number(existing.gstHistory?.[0]?.gstPct) || 3.00,
-          cessPct: Number(data.cessPct) || Number(existing.gstHistory?.[0]?.cessPct) || 0
-        }
+          hsnCode: cleanHsn,
+          description: cleanHsn,
+          gstPct: Number(data.gstPct) || Number(existing.gstHistory?.[0]?.gstPct) || 1.50,
+          cessPct: Number(data.cessPct) || Number(existing.gstHistory?.[0]?.cessPct) || 0,
+        },
       });
     }
 
@@ -206,6 +209,35 @@ export class QualityService {
   }
 
   async listHsnCodes() {
+    try {
+      for (const hsn of HSN_CODES) {
+        const existing = await this.prisma.hsnCode.findUnique({ where: { hsnCode: hsn.code } });
+        if (existing) {
+          if (existing.description !== hsn.description || Number(existing.gstPct) !== hsn.gstPct) {
+            await this.prisma.hsnCode.update({
+              where: { id: existing.id },
+              data: { description: hsn.description, gstPct: hsn.gstPct },
+            }).catch(() => {});
+          }
+        } else {
+          await this.prisma.hsnCode.create({
+            data: { hsnCode: hsn.code, description: hsn.description, gstPct: hsn.gstPct },
+          }).catch(() => {});
+        }
+      }
+
+      const defaultCodeSet = new Set(HSN_CODES.map((h) => h.code));
+      const legacySeedCodes = ['71023920', '71023930', '71042000', '71042010', '71031000', '71039100', '71131110', '71131120', '71131910', '7113'];
+      for (const oldCode of legacySeedCodes) {
+        if (!defaultCodeSet.has(oldCode)) {
+          const isUsed = await this.prisma.quality.findFirst({ where: { hsnNumber: oldCode, isDeleted: false } });
+          if (!isUsed) {
+            await this.prisma.hsnCode.deleteMany({ where: { hsnCode: oldCode } }).catch(() => {});
+          }
+        }
+      }
+    } catch (_err) {}
+
     return this.prisma.hsnCode.findMany({ orderBy: { hsnCode: 'asc' } });
   }
 

@@ -55,14 +55,6 @@ export const STATE_CODES = [
 
 // ─── Common Diamond HSN Codes ─────────────────────────────────
 export const HSN_CODES = [
-  { code: '71023910', description: 'Non-industrial diamonds — Sorted, uncut', gstPct: 0.25 },
-  { code: '71023920', description: 'Non-industrial diamonds — Cut and polished', gstPct: 0.25 },
-  { code: '71023930', description: 'Non-industrial diamonds — Others', gstPct: 0.25 },
-  { code: '71042000', description: 'Synthetic or reconstructed diamonds — Worked', gstPct: 0.25 },
-  { code: '71042010', description: 'Lab-grown diamonds — Cut and polished', gstPct: 0.25 },
-  { code: '71031000', description: 'Precious stones — Unworked or simply sawn', gstPct: 0.25 },
-  { code: '71039100', description: 'Rubies, sapphires, emeralds — Worked', gstPct: 0.25 },
-  { code: '71131110', description: 'Gold jewellery — Studded with diamonds', gstPct: 3.0 },
-  { code: '71131120', description: 'Gold jewellery — Plain', gstPct: 3.0 },
-  { code: '71131910', description: 'Silver jewellery — Studded', gstPct: 3.0 },
+  { code: '71023910', description: 'NATURAL DIAMOND ( 71023910 )', gstPct: 1.5 },
+  { code: '71049120', description: 'CVD ( 71049120 )', gstPct: 1.5 },
 ];

@@ -34,6 +34,20 @@ async function main() {
       create: { hsnCode: hsn.code, description: hsn.description, gstPct: hsn.gstPct },
     });
   }
+
+  // Clean up legacy pre-seeded default codes if not linked to any active quality
+  try {
+    const defaultCodeSet = new Set(HSN_CODES.map((h) => h.code));
+    const legacySeedCodes = ['71023920', '71023930', '71042000', '71042010', '71031000', '71039100', '71131110', '71131120', '71131910', '7113'];
+    for (const oldCode of legacySeedCodes) {
+      if (!defaultCodeSet.has(oldCode)) {
+        const isUsed = await prisma.quality.findFirst({ where: { hsnNumber: oldCode, isDeleted: false } });
+        if (!isUsed) {
+          await prisma.hsnCode.deleteMany({ where: { hsnCode: oldCode } });
+        }
+      }
+    }
+  } catch (_cleanupErr) {}
   console.log(`   ✅ ${HSN_CODES.length} HSN codes loaded`);
 
   // ─── Seed Super Admin ─────────────────────────────────────

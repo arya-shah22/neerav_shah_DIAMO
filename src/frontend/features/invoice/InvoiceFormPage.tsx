@@ -252,7 +252,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       totalSgst: 0,
       totalIgst: 0,
       narration: '',
-      items: [{ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0, isManualStockId: false }],
+      items: [{ qualityId: undefined as any, hsnNumber: '71023910', quantity: 0, carats: 0, pieces: 1, rate: 0, discountPct: 0, isManualStockId: false }],
     },
   });
 
@@ -463,7 +463,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         if (inv.items && inv.items.length > 0) {
           setValue('items', inv.items.map((it) => ({
             qualityId: it.qualityId,
-            hsnNumber: it.hsnNumber || '7113',
+            hsnNumber: it.hsnNumber || '71023910',
             quantity: 0,
             carats: Number(it.carats),
             pieces: it.pieces === 0 || it.pieces === null ? null : (it.pieces || 1),
@@ -512,7 +512,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       if (matched.items && matched.items.length > 0) {
         setValue('items', matched.items.map((it) => ({
           qualityId: it.qualityId,
-          hsnNumber: it.hsnNumber || '7113',
+          hsnNumber: it.hsnNumber || '71023910',
           quantity: 0,
           carats: Number(it.carats),
           pieces: it.pieces === 0 || it.pieces === null ? null : (it.pieces || 1),
@@ -1214,7 +1214,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         <Button
           type="button"
           variant="secondary"
-          onClick={() => append({ qualityId: undefined as any, hsnNumber: '7113', quantity: 0, carats: 0, pieces: 1, isPiecesUncounted: false, rate: 0, discountPct: 0, isManualStockId: false })}
+          onClick={() => append({ qualityId: undefined as any, hsnNumber: '71023910', quantity: 0, carats: 0, pieces: 1, isPiecesUncounted: false, rate: 0, discountPct: 0, isManualStockId: false })}
           style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '24px' }}
         >
           <Plus size={14} /> Add Row
