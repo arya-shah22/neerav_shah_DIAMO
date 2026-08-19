@@ -1,21 +1,37 @@
-// ═══════════════════════════════════════════════════════════════
-// DIAMO ERP — First-Time Initial Setup Wizard (Host vs Client)
-// ═══════════════════════════════════════════════════════════════
-import React, { useState } from 'react';
-import { Server, Network, ShieldCheck, ArrowRight, RefreshCw, CheckCircle2 } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Server, Network, ShieldCheck, ArrowRight, RefreshCw, CheckCircle2, X } from 'lucide-react';
 
 interface InitialSetupWizardProps {
   isOpen: boolean;
   onComplete: () => void;
+  canClose?: boolean;
 }
 
-export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, onComplete }) => {
+export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, onComplete, canClose = true }) => {
   const [role, setRole] = useState<'HOST' | 'CLIENT'>('HOST');
   const [hostIp, setHostIp] = useState('127.0.0.1');
   const [scanning, setScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [scanStatus, setScanStatus] = useState<string | null>(null);
   const [discoveredHosts, setDiscoveredHosts] = useState<Array<{ hostname: string; ip: string; port: number }>>([]);
+  const [isAlreadyConfigured, setIsAlreadyConfigured] = useState(false);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    async function loadCurrent() {
+      try {
+        if (window.api && window.api.invoke) {
+          const res = (await window.api.invoke('db:get-config')) as any;
+          if (res && res.success && res.data) {
+            if (res.data.role) setRole(res.data.role);
+            if (res.data.hostIp && res.data.hostIp !== '127.0.0.1') setHostIp(res.data.hostIp);
+            if (res.data.isConfigured) setIsAlreadyConfigured(true);
+          }
+        }
+      } catch {}
+    }
+    loadCurrent();
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
@@ -86,6 +102,7 @@ export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, 
       padding: '16px',
     }}>
       <div style={{
+        position: 'relative',
         backgroundColor: '#FFFFFF',
         border: '1px solid #E2E8F0',
         borderRadius: '20px',
@@ -98,6 +115,32 @@ export const InitialSetupWizard: React.FC<InitialSetupWizardProps> = ({ isOpen, 
         gap: '24px',
         fontFamily: 'system-ui, -apple-system, sans-serif',
       }}>
+        {canClose && isAlreadyConfigured && (
+          <button
+            type="button"
+            onClick={onComplete}
+            style={{
+              position: 'absolute',
+              top: '18px',
+              right: '18px',
+              border: 'none',
+              background: '#F1F5F9',
+              borderRadius: '50%',
+              width: '32px',
+              height: '32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#64748B',
+              transition: 'background 0.2s',
+            }}
+            title="Close Setup Wizard"
+          >
+            <X size={16} />
+          </button>
+        )}
+
         {/* Header */}
         <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '8px' }}>
           <div style={{

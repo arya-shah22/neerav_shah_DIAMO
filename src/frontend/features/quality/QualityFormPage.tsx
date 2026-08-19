@@ -102,7 +102,7 @@ export const QualityFormPage: React.FC<QualityFormProps> = ({
           openingBalancePcs: q.openingBalancePcs,
           openingBalanceRate: Number(q.openingBalanceRate),
           status: q.status,
-          gstPct: latestGst ? Number(latestGst.gstPct) : 3,
+          gstPct: latestGst ? Number(latestGst.gstPct) : 1.5,
           cessPct: latestGst ? Number(latestGst.cessPct) : 0,
           isService: !!q.isService,
           declarationText: q.declarationText || '',

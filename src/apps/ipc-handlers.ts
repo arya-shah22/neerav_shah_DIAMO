@@ -2,6 +2,7 @@
 // DIAMO ERP — IPC Handler Registration
 // ═══════════════════════════════════════════════════════════════
 
+import net from 'net';
 import { IpcMain, BrowserWindow, dialog, app } from 'electron';
 import { INestApplicationContext } from '@nestjs/common';
 import { AuthController } from '../backend/modules/auth/auth.controller';
@@ -83,6 +84,38 @@ export function registerSetupIpcHandlers(ipcMain: IpcMain): void {
       success: hostsList.length > 0,
       data: hostsList,
     };
+  });
+
+  ipcMain.handle('db:test-host', async (_event, data?: { hostIp?: string; hostPort?: number } | string) => {
+    let targetIp = '127.0.0.1';
+    let port = 3306;
+    if (typeof data === 'string') {
+      targetIp = data;
+    } else if (data && typeof data === 'object') {
+      targetIp = data.hostIp || '127.0.0.1';
+      port = Number(data.hostPort) || 3306;
+    }
+    targetIp = targetIp.trim();
+
+    const start = Date.now();
+    return new Promise((resolve) => {
+      const socket = new net.Socket();
+      socket.setTimeout(2500);
+      socket.on('connect', () => {
+        const pingMs = Math.max(1, Date.now() - start);
+        socket.destroy();
+        resolve({ success: true, message: `Successfully connected to Host (${targetIp}:${port})`, pingMs });
+      });
+      socket.on('timeout', () => {
+        socket.destroy();
+        resolve({ success: false, error: `Connection to Host (${targetIp}:${port}) timed out.` });
+      });
+      socket.on('error', (err) => {
+        socket.destroy();
+        resolve({ success: false, error: `Cannot reach Host (${targetIp}:${port}): ${err.message}` });
+      });
+      socket.connect(port, targetIp);
+    });
   });
 
   // Restart so the new configuration is picked up by the whole startup chain

@@ -148,38 +148,75 @@ export class QualityService {
       throw new BadRequestException('Min level cannot exceed max level');
     }
 
-    if (data.hsnNumber && typeof data.hsnNumber === 'string' && (data.hsnNumber as string).trim()) {
-      const cleanHsn = (data.hsnNumber as string).trim();
-      await this.prisma.hsnCode.upsert({
-        where: { hsnCode: cleanHsn },
-        update: {},
-        create: {
-          hsnCode: cleanHsn,
-          description: cleanHsn,
-          gstPct: Number(data.gstPct) || Number(existing.gstHistory?.[0]?.gstPct) || 1.50,
-          cessPct: Number(data.cessPct) || Number(existing.gstHistory?.[0]?.cessPct) || 0,
-        },
-      });
-    }
+    return this.prisma.$transaction(async (tx) => {
+      if (data.hsnNumber && typeof data.hsnNumber === 'string' && (data.hsnNumber as string).trim()) {
+        const cleanHsn = (data.hsnNumber as string).trim();
+        await tx.hsnCode.upsert({
+          where: { hsnCode: cleanHsn },
+          update: {
+            ...(data.gstPct != null ? { gstPct: Number(data.gstPct) } : {}),
+            ...(data.cessPct != null ? { cessPct: Number(data.cessPct) } : {}),
+          },
+          create: {
+            hsnCode: cleanHsn,
+            description: cleanHsn,
+            gstPct: Number(data.gstPct) || Number(existing.gstHistory?.[0]?.gstPct) || 1.50,
+            cessPct: Number(data.cessPct) || Number(existing.gstHistory?.[0]?.cessPct) || 0,
+          },
+        }).catch(() => {});
+      }
 
-    return this.prisma.quality.update({
-      where: { id },
-      data: {
-        qualityName: data.qualityName != null ? (data.qualityName as string) : undefined,
-        hsnNumber: data.hsnNumber != null ? (data.hsnNumber as string) : undefined,
-        uqc: data.uqc != null ? (data.uqc as UqcType) : undefined,
-        purchaseRate: data.purchaseRate != null ? Number(data.purchaseRate) : undefined,
-        saleRate: data.saleRate != null ? Number(data.saleRate) : undefined,
-        mrp: data.mrp != null ? Number(data.mrp) : undefined,
-        minLevel: data.minLevel != null ? Number(data.minLevel) : undefined,
-        maxLevel: data.maxLevel != null ? Number(data.maxLevel) : undefined,
-        isService: data.isService != null ? Boolean(data.isService) : undefined,
-        status: data.status != null ? (data.status as AccountStatus) : undefined,
-        declarationText: data.declarationText !== undefined ? (data.declarationText ? (data.declarationText as string).trim() : null) : undefined,
-        termsConditions: data.termsConditions !== undefined ? (data.termsConditions ? (data.termsConditions as string).trim() : null) : undefined,
-        version: { increment: 1 },
-      },
-      include: { gstHistory: { orderBy: { applyDate: 'desc' } } },
+      // Handle GST rate update in QualityGstHistory
+      if (data.gstPct != null) {
+        const newGstPct = Number(data.gstPct);
+        const newCessPct = data.cessPct != null ? Number(data.cessPct) : 0;
+        const latestGst = existing.gstHistory?.[0];
+
+        if (latestGst) {
+          if (Number(latestGst.gstPct) !== newGstPct || Number(latestGst.cessPct) !== newCessPct) {
+            await tx.qualityGstHistory.update({
+              where: { id: latestGst.id },
+              data: {
+                gstPct: newGstPct,
+                cessPct: newCessPct,
+                applyDate: data.gstApplyDate ? new Date(data.gstApplyDate as string) : new Date(),
+              },
+            });
+          }
+        } else {
+          await tx.qualityGstHistory.create({
+            data: {
+              qualityId: id,
+              applyDate: data.gstApplyDate ? new Date(data.gstApplyDate as string) : new Date(),
+              gstPct: newGstPct,
+              cessPct: newCessPct,
+            },
+          });
+        }
+      }
+
+      return tx.quality.update({
+        where: { id },
+        data: {
+          qualityName: data.qualityName != null ? (data.qualityName as string) : undefined,
+          hsnNumber: data.hsnNumber != null ? (data.hsnNumber as string) : undefined,
+          uqc: data.uqc != null ? (data.uqc as UqcType) : undefined,
+          purchaseRate: data.purchaseRate != null ? Number(data.purchaseRate) : undefined,
+          saleRate: data.saleRate != null ? Number(data.saleRate) : undefined,
+          mrp: data.mrp != null ? Number(data.mrp) : undefined,
+          minLevel: data.minLevel != null ? Number(data.minLevel) : undefined,
+          maxLevel: data.maxLevel != null ? Number(data.maxLevel) : undefined,
+          openingBalanceCarats: data.openingBalanceCarats != null ? Number(data.openingBalanceCarats) : undefined,
+          openingBalancePcs: data.openingBalancePcs != null ? parseInt(String(data.openingBalancePcs), 10) : undefined,
+          openingBalanceRate: data.openingBalanceRate != null ? Number(data.openingBalanceRate) : undefined,
+          isService: data.isService != null ? Boolean(data.isService) : undefined,
+          status: data.status != null ? (data.status as AccountStatus) : undefined,
+          declarationText: data.declarationText !== undefined ? (data.declarationText ? (data.declarationText as string).trim() : null) : undefined,
+          termsConditions: data.termsConditions !== undefined ? (data.termsConditions ? (data.termsConditions as string).trim() : null) : undefined,
+          version: { increment: 1 },
+        },
+        include: { gstHistory: { orderBy: { applyDate: 'desc' } } },
+      });
     });
   }
 

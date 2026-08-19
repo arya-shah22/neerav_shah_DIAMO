@@ -7,7 +7,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { Button, useToast } from '../../components/ui';
 import { SoftwareUpdateModal } from '../../components/feedback/SoftwareUpdateModal';
 import { 
-  KeyRound, Mail, Phone, Clock, Layers, Users, Info, DownloadCloud 
+  KeyRound, Mail, Phone, Clock, Layers, Users, Info, DownloadCloud, ChevronDown, ChevronUp 
 } from 'lucide-react';
 
 interface LicenseConfigProps {
@@ -26,6 +26,7 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
   const [data, setData] = useState<any | null>(null);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
   const [updateInfo, setUpdateInfo] = useState<any | null>(null);
+  const [visibleLogsCount, setVisibleLogsCount] = useState(5);
 
   // LAN update distribution: the HOST publishes an installer that CLIENT PCs
   // then pull automatically (the private repo makes GitHub updates unreachable).
@@ -237,26 +238,90 @@ export const LicenseConfig: React.FC<LicenseConfigProps> = ({ companyId }) => {
             gap: '16px',
             boxShadow: 'var(--shadow-sm)',
           }}>
-            <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)' }}>Local Release Notes & Patch Logs</h4>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {data.changeLogs.map((log: any, idx: number) => (
-                <div key={idx} style={{ display: 'flex', gap: '16px' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-primary)' }}></div>
-                    {idx < data.changeLogs.length - 1 && (
-                      <div style={{ width: '2px', flexGrow: 1, background: 'var(--color-border)', margin: '4px 0' }}></div>
-                    )}
-                  </div>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingBottom: '4px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontSize: '13px', fontWeight: 700 }}>{log.version}</span>
-                      <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{log.date}</span>
-                    </div>
-                    <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{log.description}</span>
-                  </div>
-                </div>
-              ))}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 700, color: 'var(--color-text-primary)', margin: 0 }}>
+                Local Release Notes & Patch Logs
+              </h4>
+              <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)' }}>
+                Showing {Math.min(visibleLogsCount, data.changeLogs.length)} of {data.changeLogs.length} updates
+              </span>
             </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              {data.changeLogs.slice(0, visibleLogsCount).map((log: any, idx: number) => {
+                const totalVisible = Math.min(visibleLogsCount, data.changeLogs.length);
+                const isLast = idx === totalVisible - 1;
+                return (
+                  <div key={idx} style={{ display: 'flex', gap: '16px' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                      <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--color-primary)' }}></div>
+                      {!isLast && (
+                        <div style={{ width: '2px', flexGrow: 1, background: 'var(--color-border)', margin: '4px 0' }}></div>
+                      )}
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px', paddingBottom: '4px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <span style={{ fontSize: '13px', fontWeight: 700 }}>{log.version}</span>
+                        <span style={{ fontSize: '11px', color: 'var(--color-text-secondary)' }}>{log.date}</span>
+                      </div>
+                      <span style={{ fontSize: '12px', color: 'var(--color-text-secondary)', lineHeight: 1.4 }}>{log.description}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Pagination Controls */}
+            {data.changeLogs.length > 5 && (
+              <div style={{ display: 'flex', gap: '10px', paddingTop: '4px' }}>
+                {visibleLogsCount < data.changeLogs.length && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLogsCount((prev) => prev + 5)}
+                    style={{
+                      padding: '8px 14px',
+                      background: 'var(--color-surface)',
+                      border: '1px solid var(--color-border)',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'background var(--transition-fast)',
+                    }}
+                  >
+                    <ChevronDown size={14} />
+                    <span>View More Previous Updates (+5)</span>
+                  </button>
+                )}
+
+                {visibleLogsCount > 5 && (
+                  <button
+                    type="button"
+                    onClick={() => setVisibleLogsCount(5)}
+                    style={{
+                      padding: '8px 14px',
+                      background: 'transparent',
+                      border: '1px solid transparent',
+                      borderRadius: '8px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      color: 'var(--color-text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                    }}
+                  >
+                    <ChevronUp size={14} />
+                    <span>Show Recent 5 Only</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         )}
 

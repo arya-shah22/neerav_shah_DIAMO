@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.3',
+    date: '2026-08-19',
+    description:
+      'LAN Network Watchdog & Auto-Reconnect Suite: Added live LAN status and 1-click auto-discovery on Login screen; integrated real-time ping latency badge in the top navigation header; background watchdog alert for connection drops on Client PCs; fixed Quality Master field editing & GST history persistence; added 5-by-5 pagination for release notes logs.',
+  },
+  {
     version: 'v1.0.2',
     date: '2026-08-18',
     description:

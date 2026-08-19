@@ -14,9 +14,13 @@ import {
   Calendar,
   LogOut,
   Building2,
+  Server,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { useAuthStore } from '../../state/auth-store';
 import { useCompanyStore, formatFinancialYearLabel } from '../../state/company-store';
+import { useLanStore } from '../../state/lan-store';
 import { useIpc } from '../../hooks/useIpc';
 import { switchCompany } from '../../services/company-context';
 import type { IFinancialYear } from '../../features/financial-year/fy.types';
@@ -40,6 +44,7 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const companies = useCompanyStore((s) => s.companies);
   const setActiveFinancialYear = useCompanyStore((s) => s.setActiveFinancialYear);
+  const lanState = useLanStore();
 
   const { invoke: logoutIpc } = useIpc('auth:logout');
   const { invoke: fetchYears } = useIpc<IFinancialYear[]>('fy:list');
@@ -319,6 +324,64 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
 
       {/* Right Section */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--spacing-sm)' }}>
+        {/* Live LAN & Ping Indicator */}
+        <div
+          title={
+            lanState.role === 'HOST'
+              ? `Host Master Server — Port ${lanState.hostPort} (Local Database Active)`
+              : lanState.isConnected
+              ? `LAN Client connected to Host (${lanState.hostIp}:${lanState.hostPort}) — Latency: ${lanState.pingMs || 1}ms`
+              : `LAN Client Disconnected from Host (${lanState.hostIp})`
+          }
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '5px 10px',
+            borderRadius: 'var(--radius-sm)',
+            fontSize: '12px',
+            fontWeight: 600,
+            background:
+              lanState.role === 'HOST'
+                ? 'rgba(184, 144, 48, 0.12)'
+                : lanState.isConnected
+                ? 'rgba(34, 197, 94, 0.12)'
+                : 'rgba(239, 68, 68, 0.12)',
+            color:
+              lanState.role === 'HOST'
+                ? '#b89030'
+                : lanState.isConnected
+                ? '#16a34a'
+                : '#dc2626',
+            border:
+              lanState.role === 'HOST'
+                ? '1px solid rgba(184, 144, 48, 0.25)'
+                : lanState.isConnected
+                ? '1px solid rgba(34, 197, 94, 0.25)'
+                : '1px solid rgba(239, 68, 68, 0.3)',
+            cursor: 'default',
+            userSelect: 'none',
+            transition: 'all var(--transition-fast)',
+          }}
+        >
+          {lanState.role === 'HOST' ? (
+            <>
+              <Server size={13} />
+              <span>Host Server</span>
+            </>
+          ) : lanState.isConnected ? (
+            <>
+              <Wifi size={13} />
+              <span>LAN {lanState.pingMs != null ? `${lanState.pingMs}ms` : 'Online'}</span>
+            </>
+          ) : (
+            <>
+              <WifiOff size={13} />
+              <span>LAN Offline</span>
+            </>
+          )}
+        </div>
+
         <div ref={notifRef} style={{ position: 'relative' }}>
           <button
             onClick={() => {
