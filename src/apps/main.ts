@@ -151,7 +151,10 @@ function createWindow(): void {
 
   // Load the app
   if (isDev) {
-    mainWindow.loadURL(VITE_DEV_SERVER_URL);
+    mainWindow.loadURL(VITE_DEV_SERVER_URL).catch(() => {
+      console.log('[Main] Dev server not responding on port 5173 — loading built renderer');
+      mainWindow?.loadFile(path.join(__dirname, '../renderer/index.html'));
+    });
     mainWindow.webContents.openDevTools({ mode: 'detach' });
   } else {
     mainWindow.loadFile(path.join(__dirname, '../renderer/index.html'));
