@@ -9,6 +9,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { Save, ArrowLeft, Plus, Trash2 } from 'lucide-react';
 import { invoiceSchema, InvoiceFormData } from './invoice.schema';
 import { useIpc } from '../../hooks/useIpc';
+import {
+  computeInvoiceTotals,
+  round2,
+  type CalcCurrency,
+} from '../../../shared/utils/invoice-calc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { useCompanyStore } from '../../state/company-store';
 import { Button, Input, Combobox, FormSelect, Select, useToast } from '../../components/ui';
@@ -275,13 +280,32 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const watchedIgst = watch('totalIgst') || 0;
   const watchedCurrency = watch('transactionCurrency');
   const watchedExchangeRate = watch('exchangeRate') || 1;
+
+  // A packet carries its own cost currency, which need not be the currency of
+  // the invoice being written. Renders the equivalent alongside, or '' when
+  // the two already agree.
+  const packetRateInInvoiceCurrency = (packetCurrency: string, rate: number): string => {
+    const invCurr = (watchedCurrency as 'USD' | 'INR') || 'INR';
+    const exR = Number(watchedExchangeRate) || 1;
+    if (!rate || exR <= 0 || packetCurrency === invCurr) return '';
+    const converted = invCurr === 'INR' ? rate * exR : rate / exR;
+    return ` ≈ ${invCurr === 'USD' ? '$' : '₹'}${round2(converted).toLocaleString('en-US')}/ct`;
+  };
   const [prevCurrency, setPrevCurrency] = useState<'USD' | 'INR'>(watchedCurrency);
   const [prevExchangeRate, setPrevExchangeRate] = useState<number>(watchedExchangeRate);
 
-  // Handle currency or exchange rate changes across selected stock items
+  // Re-price the lines when the currency or the exchange rate changes.
+  //
+  // Packet rows used to be re-derived from the packet master on every change,
+  // which threw away a negotiated price the user had typed. Every row is now
+  // converted from what it currently shows, so an edited rate survives. Rate
+  // changes rescale by the ratio of the old and new rates, which also makes
+  // per-keystroke edits in the exchange-rate box self-correcting: typing
+  // 8 -> 83 -> 83.25 lands on exactly the same figure as typing 83.25 at once.
   useEffect(() => {
     const exRate = Number(watchedExchangeRate) || 1;
-    if (exRate <= 0) return;
+    const prevRate = Number(prevExchangeRate) || 1;
+    if (exRate <= 0 || prevRate <= 0) return;
 
     const currencyChanged = prevCurrency !== watchedCurrency;
     const rateChanged = prevExchangeRate !== watchedExchangeRate;
@@ -290,38 +314,34 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
 
     const currentItems = watch('items') || [];
     currentItems.forEach((it, idx) => {
-      const pktId = Number(it.stockPacketId);
-      const pkt = availablePackets.find((p) => p.id === pktId);
+      const currentRate = Number(it.rate) || 0;
+      if (currentRate <= 0) return;
 
-      if (pkt) {
-        const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
-        const baseRate = isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0
-          ? Number((pkt as any).targetSaleRate)
-          : Number(pkt.costPerCarat || 0);
-
-        let finalRate = baseRate;
-        if (pktCurrency === 'USD' && watchedCurrency === 'INR') {
-          finalRate = Math.round((baseRate * exRate) * 100) / 100;
-        } else if (pktCurrency === 'INR' && watchedCurrency === 'USD') {
-          finalRate = Math.round((baseRate / exRate) * 100) / 100;
+      if (currencyChanged) {
+        if (prevCurrency === 'USD' && watchedCurrency === 'INR') {
+          setValue(`items.${idx}.rate`, round2(currentRate * exRate));
+        } else if (prevCurrency === 'INR' && watchedCurrency === 'USD') {
+          setValue(`items.${idx}.rate`, round2(currentRate / exRate));
         }
-        setValue(`items.${idx}.rate`, finalRate);
-      } else {
-        // Fallback for non-packet manual items on currency toggle
-        const currentRate = Number(it.rate) || 0;
-        if (currencyChanged && currentRate > 0) {
-          if (prevCurrency === 'USD' && watchedCurrency === 'INR') {
-            setValue(`items.${idx}.rate`, Math.round((currentRate * exRate) * 100) / 100);
-          } else if (prevCurrency === 'INR' && watchedCurrency === 'USD') {
-            setValue(`items.${idx}.rate`, Math.round((currentRate / exRate) * 100) / 100);
-          }
-        }
+        return;
       }
+
+      // Rate-only change: re-price just the rows whose underlying price is
+      // denominated in the other currency. A manually typed rate in the
+      // invoice's own currency is left alone.
+      const pkt = availablePackets.find((p) => p.id === Number(it.stockPacketId));
+      if (!pkt) return;
+      const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'INR';
+      if (pktCurrency === watchedCurrency) return;
+      const scaled = watchedCurrency === 'INR'
+        ? currentRate * (exRate / prevRate)
+        : currentRate * (prevRate / exRate);
+      setValue(`items.${idx}.rate`, round2(scaled));
     });
 
     setPrevCurrency(watchedCurrency);
     setPrevExchangeRate(watchedExchangeRate);
-  }, [watchedCurrency, watchedExchangeRate, prevCurrency, prevExchangeRate, availablePackets, isSale, watch, setValue]);
+  }, [watchedCurrency, watchedExchangeRate, prevCurrency, prevExchangeRate, availablePackets, watch, setValue]);
   useEffect(() => {
     if (!companyId) return;
     if (activeFinancialYear) setValue('financialYearId', activeFinancialYear.id);
@@ -434,6 +454,11 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
         setValue('brokeragePct', Number(inv.brokeragePct) || 0);
         const dueDays = inv.dueDate ? Math.round((new Date(inv.dueDate).getTime() - new Date(inv.invoiceDate).getTime()) / (24 * 60 * 60 * 1000)) : 0;
         setValue('creditDays', dueDays);
+        // Move the conversion baseline with the loaded document, otherwise the
+        // currency-change effect treats 'form default -> saved currency' as a
+        // user switch and re-converts every rate (83x on an INR invoice).
+        setPrevCurrency(((inv.transactionCurrency as any) || 'USD') as 'USD' | 'INR');
+        setPrevExchangeRate(Number(inv.exchangeRate) > 0 ? Number(inv.exchangeRate) : 1);
         setValue('transactionCurrency', (inv.transactionCurrency as any) || 'USD');
         if (inv.exchangeRate && Number(inv.exchangeRate) > 0) {
           setValue('exchangeRate', Number(inv.exchangeRate));
@@ -502,6 +527,10 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       setValue('customerId', matched.customerId);
       setValue('brokerId', matched.brokerId ?? null);
       setValue('brokeragePct', Number(matched.brokeragePct) || 0);
+      // Same baseline reset as loadInvoice: a credit/debit note built from an INR
+      // parent would otherwise inherit inflated rates.
+      setPrevCurrency(((matched.transactionCurrency as any) || 'USD') as 'USD' | 'INR');
+      setPrevExchangeRate(Number(matched.exchangeRate) > 0 ? Number(matched.exchangeRate) : 1);
       setValue('transactionCurrency', (matched.transactionCurrency as any) || 'USD');
       if (matched.exchangeRate && Number(matched.exchangeRate) > 0) {
         setValue('exchangeRate', Number(matched.exchangeRate));
@@ -593,71 +622,57 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   })();
 
   // Compute live invoice summary totals
-  let totalQty = 0;
-  let totalCrts = 0;
-  let grossTotal = 0;
-
-  const itemTotals = (watchedItems || []).map((it) => {
-    const qty = Number(it?.quantity) || 0;
-    const carats = Number(it?.carats) || 0;
-    const rate = Number(it?.rate) || 0;
-
-    totalQty += qty;
-    totalCrts += carats;
-    const gross = carats * rate;
-    grossTotal += gross;
-
-    return {
-      gross,
-    };
-  });
-
   const totalExtraCharges = extraCharges.reduce((acc, c) => acc + getConvertedChargeAmount(c), 0);
 
-  const calculatedAddValue = ((grossTotal + totalExtraCharges) * watchedAddPct) / 100;
-  const calculatedLessValue = ((grossTotal + totalExtraCharges) * watchedLessPct) / 100;
-  const taxableTotal = grossTotal + totalExtraCharges + calculatedAddValue - calculatedLessValue;
+  // Totals come from the SAME module the backend uses, so the figures on screen
+  // are exactly the ones that get saved. The two used to be hand-duplicated and
+  // had drifted: the form ignored per-line discount and rounded tax differently.
+  const isSameStateCalc =
+    !!activeCompany && !!selectedPartyObj && activeCompany.stateCode === selectedPartyObj.stateCode;
 
-  let cgstTotal = 0;
-  let sgstTotal = 0;
-  let igstTotal = 0;
+  const calcTotals = computeInvoiceTotals(
+    (watchedItems || []).map((it) => ({
+      carats: it?.carats,
+      pieces: (it as any)?.pieces,
+      isPiecesUncounted: (it as any)?.isPiecesUncounted,
+      rate: it?.rate,
+      discountPct: (it as any)?.discountPct,
+      gstPct: qualities.find((q) => q.id === Number(it?.qualityId))?.gstPct || 0,
+    })),
+    {
+      addPct: watchedAddPct,
+      lessPct: watchedLessPct,
+      isSameState: isSameStateCalc,
+      currency: (watchedCurrency as CalcCurrency) || 'INR',
+      exchangeRate: Number(watchedExchangeRate) || 1,
+      extraChargesTotal: totalExtraCharges,
+    },
+  );
 
-  (watchedItems || []).forEach((it) => {
-    const carats = Number(it?.carats) || 0;
-    const rate = Number(it?.rate) || 0;
-    const itemGross = carats * rate;
+  const totalQty = (watchedItems || []).reduce((acc, it) => acc + (Number(it?.quantity) || 0), 0);
+  const totalCrts = calcTotals.totalCarats;
+  const grossTotal = round2(calcTotals.totalGrossAmount - calcTotals.extraCharges);
+  const itemTotals = calcTotals.lines.map((l) => ({ gross: l.gross }));
 
-    const itemAdd = (itemGross * watchedAddPct) / 100;
-    const itemLess = (itemGross * watchedLessPct) / 100;
-    const itemTaxable = itemGross + itemAdd - itemLess;
+  const calculatedAddValue = round2(((grossTotal + totalExtraCharges) * watchedAddPct) / 100);
+  const calculatedLessValue = round2(((grossTotal + totalExtraCharges) * watchedLessPct) / 100);
+  const taxableTotal = calcTotals.taxableTotal;
 
-    const qualityObj = qualities.find((q) => q.id === Number(it?.qualityId));
-    const gstPct = qualityObj?.gstPct || 0;
+  const cgstTotal = calcTotals.totalCgst;
+  const sgstTotal = calcTotals.totalSgst;
+  const igstTotal = calcTotals.totalIgst;
 
-    if (activeCompany && selectedPartyObj) {
-      const isSameState = activeCompany.stateCode === selectedPartyObj.stateCode;
-      if (isSameState) {
-        cgstTotal += (itemTaxable * (gstPct / 2)) / 100;
-        sgstTotal += (itemTaxable * (gstPct / 2)) / 100;
-      } else {
-        igstTotal += (itemTaxable * gstPct) / 100;
-      }
-    }
-  });
-
-  // Auto-sync calculated tax values into form fields
+  // Keep the form fields in step for display. The backend derives GST from the
+  // Quality master and ignores these, so they are no longer an override.
   useEffect(() => {
-    setValue('totalCgst', Math.round(cgstTotal * 100) / 100);
-    setValue('totalSgst', Math.round(sgstTotal * 100) / 100);
-    setValue('totalIgst', Math.round(igstTotal * 100) / 100);
+    setValue('totalCgst', cgstTotal);
+    setValue('totalSgst', sgstTotal);
+    setValue('totalIgst', igstTotal);
   }, [cgstTotal, sgstTotal, igstTotal, setValue]);
 
-  // Use the watched (possibly user-overridden) values for net total
-  const taxTotal = watchedCgst + watchedSgst + watchedIgst;
-  const rawNet = taxableTotal + taxTotal;
-  const netTotal = Math.round(rawNet);
-  const roundOff = netTotal - rawNet;
-  const brokerageAmount = (taxableTotal * watchedBrokeragePct) / 100;
+  const netTotal = calcTotals.netAmount;
+  const roundOff = calcTotals.roundOff;
+  const brokerageAmount = round2((taxableTotal * watchedBrokeragePct) / 100);
   const selectedBrokerObj = brokers.find((b) => b.id === Number(watch('brokerId')));
 
   const onSubmit = async (data: InvoiceFormData) => {
@@ -948,12 +963,15 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                     !allSelectedPktIds.includes(p.id)
                                   )
                                   .map((p) => {
-                                    const origCurr = p.originalCurrency || p.transactionCurrency || 'USD';
+                                    const origCurr = p.originalCurrency || p.transactionCurrency || 'INR';
                                     const currSym = origCurr === 'USD' ? '$' : '₹';
                                     const baseRate = isSale && (p as any).targetSaleRate != null && Number((p as any).targetSaleRate) > 0 ? Number((p as any).targetSaleRate) : Number(p.costPerCarat || 0);
+                                    // Show the equivalent in the invoice's currency too, so a
+                                    // dollar-priced packet is comparable inside a rupee invoice.
+                                    const conv = packetRateInInvoiceCurrency(origCurr, baseRate);
                                     return {
                                       value: String(p.id),
-                                      label: `${p.stockIdNumber} (${Number(p.caratWeight).toFixed(3)} CTS | ${p.pieceCount} Pcs | ${currSym}${baseRate.toLocaleString('en-US')}/ct [${origCurr}])`,
+                                      label: `${p.stockIdNumber} (${Number(p.caratWeight).toFixed(3)} CTS | ${p.pieceCount} Pcs | ${currSym}${baseRate.toLocaleString('en-US')}/ct [${origCurr}]${conv})`,
                                     };
                                   });
 
@@ -1006,12 +1024,13 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                               const pktVal = watch(`items.${index}.stockPacketId`);
                               const pkt = availablePackets.find((p) => p.id === Number(pktVal));
                               if (!pkt) return null;
-                              const origCurr = pkt.originalCurrency || pkt.transactionCurrency || 'USD';
+                              const origCurr = pkt.originalCurrency || pkt.transactionCurrency || 'INR';
                               const currSym = origCurr === 'USD' ? '$' : '₹';
                               const baseRate = isSale && (pkt as any).targetSaleRate != null && Number((pkt as any).targetSaleRate) > 0 ? Number((pkt as any).targetSaleRate) : Number(pkt.costPerCarat || 0);
+                              const conv = packetRateInInvoiceCurrency(origCurr, baseRate);
                               return (
                                 <span style={{ fontSize: '12px', color: 'var(--color-success)', fontWeight: 500, marginTop: '16px' }}>
-                                  Available: <strong>{Number(pkt.caratWeight).toFixed(3)} CTS</strong> / {pkt.pieceCount} Pcs — Origin: <strong>{currSym}{baseRate.toLocaleString('en-US')}/ct ({origCurr})</strong>
+                                  Available: <strong>{Number(pkt.caratWeight).toFixed(3)} CTS</strong> / {pkt.pieceCount} Pcs — Origin: <strong>{currSym}{baseRate.toLocaleString('en-US')}/ct ({origCurr}){conv}</strong>
                                 </span>
                               );
                             })()}

@@ -69,9 +69,20 @@ export const StockListPage: React.FC = () => {
   }, [qualityQueryParam]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
 
-  // Temporary ephemeral INR preview state
+  // Temporary ephemeral INR preview state. The rate here is only a what-if
+  // for packets whose cost is in dollars; a packet that stores its own INR
+  // cost is shown as stored rather than multiplied by this.
   const [showInrPreview, setShowInrPreview] = useState<boolean>(false);
   const [inrRate, setInrRate] = useState<number>(83.25);
+
+  // Every cost figure below used to be printed with a $ sign no matter what
+  // currency it was entered in, so an INR-purchased packet read as dollars.
+  const costSymbol = (row: any) => ((row?.costCurrency || row?.originalCurrency) === 'INR' ? '₹' : '$');
+  const targetSymbol = (row: any) => (row?.targetSaleRateCurrency === 'INR' ? '₹' : '$');
+  const costPerCaratInrOf = (row: any) =>
+    row?.costPerCaratInr != null
+      ? Number(row.costPerCaratInr)
+      : Number(row?.costPerCarat || 0) * ((row?.costCurrency || row?.originalCurrency) === 'INR' ? 1 : inrRate);
 
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
@@ -599,24 +610,25 @@ export const StockListPage: React.FC = () => {
     },
     {
       key: 'costPerCarat',
-      header: 'COST ($/CT)',
-      render: (row) => `$${Number(row.costPerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      header: 'COST /CT',
+      render: (row) =>
+        `${costSymbol(row)}${Number(row.costPerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
     },
     ...(showInrPreview ? [{
       key: 'costPerCaratInr',
       header: `COST (₹/CT @ ${inrRate})`,
       render: (row: IStockPacket) => (
         <span style={{ color: '#b45309', fontWeight: 600, background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-          ₹{(Number(row.costPerCarat) * inrRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ₹{costPerCaratInrOf(row).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ),
     }] : []),
     {
       key: 'targetSaleRate',
-      header: 'TARGET RATE ($/CT)',
+      header: 'TARGET RATE /CT',
       render: (row) => row.targetSaleRate != null ? (
         <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-          ${Number(row.targetSaleRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+          {targetSymbol(row)}{Number(row.targetSaleRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}
         </span>
       ) : (
         <span style={{ opacity: 0.5 }}>—</span>
@@ -627,7 +639,7 @@ export const StockListPage: React.FC = () => {
       header: `TARGET (₹/CT @ ${inrRate})`,
       render: (row: IStockPacket) => row.targetSaleRate != null ? (
         <span style={{ color: '#047857', fontWeight: 600, background: '#d1fae5', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-          ₹{(Number(row.targetSaleRate) * inrRate).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          ₹{(Number(row.targetSaleRate) * (row.targetSaleRateCurrency === 'INR' ? 1 : inrRate)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
         </span>
       ) : (
         <span style={{ opacity: 0.5 }}>—</span>

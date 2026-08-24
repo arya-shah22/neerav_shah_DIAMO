@@ -10,7 +10,7 @@ import { Save, ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { stockSchema, StockFormData } from './stock.schema';
 import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
-import { Button, Input, Combobox, FormSelect, useToast } from '../../components/ui';
+import { Button, Input, Combobox, FormSelect, Select, useToast } from '../../components/ui';
 import { IQuality } from '../quality/quality.types';
 import { IStockPacket, CERTIFICATE_TYPES, STOCK_STATUS_LABELS, EDITABLE_STOCK_STATUSES } from './stock.types';
 import { useCompanyStore } from '../../state/company-store';
@@ -35,6 +35,11 @@ export const StockFormPage: React.FC = () => {
   const [editBlocked, setEditBlocked] = useState(false);
   const [piecesNotCounted, setPiecesNotCounted] = useState(false);
   const [formExchangeRate, setFormExchangeRate] = useState<number>(83.25);
+  // The cost fields were hardcoded to dollars in their labels and the packet
+  // was saved with no currency at all, so an INR-priced packet was later read
+  // back as dollars. The choice is now explicit and is saved with the packet.
+  const [costCurrency, setCostCurrency] = useState<'USD' | 'INR'>('USD');
+  const costSymbol = costCurrency === 'USD' ? '$' : '₹';
   const [advancedSections, setAdvancedSections] = useState({ fluorescence: false, girdle: false, inclusions: false });
   const toggleSection = useCallback((key: 'fluorescence' | 'girdle' | 'inclusions') => {
     setAdvancedSections(prev => ({ ...prev, [key]: !prev[key] }));
@@ -222,6 +227,10 @@ export const StockFormPage: React.FC = () => {
           imageLink: s.imageLink ?? '',
           videoLink: s.videoLink ?? '',
         });
+        setCostCurrency(((s as any).costCurrency as 'USD' | 'INR') || 'USD');
+        if (Number((s as any).costExchangeRate) > 0) {
+          setFormExchangeRate(Number((s as any).costExchangeRate));
+        }
       }
     };
     load();
@@ -233,6 +242,10 @@ export const StockFormPage: React.FC = () => {
       ...data,
       stockIdNumber: !isEdit && useManualId ? data.stockIdNumber : isEdit ? data.stockIdNumber : undefined,
       financialYearId: activeFinancialYear?.id,
+      // The exchange rate on this screen used to be a preview only; it is now
+      // stored so the packet can be valued in rupees without guesswork.
+      costCurrency,
+      costExchangeRate: costCurrency === 'USD' ? formExchangeRate : 1,
     };
     const res = isEdit
       ? await updateStock({ id: Number(id), companyId, data: payload })
@@ -618,11 +631,20 @@ export const StockFormPage: React.FC = () => {
         <div style={sectionStyle}>
           <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation & Target Selling</h2>
           <div style={grid3}>
-            <Input label="Cost per Carat ($)" type="number" step="0.01" {...register('costPerCarat', { valueAsNumber: true })} />
-            <Input label="Total Cost ($)" type="number" step="0.01" {...register('totalCost', { valueAsNumber: true })} />
-            <Input label="Target Sale Rate ($/ct) [Optional]" type="number" step="0.01" placeholder="Target asking price in $" {...register('targetSaleRate', { valueAsNumber: true })} />
+            <Select
+              label="Cost Currency"
+              value={costCurrency}
+              onChange={(v: string) => setCostCurrency(v as 'USD' | 'INR')}
+              options={[{ value: 'USD', label: 'USD ($)' }, { value: 'INR', label: 'INR (₹)' }]}
+            />
+            <Input label={`Cost per Carat (${costSymbol})`} type="number" step="0.01" {...register('costPerCarat', { valueAsNumber: true })} />
+            <Input label={`Total Cost (${costSymbol})`} type="number" step="0.01" {...register('totalCost', { valueAsNumber: true })} />
+          </div>
+          <div style={grid3}>
+            <Input label={`Target Sale Rate (${costSymbol}/ct) [Optional]`} type="number" step="0.01" placeholder={`Target asking price in ${costSymbol}`} {...register('targetSaleRate', { valueAsNumber: true })} />
           </div>
 
+          {costCurrency === 'USD' ? (
           <div style={{ marginTop: '16px', background: 'var(--color-row-alt)', padding: '16px', borderRadius: 'var(--radius-md)', border: '1px solid var(--color-border)', display: 'flex', gap: '24px', alignItems: 'center', flexWrap: 'wrap' }}>
             <div style={{ flex: '0 0 240px' }}>
               <Input
@@ -656,6 +678,7 @@ export const StockFormPage: React.FC = () => {
               ) : null}
             </div>
           </div>
+          ) : null}
         </div>
 
         {/* Media Links */}

@@ -783,6 +783,7 @@ model SaleInvoiceItem {
   carats        Decimal @map("carats") @db.Decimal(12, 3)
   pieces        Int     @default(1) @db.UnsignedInt
   rate          Decimal @map("rate") @db.Decimal(18, 2)
+  discountPct   Decimal @default(0.00) @map("discount_pct") @db.Decimal(5, 2)
   lessPct       Decimal @default(0.00) @map("less_pct") @db.Decimal(5, 2)
   termsRate     Decimal @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
   grossAmount   Decimal @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
@@ -903,6 +904,7 @@ model PurchaseInvoiceItem {
   pieces            Int     @default(1) @db.UnsignedInt
   rate              Decimal  @map("rate") @db.Decimal(18, 2)
   targetSaleRate    Decimal? @map("target_sale_rate") @db.Decimal(18, 2)
+  discountPct       Decimal @default(0.00) @map("discount_pct") @db.Decimal(5, 2)
   lessPct           Decimal @default(0.00) @map("less_pct") @db.Decimal(5, 2)
   termsRate         Decimal @default(0.00) @map("terms_rate") @db.Decimal(18, 2)
   grossAmount       Decimal @default(0.00) @map("gross_amount") @db.Decimal(18, 2)
@@ -1467,7 +1469,14 @@ model StockPacket {
   certificateType   String? @map("certificate_type") @db.VarChar(255)
   certificateNumber String? @map("certificate_number") @db.VarChar(191)
 
-  // Valuation (always in USD from CSV)
+  // Valuation.
+  // costPerCarat/totalCost hold the figure AS ENTERED, in costCurrency; the
+  // *Inr columns hold the same value converted to base currency and are what
+  // every report must read. Cost used to be stored with no currency marker at
+  // all, so a USD purchase and an INR purchase landed in the same column and
+  // valuation silently added dollars to rupees.
+  costCurrency          CurrencyCode  @default(INR) @map("cost_currency")
+  costExchangeRate      Decimal       @default(1.0000) @map("cost_exchange_rate") @db.Decimal(12, 4)
   costPerCarat          Decimal       @default(0.00) @map("cost_per_carat") @db.Decimal(18, 2)
   totalCost             Decimal       @default(0.00) @map("total_cost") @db.Decimal(18, 2)
   targetSaleRate        Decimal?      @map("target_sale_rate") @db.Decimal(18, 2)

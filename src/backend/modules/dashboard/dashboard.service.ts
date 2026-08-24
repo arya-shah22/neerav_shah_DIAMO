@@ -540,6 +540,11 @@ export class DashboardService {
     const displayBankPayments = bankReceiptsToday > 0 || bankPaymentsToday > 0 ? bankPaymentsToday : totalBankPayments;
 
     // 3. Stock Telemetry
+    // Valuation reads the packet's own base-currency cost. It used to rebuild
+    // the currency by joining back to the originating purchase invoice and fell
+    // back to a hardcoded rate of 89 — and that fallback tested
+    // targetSaleRateCurrency, which was not even selected here, so it was always
+    // undefined and every unlinked USD packet was valued 1:1 with the rupee.
     const packets = await this.prisma.stockPacket.findMany({
       where: { companyId, isDeleted: false },
       select: {
@@ -548,27 +553,10 @@ export class DashboardService {
         currentStatus: true,
         certificateNumber: true,
         totalCost: true,
+        totalCostInr: true,
+        costExchangeRate: true,
+        costCurrency: true,
       },
-    });
-
-    // Fetch origin purchase invoice currencies for packets
-    const packetIds = packets.map((p) => p.id);
-    const purchasePacketItems = await this.prisma.purchaseInvoiceItem.findMany({
-      where: { stockPacketId: { in: packetIds } },
-      select: {
-        stockPacketId: true,
-        purchaseInvoice: { select: { transactionCurrency: true, exchangeRate: true } },
-      },
-    });
-
-    const packetCurrencyMap = new Map<number, { currency: string; rate: number }>();
-    purchasePacketItems.forEach((pi) => {
-      if (pi.stockPacketId && pi.purchaseInvoice) {
-        packetCurrencyMap.set(pi.stockPacketId, {
-          currency: pi.purchaseInvoice.transactionCurrency || 'USD',
-          rate: Number(pi.purchaseInvoice.exchangeRate) || 1,
-        });
-      }
     });
 
     let totalCarats = 0;
@@ -581,11 +569,12 @@ export class DashboardService {
 
     packets.forEach((p: any) => {
       const wt = Number(p.caratWeight || 0);
-      const rawPrice = Number(p.totalCost || 0);
-      
-      const currInfo = packetCurrencyMap.get(p.id);
-      const exRate = currInfo?.currency === 'USD' ? (currInfo.rate || 1) : (p.targetSaleRateCurrency === 'USD' ? 89 : 1);
-      const priceInr = rawPrice * exRate;
+      // Prefer the stored base-currency cost; fall back to converting the
+      // as-entered figure for packets written before the currency columns.
+      const priceInr =
+        p.totalCostInr != null
+          ? Number(p.totalCostInr)
+          : Number(p.totalCost || 0) * (p.costCurrency === 'USD' ? Number(p.costExchangeRate) || 1 : 1);
 
       totalCarats += wt;
       totalValuation += priceInr;

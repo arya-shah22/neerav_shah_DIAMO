@@ -22,6 +22,7 @@
     "db:gen-sql": "prisma migrate diff --from-empty --to-schema-datamodel prisma/schema.prisma --script > prisma/schema.sql && node prisma/force-innodb.js",
     "db:reset": "prisma migrate reset --force",
     "typecheck": "tsc --noEmit",
+    "diagnose:invoices": "ts-node --project scripts/tsconfig.json scripts/diagnose-invoice-stock.ts",
     "verify:test-plan": "ts-node --project scripts/tsconfig.json scripts/verify-manual-test-plan.ts"
   },
   "dependencies": {

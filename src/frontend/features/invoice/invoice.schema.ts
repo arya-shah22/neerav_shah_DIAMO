@@ -24,7 +24,12 @@ export const invoiceItemSchema = z.object({
     (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? 0 : Number(val)),
     z.number({ required_error: 'Rate is required' }).min(0, 'Rate cannot be negative')
   ),
-  discountPct: optionalNumber.default(0),
+  // Bounded: a discount above 100% produces a negative taxable value, which
+  // then writes a negative tax leg into the ledger.
+  discountPct: z.preprocess(
+    (val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? 0 : Number(val)),
+    z.number().min(0, 'Discount cannot be negative').max(100, 'Discount cannot exceed 100%')
+  ).default(0),
   targetSaleRate: optionalNumber,
   stockPacketId: z.preprocess((val) => (val === '' || val === null || val === undefined || (typeof val === 'number' && Number.isNaN(val)) ? null : Number(val)), z.number().nullable().optional()),
   stockIdNumber: z.string().optional(),

@@ -94,11 +94,17 @@ export class StockService {
       }
     }
 
-    return packets.map((pkt) => ({
-      ...pkt,
-      originalCurrency: originCurrencyMap.get(pkt.id) || (pkt.targetSaleRateCurrency as any) || 'USD',
-      transactionCurrency: originCurrencyMap.get(pkt.id) || (pkt.targetSaleRateCurrency as any) || 'USD',
-    }));
+    // The packet's own costCurrency is authoritative. The purchase-invoice
+    // join is only a fallback for rows written before that column existed --
+    // and it breaks entirely once stock is deleted, because delete() nulls
+    // stockPacketId on the invoice items. targetSaleRateCurrency is NOT a
+    // valid fallback: it describes the asking price, not the cost.
+    return packets.map((pkt) => {
+      const currency = ((pkt as any).costCurrency as 'USD' | 'INR')
+        || originCurrencyMap.get(pkt.id)
+        || 'INR';
+      return { ...pkt, originalCurrency: currency, transactionCurrency: currency };
+    });
   }
 
   async search(companyId: number, query: string, limit = 20) {
@@ -160,7 +166,12 @@ export class StockService {
       },
     });
 
-    const origCurr = purchaseItem?.purchaseInvoice?.transactionCurrency || (packet.targetSaleRateCurrency as any) || 'USD';
+    // costCurrency is authoritative; the purchase-invoice join only covers rows
+    // written before that column existed. targetSaleRateCurrency describes the
+    // asking price, not the cost, so it must not be used here.
+    const origCurr = ((packet as any).costCurrency as any)
+      || purchaseItem?.purchaseInvoice?.transactionCurrency
+      || 'INR';
 
     const mapped = mapPacketWithMediaLinks(packet);
     return {
@@ -493,6 +504,8 @@ export class StockService {
 
     const costPerCarat = Number(data.costPerCarat) || 0;
     const totalCost = data.totalCost != null ? Number(data.totalCost) : caratWeight * costPerCarat;
+    const costCurrency = (data as any).costCurrency === 'USD' ? 'USD' : 'INR';
+    const costExchangeRate = Number((data as any).costExchangeRate) > 0 ? Number((data as any).costExchangeRate) : 1;
     const targetSaleRate = data.targetSaleRate != null && !isNaN(Number(data.targetSaleRate)) ? Number(data.targetSaleRate) : null;
 
     const registrationDate = data.registrationDate
@@ -590,6 +603,13 @@ export class StockService {
           certificateNumber: emptyToNull(data.certificateNumber),
           costPerCarat,
           totalCost,
+          // Record the currency this cost was entered in and its base-currency
+          // mirror; without it a USD-priced packet is indistinguishable from an
+          // INR-priced one and valuation adds dollars to rupees.
+          costCurrency: costCurrency as any,
+          costExchangeRate: costExchangeRate,
+          costPerCaratInr: costCurrency === 'USD' ? Math.round(costPerCarat * costExchangeRate * 100) / 100 : costPerCarat,
+          totalCostInr: costCurrency === 'USD' ? Math.round(totalCost * costExchangeRate * 100) / 100 : totalCost,
           targetSaleRate,
           currentStatus: targetStatus,
           currentOwnership: StockOwnership.COMPANY,
@@ -666,6 +686,11 @@ export class StockService {
       data.costPerCarat != null ? Number(data.costPerCarat) : Number(existing.costPerCarat);
     const totalCost =
       data.totalCost != null ? Number(data.totalCost) : caratWeight * costPerCarat;
+    const costCurrency =
+      (data as any).costCurrency === 'USD' ? 'USD' : ((data as any).costCurrency === 'INR' ? 'INR' : ((existing as any).costCurrency || 'INR'));
+    const costExchangeRate = Number((data as any).costExchangeRate) > 0
+      ? Number((data as any).costExchangeRate)
+      : (Number((existing as any).costExchangeRate) > 0 ? Number((existing as any).costExchangeRate) : 1);
     const targetSaleRate =
       data.targetSaleRate !== undefined
         ? (data.targetSaleRate != null && !isNaN(Number(data.targetSaleRate)) ? Number(data.targetSaleRate) : null)
@@ -780,6 +805,13 @@ export class StockService {
               : existing.certificateNumber,
           costPerCarat,
           totalCost,
+          // Record the currency this cost was entered in and its base-currency
+          // mirror; without it a USD-priced packet is indistinguishable from an
+          // INR-priced one and valuation adds dollars to rupees.
+          costCurrency: costCurrency as any,
+          costExchangeRate: costExchangeRate,
+          costPerCaratInr: costCurrency === 'USD' ? Math.round(costPerCarat * costExchangeRate * 100) / 100 : costPerCarat,
+          totalCostInr: costCurrency === 'USD' ? Math.round(totalCost * costExchangeRate * 100) / 100 : totalCost,
           targetSaleRate,
           currentStatus: newStatus,
           currentLocation:

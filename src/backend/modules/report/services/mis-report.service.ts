@@ -5,6 +5,17 @@
 import { Injectable, Inject } from '@nestjs/common';
 import { PrismaService } from '../../../database/prisma.service';
 
+/**
+ * A packet's cost per carat in base currency. Packets store the figure as
+ * entered plus its currency; valuation used to read the raw number, so a
+ * USD-bought packet and an INR-bought one were added together directly.
+ */
+function costPerCaratInrOf(p: any): number {
+  if (p?.costPerCaratInr != null) return Number(p.costPerCaratInr);
+  const raw = Number(p?.costPerCarat || 0);
+  return p?.costCurrency === 'USD' ? raw * (Number(p?.costExchangeRate) || 1) : raw;
+}
+
 @Injectable()
 export class MisReportService {
   @Inject(PrismaService)
@@ -24,6 +35,9 @@ export class MisReportService {
         caratWeight: true,
         pieceCount: true,
         costPerCarat: true,
+        costPerCaratInr: true,
+        costCurrency: true,
+        costExchangeRate: true,
         targetSaleRate: true,
         sourcePacketId: true,
         sourceTransformId: true,
@@ -172,7 +186,7 @@ export class MisReportService {
       const movementCarats = movementCaratsMap.get(p.id) || 0;
       const carats = rawCarats > 0 ? rawCarats : (saleInfo?.carats || purchaseInfo?.purchaseCarats || movementCarats || 0);
 
-      const rawCost = Number(p.costPerCarat || 0);
+      const rawCost = costPerCaratInrOf(p);
       const costRate = rawCost > 0 ? rawCost : (purchaseInfo?.costRate || (saleInfo?.actualSaleRate || 0));
 
       let val = carats * costRate;
@@ -293,7 +307,7 @@ export class MisReportService {
         const rawCarats = Number(p.caratWeight || 0);
         const carats = rawCarats > 0 ? rawCarats : (saleInfo?.carats || purchaseInfo?.purchaseCarats || 0);
 
-        const rawCost = Number(p.costPerCarat || 0);
+        const rawCost = costPerCaratInrOf(p);
         const costRate = rawCost > 0 ? rawCost : (purchaseInfo?.costRate || (saleInfo?.actualSaleRate || 0));
 
         let totVal = carats * costRate;
@@ -483,7 +497,7 @@ export class MisReportService {
       const qName = p.quality?.qualityName || 'Unknown';
       if (!qualityMap[qName]) qualityMap[qName] = { qualityName: qName, count: 0, carats: 0, value: 0 };
       const carats = Number(p.caratWeight || 0);
-      const val = carats * Number(p.costPerCarat || 0);
+      const val = carats * costPerCaratInrOf(p);
       qualityMap[qName].count++;
       qualityMap[qName].carats += carats;
       qualityMap[qName].value += val;
@@ -508,7 +522,7 @@ export class MisReportService {
       const carats = Number(p.caratWeight || 0);
       statusMap[st].count++;
       statusMap[st].carats += carats;
-      statusMap[st].value += carats * Number(p.costPerCarat || 0);
+      statusMap[st].value += carats * costPerCaratInrOf(p);
     }
 
     // Job Work analytics

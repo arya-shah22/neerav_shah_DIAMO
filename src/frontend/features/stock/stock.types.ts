@@ -124,7 +124,14 @@ export interface IStockPacket {
   certificateNumber: string | null;
   costPerCarat: number;
   totalCost: number;
+  // Currency the cost above was entered in, plus the base-currency mirror.
+  // Without these a dollar cost and a rupee cost are indistinguishable.
+  costCurrency?: 'USD' | 'INR';
+  costExchangeRate?: number;
+  costPerCaratInr?: number | null;
+  totalCostInr?: number | null;
   targetSaleRate?: number | null;
+  targetSaleRateCurrency?: 'USD' | 'INR' | null;
   currentStatus: StockStatus;
   currentOwnership: StockOwnership;
   currentOwnerId: number | null;
@@ -189,7 +196,14 @@ export interface IStockConversionOutput {
   cut: string | null;
   costPerCarat: number;
   totalCost: number;
+  // Currency the cost above was entered in, plus the base-currency mirror.
+  // Without these a dollar cost and a rupee cost are indistinguishable.
+  costCurrency?: 'USD' | 'INR';
+  costExchangeRate?: number;
+  costPerCaratInr?: number | null;
+  totalCostInr?: number | null;
   targetSaleRate?: number | null;
+  targetSaleRateCurrency?: 'USD' | 'INR' | null;
   remarks: string | null;
   outputPacket?: IStockPacket;
   outputQuality?: IStockQualityRef;

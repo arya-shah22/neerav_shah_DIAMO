@@ -10,6 +10,34 @@ import { generateStockIdNumber } from '../../utils/stock-id-generator';
 import { formatVoucherNumber, nextVoucherSequenceNumber } from '../../utils/voucher-number-formatter';
 import { getOrCreateDefaultAccount } from '../../utils/default-account-helper';
 
+import {
+  altAmount,
+  computeLineTotals,
+  resolveGstPct,
+  round2,
+  roundNet,
+  type CalcCurrency,
+} from '../../../shared/utils/invoice-calc';
+
+/**
+ * Intra-state (CGST+SGST) or inter-state (IGST)?
+ *
+ * Comparing the two state codes directly treats two nulls as a match, so a
+ * party with no state code was always billed CGST+SGST. The place of supply is
+ * used when the party code is missing, and an unresolvable case falls back to
+ * intra-state -- the previous behaviour, but only once both other options fail.
+ */
+function resolveIsSameState(
+  companyStateCode: string | null | undefined,
+  partyStateCode: string | null | undefined,
+  placeOfSupply?: string | null,
+): boolean {
+  if (!companyStateCode) return true;
+  const supplyState = partyStateCode || placeOfSupply;
+  if (!supplyState) return true;
+  return companyStateCode === supplyState;
+}
+
 function cleanUpper(val: unknown): string | null {
   if (val == null) return null;
   const str = String(val).trim();
@@ -288,10 +316,17 @@ export class InvoiceService {
     const addPct = Number(data.addPct) || 0;
     const lessPct = Number(data.lessPct) || 0;
 
-    const salesOrPurchaseLedgerId =
-      invoiceType === InvoiceType.SALE_INVOICE
-        ? await getOrCreateDefaultAccount(this.prisma, companyId, 'Sales A/c', 'Sales Accounts')
-        : await getOrCreateDefaultAccount(this.prisma, companyId, 'Purchase A/c', 'Purchase Accounts');
+    // Every sale-side document -- including returns and debit notes -- belongs
+    // to Sales A/c. create() used to route SALE_RETURN and SALE_DEBIT_NOTE to
+    // Purchase A/c while update() routed them to Sales A/c, so merely editing a
+    // return shifted money between two P&L heads.
+    const isSaleSideDocument =
+      invoiceType === InvoiceType.SALE_INVOICE ||
+      invoiceType === InvoiceType.SALE_RETURN ||
+      invoiceType === InvoiceType.SALE_DEBIT_NOTE;
+    const salesOrPurchaseLedgerId = isSaleSideDocument
+      ? await getOrCreateDefaultAccount(this.prisma, companyId, 'Sales A/c', 'Sales Accounts')
+      : await getOrCreateDefaultAccount(this.prisma, companyId, 'Purchase A/c', 'Purchase Accounts');
 
     const cgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'CGST Input/Output', 'Duties & Taxes');
     const sgstLedgerId = await getOrCreateDefaultAccount(this.prisma, companyId, 'SGST Input/Output', 'Duties & Taxes');
@@ -301,7 +336,8 @@ export class InvoiceService {
 
     return this.prisma.$transaction(async (tx) => {
       const companyQualities = await tx.quality.findMany({
-        where: { companyId, isDeleted: false }
+        where: { companyId, isDeleted: false },
+        include: { gstHistory: { orderBy: { applyDate: 'desc' } } },
       });
 
       const itemsData = Array.isArray(data.items) ? data.items : [];
@@ -312,47 +348,102 @@ export class InvoiceService {
       let totalCgst = 0;
       let totalSgst = 0;
       let totalIgst = 0;
+      let totalTaxable = 0;
+
+      const calcCurrency = transactionCurrency as CalcCurrency;
+      const lineCtx = {
+        addPct,
+        lessPct,
+        // A missing state code on either side used to compare null === null and
+        // silently charge CGST+SGST on what may well be an inter-state supply.
+        // Fall back to the place of supply, and only then to the company state.
+        isSameState: resolveIsSameState(company.stateCode, party.stateCode, data.placeOfSupply),
+        currency: calcCurrency,
+        exchangeRate,
+      };
+
+      const toBaseCurrency = (v: number) => (calcCurrency === 'USD' ? round2(v * exchangeRate) : round2(v));
+      // Stock cost is persisted three ways: as entered, the currency it was
+      // entered in, and the base-currency equivalent. Previously only the raw
+      // number was stored, so a USD purchase and an INR purchase were
+      // indistinguishable and valuation reports added dollars to rupees.
+      const stockCostFields = (perCarat: number, total: number) => ({
+        costCurrency: transactionCurrency as any,
+        costExchangeRate: exchangeRate,
+        costPerCarat: perCarat,
+        totalCost: total,
+        costPerCaratInr: toBaseCurrency(perCarat),
+        totalCostInr: toBaseCurrency(total),
+      });
+
+      // Buying more of a packet that already holds stock must ADD to its cost.
+      // Carats were incremented while totalCost was overwritten, so 5 ct at 100
+      // followed by 3 ct at 120 left an 8 ct packet valued at 360, not 860.
+      // Packets created by this very invoice start at zero carats and already
+      // carry their full cost, so they keep the plain assignment.
+      const mergedPurchaseCost = (packet: any, addCarats: number, rate: number) => {
+        const existingCarats = Number(packet.caratWeight || 0);
+        if (existingCarats <= 0.0001) return stockCostFields(rate, addCarats * rate);
+
+        const existingInr =
+          packet.totalCostInr != null
+            ? Number(packet.totalCostInr)
+            : Number(packet.totalCost || 0) *
+              (packet.costCurrency === 'USD' ? Number(packet.costExchangeRate) || 1 : 1);
+        const totalInr = round2(existingInr + toBaseCurrency(addCarats * rate));
+        const totalCarats = existingCarats + addCarats;
+        const perCaratInr = totalCarats > 0 ? round2(totalInr / totalCarats) : 0;
+        // A merged packet can hold stock bought in two currencies, so the
+        // blended figure is only meaningful in the base currency.
+        return {
+          costCurrency: 'INR' as any,
+          costExchangeRate: 1,
+          costPerCarat: perCaratInr,
+          totalCost: totalInr,
+          costPerCaratInr: perCaratInr,
+          totalCostInr: totalInr,
+        };
+      };
 
       const parsedItems = [];
 
       for (const [index, it] of itemsData.entries()) {
-        const carats = Number(it.carats) || 0;
-        const pieces = (it.isPiecesUncounted || it.pieces === null || it.pieces === undefined || it.pieces === '') ? 0 : (Number(it.pieces) || 0);
-        const rate = Number(it.rate) || 0;
+        // GST comes from the Quality master (the rate in force on the invoice
+        // date), never from the client payload: the form never sent gstPct, so
+        // create() saved zero tax while update() applied a client override --
+        // which made merely re-saving an invoice change its total.
+        const qualityForGst = companyQualities.find((q) => q.id === Number(it.qualityId));
+        const gstPct = resolveGstPct((qualityForGst as any)?.gstHistory, invoiceDate);
         const discountPct = Number(it.discountPct) || 0;
-        const gstPct = Number(it.gstPct) || 0;
+
+        const line = computeLineTotals(
+          {
+            carats: it.carats,
+            pieces: it.pieces,
+            isPiecesUncounted: it.isPiecesUncounted,
+            rate: it.rate,
+            discountPct,
+            gstPct,
+          },
+          lineCtx,
+        );
+        const { carats, pieces, rate } = line;
 
         // Multi-currency conversion for line items
-        const rateAlt = transactionCurrency === 'USD' ? Math.round(rate * exchangeRate * 100) / 100 : Math.round((rate / exchangeRate) * 100) / 100;
+        const rateAlt = altAmount(rate, calcCurrency, exchangeRate);
 
-        const gross = carats * rate;
-        const discount = (gross * discountPct) / 100;
-        const itemAddAmount = (gross * addPct) / 100;
-        const itemLessAmount = (gross * lessPct) / 100;
-        const taxable = gross + itemAddAmount - itemLessAmount - discount;
+        const { gross, taxable, cgst, sgst, igst } = line;
+        const netVal = line.net;
 
         totalCarats += carats;
         totalPieces += pieces;
         totalGrossAmount += gross;
-        totalDiscount += discount + itemLessAmount;
-
-        let cgst = 0;
-        let sgst = 0;
-        let igst = 0;
-
-        const isSameState = company.stateCode === party.stateCode;
-        if (isSameState) {
-          cgst = (taxable * (gstPct / 2)) / 100;
-          sgst = (taxable * (gstPct / 2)) / 100;
-          totalCgst += cgst;
-          totalSgst += sgst;
-        } else {
-          igst = (taxable * gstPct) / 100;
-          totalIgst += igst;
-        }
-
-        const netVal = taxable + cgst + sgst + igst;
-        const netAmountAltItem = transactionCurrency === 'USD' ? Math.round(netVal * exchangeRate * 100) / 100 : Math.round((netVal / exchangeRate) * 100) / 100;
+        totalTaxable += taxable;
+        totalDiscount += line.discount + line.lessAmount;
+        totalCgst += cgst;
+        totalSgst += sgst;
+        totalIgst += igst;
+        const netAmountAltItem = altAmount(netVal, calcCurrency, exchangeRate);
 
         let stockPacketId: number | null = null;
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
@@ -435,8 +526,7 @@ export class InvoiceService {
                   bgm: cleanUpper(it.bgm),
                   certificateType: it.certificateType || null,
                   certificateNumber: it.certificateNumber || null,
-                  costPerCarat: Number(it.rate),
-                  totalCost: Number(gross),
+                  ...stockCostFields(Number(it.rate), Number(gross)),
                   targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
                   caratWeight: 0,
                   pieceCount: 0,
@@ -539,8 +629,7 @@ export class InvoiceService {
                   bgm: it.bgm !== undefined ? cleanUpper(it.bgm) : pkt.bgm,
                   certificateType: it.certificateType !== undefined ? it.certificateType : pkt.certificateType,
                   certificateNumber: it.certificateNumber !== undefined ? it.certificateNumber : pkt.certificateNumber,
-                  costPerCarat: Number(it.rate),
-                  totalCost: Number(gross),
+                  ...stockCostFields(Number(it.rate), Number(gross)),
                   targetSaleRate: it.targetSaleRate !== undefined ? (it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null) : pkt.targetSaleRate,
                 }
               });
@@ -578,6 +667,10 @@ export class InvoiceService {
           rate,
           rateAlt,
           targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
+          // Stored in its own column as well as folded into lessPct: read
+          // back from lessPct alone it was indistinguishable from the header
+          // less%, so reopening an invoice lost the line discount.
+          discountPct,
           lessPct: discountPct + lessPct,
           termsRate: rate,
           grossAmount: gross,
@@ -612,13 +705,20 @@ export class InvoiceService {
       }, 0);
       totalGrossAmount += totalExtraCharges;
 
-      const calculatedAddValue = (totalGrossAmount * addPct) / 100;
-      const calculatedLessValue = (totalGrossAmount * lessPct) / 100;
-      const taxableTotal = totalGrossAmount + calculatedAddValue - calculatedLessValue;
-      const taxTotal = totalCgst + totalSgst + totalIgst;
-      const rawNet = taxableTotal + taxTotal;
-      const roundOff = Math.round(rawNet) - rawNet;
-      const netAmount = Math.round(rawNet);
+      // Header totals are the SUM OF THE LINES (each already net of its own
+      // discount) plus extra charges. Rebuilding them from gross used to drop
+      // the per-line discount entirely, so the header over-billed and never
+      // matched the sum of its own rows.
+      const extrasAdjusted = round2(
+        totalExtraCharges + (totalExtraCharges * addPct) / 100 - (totalExtraCharges * lessPct) / 100,
+      );
+      const taxableTotal = round2(totalTaxable + extrasAdjusted);
+      const taxTotal = round2(totalCgst + totalSgst + totalIgst);
+      const rawNet = round2(taxableTotal + taxTotal);
+      // Whole rupees for INR (the GST convention); a USD invoice keeps its cents
+      // instead of dumping up to half a dollar into Round-off.
+      const netAmount = roundNet(rawNet, calcCurrency);
+      const roundOff = round2(netAmount - rawNet);
       const netAmountAlt = transactionCurrency === 'USD' ? Math.round(netAmount * exchangeRate * 100) / 100 : Math.round((netAmount / exchangeRate) * 100) / 100;
 
       // 1. Create Invoice Record — branch by type
@@ -731,12 +831,16 @@ export class InvoiceService {
       // Compute INR normalized amounts for General Ledger entries (GL is always in INR)
       const toGl = (v: number) => transactionCurrency === 'USD' ? Math.round(v * exchangeRate * 100) / 100 : v;
       const glNetAmount = toGl(netAmount);
-      const glTaxableTotal = toGl(taxableTotal);
       // Tax lines must be converted too — leaving them in transaction currency while
       // the party/revenue lines are in INR unbalances the GL by tax × (rate − 1).
       const glCgst = toGl(totalCgst);
       const glSgst = toGl(totalSgst);
       const glIgst = toGl(totalIgst);
+      const glRoundOff = toGl(roundOff);
+      // The revenue leg is derived as the plug figure rather than converted on
+      // its own: rounding every leg independently left USD vouchers up to 0.02
+      // out of balance, so a trial balance would never tie exactly.
+      const glTaxableTotal = round2(glNetAmount - glCgst - glSgst - glIgst - glRoundOff);
 
       // Party Posting
       await tx.generalLedgerEntry.create({
@@ -786,17 +890,25 @@ export class InvoiceService {
       else if (isPurchaseInvoice) taxDebitCredit = DebitCreditType.DEBIT;
       else if (isPurchaseReduction) taxDebitCredit = DebitCreditType.CREDIT;
 
+      // A ledger amount is always positive and carries its side separately, so
+      // a negative tax total is the same leg on the opposite side. The old
+      // `> 0` guard skipped it altogether and left the voucher unbalanced.
+      const taxLegSide = (value: number): DebitCreditType =>
+        value < 0
+          ? (taxDebitCredit === DebitCreditType.DEBIT ? DebitCreditType.CREDIT : DebitCreditType.DEBIT)
+          : taxDebitCredit;
+
       // CGST Posting
-      if (totalCgst > 0) {
+      if (Math.abs(totalCgst) > 0.001) {
         await tx.generalLedgerEntry.create({
           data: {
             companyId,
             accountId: cgstLedgerId,
             voucherDate: invoiceDate,
-            debitCreditType: taxDebitCredit,
-            amount: glCgst,
+            debitCreditType: taxLegSide(totalCgst),
+            amount: Math.abs(glCgst),
             originalCurrency: transactionCurrency,
-            originalAmount: totalCgst,
+            originalAmount: Math.abs(totalCgst),
             exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
@@ -807,16 +919,16 @@ export class InvoiceService {
       }
 
       // SGST Posting
-      if (totalSgst > 0) {
+      if (Math.abs(totalSgst) > 0.001) {
         await tx.generalLedgerEntry.create({
           data: {
             companyId,
             accountId: sgstLedgerId,
             voucherDate: invoiceDate,
-            debitCreditType: taxDebitCredit,
-            amount: glSgst,
+            debitCreditType: taxLegSide(totalSgst),
+            amount: Math.abs(glSgst),
             originalCurrency: transactionCurrency,
-            originalAmount: totalSgst,
+            originalAmount: Math.abs(totalSgst),
             exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
@@ -827,16 +939,16 @@ export class InvoiceService {
       }
 
       // IGST Posting
-      if (totalIgst > 0) {
+      if (Math.abs(totalIgst) > 0.001) {
         await tx.generalLedgerEntry.create({
           data: {
             companyId,
             accountId: igstLedgerId,
             voucherDate: invoiceDate,
-            debitCreditType: taxDebitCredit,
-            amount: glIgst,
+            debitCreditType: taxLegSide(totalIgst),
+            amount: Math.abs(glIgst),
             originalCurrency: transactionCurrency,
-            originalAmount: totalIgst,
+            originalAmount: Math.abs(totalIgst),
             exchangeRate: exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: createdInvoice.id,
@@ -848,8 +960,10 @@ export class InvoiceService {
 
       // Round Off Posting
       if (Math.abs(roundOff) > 0.001) {
+        // Created on the transaction: on this.prisma it survived a rollback,
+        // leaving an orphan account behind every failed save.
         const roundOffLedgerId = await getOrCreateDefaultAccount(
-          this.prisma,
+          tx as any,
           companyId,
           'Round-off A/c',
           'Indirect Expenses',
@@ -867,7 +981,7 @@ export class InvoiceService {
             accountId: roundOffLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: roundOffDc,
-            amount: toGl(Math.abs(roundOff)),
+            amount: Math.abs(glRoundOff),
             originalCurrency: transactionCurrency,
             originalAmount: Math.abs(roundOff),
             exchangeRate: exchangeRate,
@@ -955,12 +1069,15 @@ export class InvoiceService {
                 pieceCount: hasStockInward
                   ? { increment: itemPieces }
                   : Math.max(0, (packet.pieceCount || 0) - itemPieces),
-                ...(invoiceType === 'PURCHASE_INVOICE' ? {
-                  costPerCarat: Number(item.rate),
-                  totalCost: itemCarats * Number(item.rate),
-                } : {
-                  totalCost: remainingCarats * Number(packet.costPerCarat || 0),
-                }),
+                ...(invoiceType === 'PURCHASE_INVOICE'
+                  ? mergedPurchaseCost(packet, itemCarats, Number(item.rate))
+                  : {
+                    totalCost: remainingCarats * Number(packet.costPerCarat || 0),
+                    // Keep the base-currency mirror in step with the residual.
+                    totalCostInr: round2(
+                      remainingCarats * Number(packet.costPerCaratInr ?? packet.costPerCarat ?? 0),
+                    ),
+                  }),
                 currentStatus: newStatus,
               },
             });
@@ -1187,7 +1304,8 @@ export class InvoiceService {
 
     return this.prisma.$transaction(async (tx) => {
       const companyQualities = await tx.quality.findMany({
-        where: { companyId, isDeleted: false }
+        where: { companyId, isDeleted: false },
+        include: { gstHistory: { orderBy: { applyDate: 'desc' } } },
       });
 
       const itemsData = Array.isArray(data.items) ? data.items : [];
@@ -1198,45 +1316,100 @@ export class InvoiceService {
       let totalCgst = 0;
       let totalSgst = 0;
       let totalIgst = 0;
+      let totalTaxable = 0;
+
+      const calcCurrency = transactionCurrency as CalcCurrency;
+      const lineCtx = {
+        addPct,
+        lessPct,
+        // A missing state code on either side used to compare null === null and
+        // silently charge CGST+SGST on what may well be an inter-state supply.
+        // Fall back to the place of supply, and only then to the company state.
+        isSameState: resolveIsSameState(company.stateCode, party.stateCode, data.placeOfSupply),
+        currency: calcCurrency,
+        exchangeRate,
+      };
+
+      const toBaseCurrency = (v: number) => (calcCurrency === 'USD' ? round2(v * exchangeRate) : round2(v));
+      // Stock cost is persisted three ways: as entered, the currency it was
+      // entered in, and the base-currency equivalent. Previously only the raw
+      // number was stored, so a USD purchase and an INR purchase were
+      // indistinguishable and valuation reports added dollars to rupees.
+      const stockCostFields = (perCarat: number, total: number) => ({
+        costCurrency: transactionCurrency as any,
+        costExchangeRate: exchangeRate,
+        costPerCarat: perCarat,
+        totalCost: total,
+        costPerCaratInr: toBaseCurrency(perCarat),
+        totalCostInr: toBaseCurrency(total),
+      });
+
+      // Buying more of a packet that already holds stock must ADD to its cost.
+      // Carats were incremented while totalCost was overwritten, so 5 ct at 100
+      // followed by 3 ct at 120 left an 8 ct packet valued at 360, not 860.
+      // Packets created by this very invoice start at zero carats and already
+      // carry their full cost, so they keep the plain assignment.
+      const mergedPurchaseCost = (packet: any, addCarats: number, rate: number) => {
+        const existingCarats = Number(packet.caratWeight || 0);
+        if (existingCarats <= 0.0001) return stockCostFields(rate, addCarats * rate);
+
+        const existingInr =
+          packet.totalCostInr != null
+            ? Number(packet.totalCostInr)
+            : Number(packet.totalCost || 0) *
+              (packet.costCurrency === 'USD' ? Number(packet.costExchangeRate) || 1 : 1);
+        const totalInr = round2(existingInr + toBaseCurrency(addCarats * rate));
+        const totalCarats = existingCarats + addCarats;
+        const perCaratInr = totalCarats > 0 ? round2(totalInr / totalCarats) : 0;
+        // A merged packet can hold stock bought in two currencies, so the
+        // blended figure is only meaningful in the base currency.
+        return {
+          costCurrency: 'INR' as any,
+          costExchangeRate: 1,
+          costPerCarat: perCaratInr,
+          totalCost: totalInr,
+          costPerCaratInr: perCaratInr,
+          totalCostInr: totalInr,
+        };
+      };
 
       const parsedItems = [];
 
       for (const [index, it] of itemsData.entries()) {
-        const carats = Number(it.carats) || 0;
-        const pieces = (it.isPiecesUncounted || it.pieces === null || it.pieces === undefined || it.pieces === '') ? 0 : (Number(it.pieces) || 0);
-        const rate = Number(it.rate) || 0;
+        // GST comes from the Quality master (the rate in force on the invoice
+        // date), never from the client payload: the form never sent gstPct, so
+        // create() saved zero tax while update() applied a client override --
+        // which made merely re-saving an invoice change its total.
+        const qualityForGst = companyQualities.find((q) => q.id === Number(it.qualityId));
+        const gstPct = resolveGstPct((qualityForGst as any)?.gstHistory, invoiceDate);
         const discountPct = Number(it.discountPct) || 0;
-        const gstPct = Number(it.gstPct) || 0;
 
-        const gross = carats * rate;
-        const discount = (gross * discountPct) / 100;
-        const itemAddAmount = (gross * addPct) / 100;
-        const itemLessAmount = (gross * lessPct) / 100;
-        const taxable = gross + itemAddAmount - itemLessAmount - discount;
+        const line = computeLineTotals(
+          {
+            carats: it.carats,
+            pieces: it.pieces,
+            isPiecesUncounted: it.isPiecesUncounted,
+            rate: it.rate,
+            discountPct,
+            gstPct,
+          },
+          lineCtx,
+        );
+        const { carats, pieces, rate } = line;
+
+        const { gross, taxable, cgst, sgst, igst } = line;
+        const netVal = line.net;
 
         totalCarats += carats;
         totalPieces += pieces;
         totalGrossAmount += gross;
-        totalDiscount += discount + itemLessAmount;
-
-        let cgst = 0;
-        let sgst = 0;
-        let igst = 0;
-
-        const isSameState = company.stateCode === party.stateCode;
-        if (isSameState) {
-          cgst = (taxable * (gstPct / 2)) / 100;
-          sgst = (taxable * (gstPct / 2)) / 100;
-          totalCgst += cgst;
-          totalSgst += sgst;
-        } else {
-          igst = (taxable * gstPct) / 100;
-          totalIgst += igst;
-        }
-
-        const netVal = taxable + cgst + sgst + igst;
-        const rateAlt = transactionCurrency === 'USD' ? Math.round(rate * exchangeRate * 100) / 100 : Math.round((rate / exchangeRate) * 100) / 100;
-        const netAmountAltItem = transactionCurrency === 'USD' ? Math.round(netVal * exchangeRate * 100) / 100 : Math.round((netVal / exchangeRate) * 100) / 100;
+        totalTaxable += taxable;
+        totalDiscount += line.discount + line.lessAmount;
+        totalCgst += cgst;
+        totalSgst += sgst;
+        totalIgst += igst;
+        const rateAlt = altAmount(rate, calcCurrency, exchangeRate);
+        const netAmountAltItem = altAmount(netVal, calcCurrency, exchangeRate);
 
         let stockPacketId: number | null = null;
         const quality = companyQualities.find((q) => q.id === Number(it.qualityId));
@@ -1319,8 +1492,7 @@ export class InvoiceService {
                   bgm: cleanUpper(it.bgm),
                   certificateType: it.certificateType || null,
                   certificateNumber: it.certificateNumber || null,
-                  costPerCarat: Number(it.rate),
-                  totalCost: Number(gross),
+                  ...stockCostFields(Number(it.rate), Number(gross)),
                   caratWeight: 0,
                   pieceCount: 0,
                   currentStatus: StockStatus.AVAILABLE,
@@ -1422,8 +1594,7 @@ export class InvoiceService {
                   bgm: it.bgm !== undefined ? cleanUpper(it.bgm) : pkt.bgm,
                   certificateType: it.certificateType !== undefined ? it.certificateType : pkt.certificateType,
                   certificateNumber: it.certificateNumber !== undefined ? it.certificateNumber : pkt.certificateNumber,
-                  costPerCarat: Number(it.rate),
-                  totalCost: Number(gross),
+                  ...stockCostFields(Number(it.rate), Number(gross)),
                 }
               });
             }
@@ -1460,6 +1631,10 @@ export class InvoiceService {
           rate,
           rateAlt,
           targetSaleRate: it.targetSaleRate != null && !isNaN(Number(it.targetSaleRate)) ? Number(it.targetSaleRate) : null,
+          // Stored in its own column as well as folded into lessPct: read
+          // back from lessPct alone it was indistinguishable from the header
+          // less%, so reopening an invoice lost the line discount.
+          discountPct,
           lessPct: discountPct + lessPct,
           termsRate: rate,
           grossAmount: gross,
@@ -1473,10 +1648,8 @@ export class InvoiceService {
         });
       }
 
-      // Allow manual tax overrides from frontend
-      if (data.totalCgst !== undefined) totalCgst = Number(data.totalCgst);
-      if (data.totalSgst !== undefined) totalSgst = Number(data.totalSgst);
-      if (data.totalIgst !== undefined) totalIgst = Number(data.totalIgst);
+      // No client-supplied tax override: GST is derived from the Quality master
+      // above, so create() and update() can never disagree about one invoice.
 
       let extraChargesList: Array<{ name: string; hsn?: string; amount: number }> = Array.isArray(data.extraCharges) ? data.extraCharges : [];
       if (extraChargesList.length === 0 && typeof data.narration === 'string' && data.narration.includes('__EXTRA_CHARGES__:')) {
@@ -1499,13 +1672,20 @@ export class InvoiceService {
       }, 0);
       totalGrossAmount += totalExtraCharges;
 
-      const calculatedAddValue = (totalGrossAmount * addPct) / 100;
-      const calculatedLessValue = (totalGrossAmount * lessPct) / 100;
-      const taxableTotal = totalGrossAmount + calculatedAddValue - calculatedLessValue;
-      const taxTotal = totalCgst + totalSgst + totalIgst;
-      const rawNet = taxableTotal + taxTotal;
-      const roundOff = Math.round(rawNet) - rawNet;
-      const netAmount = Math.round(rawNet);
+      // Header totals are the SUM OF THE LINES (each already net of its own
+      // discount) plus extra charges. Rebuilding them from gross used to drop
+      // the per-line discount entirely, so the header over-billed and never
+      // matched the sum of its own rows.
+      const extrasAdjusted = round2(
+        totalExtraCharges + (totalExtraCharges * addPct) / 100 - (totalExtraCharges * lessPct) / 100,
+      );
+      const taxableTotal = round2(totalTaxable + extrasAdjusted);
+      const taxTotal = round2(totalCgst + totalSgst + totalIgst);
+      const rawNet = round2(taxableTotal + taxTotal);
+      // Whole rupees for INR (the GST convention); a USD invoice keeps its cents
+      // instead of dumping up to half a dollar into Round-off.
+      const netAmount = roundNet(rawNet, calcCurrency);
+      const roundOff = round2(netAmount - rawNet);
       const netAmountAlt = transactionCurrency === 'USD' ? Math.round(netAmount * exchangeRate * 100) / 100 : Math.round((netAmount / exchangeRate) * 100) / 100;
 
       const brokeragePct = Number(data.brokeragePct) || 0;
@@ -1662,6 +1842,18 @@ export class InvoiceService {
       else if (isPurchaseInvoice) partyDebitCredit = DebitCreditType.CREDIT;
       else if (isPurchaseReduction) partyDebitCredit = DebitCreditType.DEBIT;
 
+      // GL is always in INR. Same plug-figure rule as create(): convert the
+      // party, tax and round-off legs, then derive revenue so the voucher ties.
+      const glNetAmount = toGl(netAmount);
+      const glCgst = toGl(totalCgst);
+      const glSgst = toGl(totalSgst);
+      const glIgst = toGl(totalIgst);
+      const glRoundOff = toGl(roundOff);
+      // The revenue leg is derived as the plug figure rather than converted on
+      // its own: rounding every leg independently left USD vouchers up to 0.02
+      // out of balance, so a trial balance would never tie exactly.
+      const glTaxableTotal = round2(glNetAmount - glCgst - glSgst - glIgst - glRoundOff);
+
       // Party Posting
       await tx.generalLedgerEntry.create({
         data: {
@@ -1669,7 +1861,7 @@ export class InvoiceService {
           accountId: partyId,
           voucherDate: invoiceDate,
           debitCreditType: partyDebitCredit,
-          amount: toGl(netAmount),
+          amount: glNetAmount,
           originalCurrency: transactionCurrency,
           originalAmount: netAmount,
           exchangeRate: exchangeRate,
@@ -1693,7 +1885,7 @@ export class InvoiceService {
           accountId: salesOrPurchaseLedgerId,
           voucherDate: invoiceDate,
           debitCreditType: revenueDebitCredit,
-          amount: toGl(taxableTotal),
+          amount: glTaxableTotal,
           originalCurrency: transactionCurrency,
           originalAmount: taxableTotal,
           exchangeRate: exchangeRate,
@@ -1710,34 +1902,42 @@ export class InvoiceService {
       else if (isPurchaseInvoice) taxDebitCredit = DebitCreditType.DEBIT;
       else if (isPurchaseReduction) taxDebitCredit = DebitCreditType.CREDIT;
 
-      if (totalCgst > 0) {
+      // A ledger amount is always positive and carries its side separately, so
+      // a negative tax total is the same leg on the opposite side. The old
+      // `> 0` guard skipped it altogether and left the voucher unbalanced.
+      const taxLegSide = (value: number): DebitCreditType =>
+        value < 0
+          ? (taxDebitCredit === DebitCreditType.DEBIT ? DebitCreditType.CREDIT : DebitCreditType.DEBIT)
+          : taxDebitCredit;
+
+      if (Math.abs(totalCgst) > 0.001) {
         await tx.generalLedgerEntry.create({
           data: {
             companyId, accountId: cgstLedgerId, voucherDate: invoiceDate,
-            debitCreditType: taxDebitCredit,
-            amount: toGl(totalCgst), originalCurrency: transactionCurrency, originalAmount: totalCgst, exchangeRate,
+            debitCreditType: taxLegSide(totalCgst),
+            amount: Math.abs(glCgst), originalCurrency: transactionCurrency, originalAmount: Math.abs(totalCgst), exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'CGST tax entry',
           },
         });
       }
-      if (totalSgst > 0) {
+      if (Math.abs(totalSgst) > 0.001) {
         await tx.generalLedgerEntry.create({
           data: {
             companyId, accountId: sgstLedgerId, voucherDate: invoiceDate,
-            debitCreditType: taxDebitCredit,
-            amount: toGl(totalSgst), originalCurrency: transactionCurrency, originalAmount: totalSgst, exchangeRate,
+            debitCreditType: taxLegSide(totalSgst),
+            amount: Math.abs(glSgst), originalCurrency: transactionCurrency, originalAmount: Math.abs(totalSgst), exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'SGST tax entry',
           },
         });
       }
-      if (totalIgst > 0) {
+      if (Math.abs(totalIgst) > 0.001) {
         await tx.generalLedgerEntry.create({
           data: {
             companyId, accountId: igstLedgerId, voucherDate: invoiceDate,
-            debitCreditType: taxDebitCredit,
-            amount: toGl(totalIgst), originalCurrency: transactionCurrency, originalAmount: totalIgst, exchangeRate,
+            debitCreditType: taxLegSide(totalIgst),
+            amount: Math.abs(glIgst), originalCurrency: transactionCurrency, originalAmount: Math.abs(totalIgst), exchangeRate,
             sourceVoucherType: invoiceType as any,
             sourceVoucherId: id, sourceBillNumber: billNumber, narration: 'IGST tax entry',
           },
@@ -1746,8 +1946,10 @@ export class InvoiceService {
 
       // Round Off Posting
       if (Math.abs(roundOff) > 0.001) {
+        // Created on the transaction: on this.prisma it survived a rollback,
+        // leaving an orphan account behind every failed save.
         const roundOffLedgerId = await getOrCreateDefaultAccount(
-          this.prisma,
+          tx as any,
           companyId,
           'Round-off A/c',
           'Indirect Expenses',
@@ -1763,7 +1965,7 @@ export class InvoiceService {
             accountId: roundOffLedgerId,
             voucherDate: invoiceDate,
             debitCreditType: roundOffDc,
-            amount: toGl(Math.abs(roundOff)),
+            amount: Math.abs(glRoundOff),
             originalCurrency: transactionCurrency,
             originalAmount: Math.abs(roundOff),
             exchangeRate: exchangeRate,
@@ -1793,6 +1995,15 @@ export class InvoiceService {
             const isSale = invoiceType === 'SALE_INVOICE';
             const currentCarats = Number(packet.caratWeight || 0);
             const itemCarats = Number(item.carats || 0);
+            // Reject removing more than the packet holds. create() has always
+            // checked this; update() did not, so an edit could clamp the packet to
+            // zero and silently destroy the difference.
+            if (hasStockOutward && itemCarats > currentCarats + 0.0001) {
+              throw new BadRequestException(
+                `Cannot remove ${itemCarats.toFixed(3)} Cts from packet ${packet.stockIdNumber} — only ${currentCarats.toFixed(3)} Cts available`
+              );
+            }
+
             // Purchase returns are outward too — decrement, don't add (see create()).
             const remainingCarats = hasStockOutward
               ? Math.max(0, currentCarats - itemCarats)
@@ -1811,7 +2022,11 @@ export class InvoiceService {
               data: {
                 stockPacketId: packet.id,
                 movementDate: invoiceDate,
-                movementType: hasStockInward ? MovementType.PURCHASE : MovementType.SALES,
+                movementType: invoiceType === 'SALE_RETURN'
+                  ? MovementType.SALES_RETURN
+                  : (invoiceType === 'PURCHASE_RETURN'
+                    ? MovementType.PURCHASE_RETURN
+                    : (hasStockInward ? MovementType.PURCHASE : MovementType.SALES)),
                 previousStatus: packet.currentStatus,
                 newStatus: newStatus,
                 carats: itemCarats,
@@ -1835,12 +2050,15 @@ export class InvoiceService {
                 pieceCount: hasStockOutward
                   ? Math.max(0, (packet.pieceCount || 0) - (item.pieces || 0))
                   : (packet.pieceCount || 0) + (item.pieces || 0),
-                ...(invoiceType === 'PURCHASE_INVOICE' ? {
-                  costPerCarat: item.rate,
-                  totalCost: itemCarats * item.rate,
-                } : {
-                  totalCost: remainingCarats * Number(packet.costPerCarat || 0),
-                }),
+                ...(invoiceType === 'PURCHASE_INVOICE'
+                  ? mergedPurchaseCost(packet, itemCarats, Number(item.rate))
+                  : {
+                    totalCost: remainingCarats * Number(packet.costPerCarat || 0),
+                    // Keep the base-currency mirror in step with the residual.
+                    totalCostInr: round2(
+                      remainingCarats * Number(packet.costPerCaratInr ?? packet.costPerCarat ?? 0),
+                    ),
+                  }),
                 currentStatus: newStatus,
               },
             });

@@ -245,6 +245,55 @@ export class PrismaService extends PrismaClient implements OnModuleInit, OnModul
     } catch {
       // Columns already exist or restricted
     }
+
+    // Stock cost used to be stored with no currency marker, so a USD purchase
+    // and an INR purchase both landed in `cost_per_carat` and valuation added
+    // dollars to rupees. These columns record the currency and the base-currency
+    // equivalent. Added here (rather than via a migration) to match how this
+    // codebase upgrades existing installations.
+    try {
+      const stockCols = await this.$queryRawUnsafe<Array<{ COLUMN_NAME: string }>>(
+        `SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name = 'stock_packets' AND column_name IN ('cost_currency', 'cost_exchange_rate', 'cost_per_carat_inr', 'total_cost_inr')`
+      );
+      const present = new Set(stockCols.map((c) => c.COLUMN_NAME.toLowerCase()));
+      if (!present.has('cost_currency')) {
+        await this.$executeRawUnsafe(
+          "ALTER TABLE `stock_packets` ADD COLUMN `cost_currency` ENUM('USD','INR') NOT NULL DEFAULT 'INR'"
+        );
+      }
+      if (!present.has('cost_exchange_rate')) {
+        await this.$executeRawUnsafe(
+          'ALTER TABLE `stock_packets` ADD COLUMN `cost_exchange_rate` DECIMAL(12,4) NOT NULL DEFAULT 1.0000'
+        );
+      }
+      if (!present.has('cost_per_carat_inr')) {
+        await this.$executeRawUnsafe('ALTER TABLE `stock_packets` ADD COLUMN `cost_per_carat_inr` DECIMAL(18,2) NULL');
+      }
+      if (!present.has('total_cost_inr')) {
+        await this.$executeRawUnsafe('ALTER TABLE `stock_packets` ADD COLUMN `total_cost_inr` DECIMAL(18,2) NULL');
+      }
+    } catch {
+      // Columns already exist or the account lacks ALTER rights
+    }
+
+    // A line discount used to be folded into less_pct, which made it
+    // unrecoverable when the invoice was reopened -- so re-saving an invoice
+    // dropped the discount. It now has its own column on both item tables.
+    for (const table of ['sale_invoice_items', 'purchase_invoice_items']) {
+      try {
+        const cols = await this.$queryRawUnsafe<Array<{ COLUMN_NAME: string }>>(
+          "SELECT COLUMN_NAME FROM information_schema.columns WHERE table_name = '" + table +
+            "' AND column_name = 'discount_pct'",
+        );
+        if (cols.length === 0) {
+          await this.$executeRawUnsafe(
+            'ALTER TABLE ' + table + ' ADD COLUMN discount_pct DECIMAL(5,2) NOT NULL DEFAULT 0.00',
+          );
+        }
+      } catch {
+        // Column already exists or the account lacks ALTER rights
+      }
+    }
   }
 
   async onModuleDestroy() {

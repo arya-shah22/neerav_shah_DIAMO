@@ -239,6 +239,8 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
           setIsFullConsumption(conv.isFullConsumption);
           setConsumedCarats(Number(conv.consumedCarats) || 0);
           setProcessingCost(Number(conv.processingCost) || 0);
+          // Processing cost is persisted in the base currency.
+          setProcessingCurrency('INR');
           setNarration(conv.narration || '');
 
           if (conv.outputItems && conv.outputItems.length > 0) {
@@ -251,8 +253,12 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                 color: item.color || '',
                 clarity: item.clarity || '',
                 cut: item.cut || '',
-                costPerCarat: Number(item.costPerCarat) || 0,
-                totalCost: Number(item.totalCost) || 0,
+                // This grid column holds the predicted target (asking) rate,
+                // not the allocated cost basis, so read it back from there.
+                costPerCarat: Number(item.targetSaleRate) || Number(item.costPerCarat) || 0,
+                totalCost:
+                  (Number(item.carats) || 0) *
+                  (Number(item.targetSaleRate) || Number(item.costPerCarat) || 0),
                 remarks: item.remarks || '',
                 isManualStockId: false,
                 stockIdNumber: item.outputPacket?.stockIdNumber || '',
@@ -353,6 +359,12 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
         isFullConsumption,
         consumedCarats: effectiveConsumed,
         processingCost,
+        // Currency context: the backend normalises to INR before allocating
+        // cost. Without these it silently treated every figure as rupees.
+        processingCurrency,
+        processingExchangeRate,
+        outputRateCurrency,
+        outputExchangeRate,
         narration,
         challanVoucherId: queryChallanId ? Number(queryChallanId) : null,
         outputItems: outputRows.map((r) => ({
@@ -363,8 +375,12 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
           color: r.color || null,
           clarity: r.clarity || null,
           cut: r.cut || null,
-          costPerCarat: r.costPerCarat,
-          totalCost: r.totalCost,
+          // The column is labelled Predicted Target Rate -- an asking price,
+          // not a cost basis. Sending it as costPerCarat made it the cost, so
+          // every output packet was born at a 0% margin. The backend derives
+          // the real cost by allocating the input investment.
+          targetSaleRate: r.costPerCarat,
+          targetSaleRateCurrency: outputRateCurrency,
           remarks: r.remarks || null,
           // Full Registration Fields
           isManualStockId: r.isManualStockId,
@@ -1061,12 +1077,12 @@ export const StockConversionFormPage: React.FC<{ viewMode?: boolean; editMode?: 
                 <div style={{ fontSize: '20px', fontWeight: 700, color: weightLoss < 0 ? 'var(--color-danger)' : 'var(--color-warning, #f59e0b)' }}>{weightLoss.toFixed(3)} ct ({lossPercentage.toFixed(2)}%)</div>
               </div>
               <div style={{ textAlign: 'center' }}>
-                <div style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Total Output Cost</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)' }}>₹{totalOutputCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                <div style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Total Target Valuation</div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)' }}>{outputRateCurrency === 'USD' ? '$' : '₹'}{totalOutputCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               </div>
               <div style={{ textAlign: 'center' }}>
                 <div style={{ fontSize: 'var(--text-small)', color: 'var(--color-text-secondary)', fontWeight: 600, textTransform: 'uppercase' }}>Processing Cost</div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)' }}>₹{processingCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: 'var(--color-primary)' }}>{processingCurrency === 'USD' ? '$' : '₹'}{processingCost.toLocaleString('en-IN', { minimumFractionDigits: 2 })}</div>
               </div>
             </div>
           </div>
