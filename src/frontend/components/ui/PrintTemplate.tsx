@@ -717,28 +717,115 @@ export const PrintTemplate: React.FC<PrintTemplateProps> = ({ type, data, onClos
                         )}
 
                         {/* Total & Summary */}
-                        <div style={{ borderTop: '2px solid #000', paddingTop: isCompact ? '3px' : '6px', marginTop: '6px', display: 'flex', justifyContent: 'space-between', fontWeight: 700, fontSize: isCompact ? '0.8em' : '0.95em' }}>
-                          <div style={{ fontSize: isCompact ? '0.72em' : '0.85em', color: '#475569', fontWeight: 500 }}>
-                            <div>{numberToWords(finalAmt, isDocUsd ? 'USD' : 'INR')}</div>
-                            {isDocUsd && (
-                              <div style={{ marginTop: '2px', fontStyle: 'italic', fontSize: '0.9em', color: '#64748b' }}>
-                                Equivalent: {numberToWords(altInrVal, 'INR')}
+                        {(() => {
+                          const currSym = isDocUsd ? '$' : '₹';
+                          const grossTotal = Number(data.totalGrossAmount || (data.items || []).reduce((acc: number, it: any) => acc + Number(it.grossAmount || it.amount || 0), 0));
+                          const totalDisc = Number(data.totalDiscount || 0);
+                          const cgstAmt = Number(data.totalCgst || 0);
+                          const sgstAmt = Number(data.totalSgst || 0);
+                          const igstAmt = Number(data.totalIgst || 0);
+                          const hasTax = cgstAmt > 0 || sgstAmt > 0 || igstAmt > 0;
+                          const hasDisc = totalDisc > 0;
+                          const roundOffAmt = Number(data.roundOff || 0);
+
+                          // Derive unique GST rates from items
+                          const gstRates: number[] = Array.from(
+                            new Set(
+                              (data.items || [])
+                                .map((it: any) => Number(it.gstPct || it.gstRate || 0))
+                                .filter((r: number) => r > 0)
+                            )
+                          );
+                          const gstRateLabel = gstRates.length === 1 ? `${gstRates[0]}%` : gstRates.length > 1 ? 'Mixed' : '';
+                          const halfGstRateLabel = gstRates.length === 1 ? `${Math.round(((gstRates[0] as number) / 2) * 100) / 100}%` : gstRates.length > 1 ? 'Mixed' : '';
+
+                          const totalCarats = Number(data.totalCarats || (data.items || []).reduce((acc: number, it: any) => acc + Number(it.carats || 0), 0));
+                          const totalPieces = data.totalPieces !== undefined ? data.totalPieces : (data.items || []).reduce((acc: number, it: any) => acc + Number(it.pieces || 0), 0);
+                          const taxableVal = Math.round((grossTotal - totalDisc) * 100) / 100;
+
+                          return (
+                            <div style={{ borderTop: '2px solid #000', paddingTop: isCompact ? '4px' : '8px', marginTop: '6px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '16px', fontSize: isCompact ? '0.75em' : '0.88em' }}>
+                              {/* Left Side: Summary Meta & Words */}
+                              <div style={{ flex: 1, color: '#334155', display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                                {(totalCarats > 0 || totalPieces > 0) && (
+                                  <div style={{ fontWeight: 600, color: '#0f172a', marginBottom: '2px' }}>
+                                    {totalCarats > 0 && <span>Total Carats: <strong>{totalCarats.toFixed(3)} ct</strong></span>}
+                                    {totalCarats > 0 && totalPieces > 0 && <span style={{ margin: '0 6px' }}>|</span>}
+                                    {totalPieces > 0 && <span>Total Pieces: <strong>{totalPieces}</strong></span>}
+                                  </div>
+                                )}
+                                <div style={{ fontSize: '0.92em', fontWeight: 500 }}>
+                                  <strong>Amount in Words:</strong> {numberToWords(finalAmt, isDocUsd ? 'USD' : 'INR')}
+                                </div>
+                                {isDocUsd && (
+                                  <div style={{ fontSize: '0.85em', fontStyle: 'italic', color: '#64748b' }}>
+                                    INR Equivalent: {numberToWords(altInrVal, 'INR')}
+                                  </div>
+                                )}
+                                {isBankTx && party?.bankName && (
+                                  <div style={{ fontSize: '0.88em', marginTop: '1px' }}>
+                                    <strong>Bank:</strong> {party.bankName}
+                                  </div>
+                                )}
                               </div>
-                            )}
-                            {isBankTx && party?.bankName && <div style={{ marginTop: '1px' }}>Bank: {party.bankName}</div>}
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div>
-                              <span>NET AMOUNT: </span>
-                              <span>{isDocUsd ? `$${finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : `₹${finalAmt.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`}</span>
+
+                              {/* Right Side: Financial Breakdown */}
+                              <div style={{ minWidth: isCompact ? '170px' : '230px', display: 'flex', flexDirection: 'column', gap: '2px', textAlign: 'right' }}>
+                                {(hasDisc || hasTax || roundOffAmt !== 0) && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                                    <span>Gross Amount:</span>
+                                    <span style={{ fontWeight: 600, color: '#0f172a' }}>{currSym}{grossTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                {hasDisc && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#dc2626' }}>
+                                    <span>Discount / Less:</span>
+                                    <span style={{ fontWeight: 600 }}>-{currSym}{totalDisc.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                {(hasDisc || hasTax) && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#0f172a', fontWeight: 600, borderTop: '1px dashed #cbd5e1', paddingTop: '1px' }}>
+                                    <span>Taxable Value:</span>
+                                    <span>{currSym}{taxableVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                {cgstAmt > 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                                    <span>CGST {halfGstRateLabel ? `(${halfGstRateLabel})` : ''}:</span>
+                                    <span style={{ fontWeight: 600, color: '#0f172a' }}>+{currSym}{cgstAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                {sgstAmt > 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                                    <span>SGST {halfGstRateLabel ? `(${halfGstRateLabel})` : ''}:</span>
+                                    <span style={{ fontWeight: 600, color: '#0f172a' }}>+{currSym}{sgstAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                {igstAmt > 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                                    <span>IGST {gstRateLabel ? `(${gstRateLabel})` : ''}:</span>
+                                    <span style={{ fontWeight: 600, color: '#0f172a' }}>+{currSym}{igstAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                {roundOffAmt !== 0 && (
+                                  <div style={{ display: 'flex', justifyContent: 'space-between', color: '#64748b' }}>
+                                    <span>Round Off:</span>
+                                    <span>{roundOffAmt >= 0 ? '+' : ''}{currSym}{roundOffAmt.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                                  </div>
+                                )}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1.5px solid #000', paddingTop: '3px', marginTop: '2px', fontSize: '1.08em', fontWeight: 800, color: '#000' }}>
+                                  <span>NET AMOUNT:</span>
+                                  <span>{currSym}{finalAmt.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                                </div>
+                                {isDocUsd && (
+                                  <div style={{ fontSize: '0.82em', color: '#475569', fontWeight: 600, marginTop: '1px' }}>
+                                    (₹{altInrVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹{docExchRate}/$)
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                            {isDocUsd && (
-                              <div style={{ fontSize: '0.85em', color: '#475569', fontWeight: 600, marginTop: '2px' }}>
-                                (₹{altInrVal.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} @ ₹{docExchRate}/$)
-                              </div>
-                            )}
-                          </div>
-                        </div>
+                          );
+                        })()}
                       </>
                     );
                   })())}

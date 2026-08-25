@@ -9,6 +9,7 @@ import { IStockPacket } from './stock.types';
 
 export type ExportPreset = 'DIAMO' | 'RAPNET' | 'VDB' | 'NIVODA';
 export type FileType = 'CSV' | 'XLSX';
+export type ExportCurrency = 'USD' | 'INR';
 
 /**
  * Format helper for numbers / decimals
@@ -27,26 +28,93 @@ function fmtStr(val: unknown): string {
   return String(val).trim();
 }
 
-// ── DIAMO STANDARD HEADERS & MAPPINGS ─────────────────────────────
-const DIAMO_HEADERS = [
-  'Stock ID', 'Quality', 'Category', 'Shape', 'Carat Weight', 'Piece Count', 'Color', 'Clarity',
-  'Cut', 'Polish', 'Symmetry', 'Cost (₹/ct)', 'Total Cost (₹)', 'Target Sale Rate ($/ct)',
-  'Measurements', 'Length (mm)', 'Width (mm)', 'Depth (mm)', 'Total Depth %', 'Table %',
-  'Fluorescence Intensity', 'Fluorescence Color', 'Rap Price ($/ct)', 'Rap Discount %',
-  'Crown Angle', 'Crown Height', 'Pavilion Angle', 'Pavilion Depth', 'Girdle %',
-  'Girdle Thin', 'Girdle Thick', 'Girdle Condition', 'Culet Size', 'Culet Condition',
-  'Hearts & Arrows', 'Eye Clean', 'Shade', 'Milky', 'Treatment', 'Tinge', 'Lustre',
-  'Table Inclusion', 'Side Inclusion', 'Black Inclusion', 'White Inclusion', 'Open Inclusion',
-  'Table Open', 'Crown Open', 'Girdle Open', 'BGM', 'Growth Type', 'Type', 'Star Length',
-  'Origin', 'Availability', 'City', 'State', 'Trade Show', 'Brand', 'Seller Spec',
-  'Pair Stock #', 'Pair Separable', 'Parcel Stones', 'Report Filename', 'Report Issue Date',
-  'Report Type', 'Lab Location', 'Allow RapLink Feed', 'Sarine Loupe',
-  'Cert Type', 'Cert Number', 'Certificate URL', 'Web URL', 'Image Link', 'Video Link',
-  'Laser Inscription', 'Key to Symbols', 'Cert Comment', 'Member Comment', 'Comment',
-  'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone', 'Current Status', 'Registration Date'
-];
+/**
+ * Calculate cost & target selling rate in the requested export currency
+ */
+function getExportPrices(p: IStockPacket, currency: ExportCurrency, fallbackRate: number = 90) {
+  const isUsd = (p.costCurrency || (p as any).originalCurrency) === 'USD';
+  const exRate = Number(p.costExchangeRate) > 0 ? Number(p.costExchangeRate) : fallbackRate;
+  const carats = Number(p.caratWeight || 0);
 
-function mapDiamoRow(p: IStockPacket): Record<string, unknown> {
+  let costPerCt = 0;
+
+  if (currency === 'INR') {
+    if (p.costPerCaratInr != null && Number(p.costPerCaratInr) > 0) {
+      costPerCt = Number(p.costPerCaratInr);
+    } else if (isUsd) {
+      costPerCt = Math.round(Number(p.costPerCarat || 0) * exRate * 100) / 100;
+    } else {
+      costPerCt = Number(p.costPerCarat || 0);
+    }
+  } else {
+    // USD
+    if (isUsd) {
+      costPerCt = Number(p.costPerCarat || 0);
+    } else if (p.costPerCaratInr != null && Number(p.costPerCaratInr) > 0 && exRate > 0) {
+      costPerCt = Math.round((Number(p.costPerCaratInr) / exRate) * 100) / 100;
+    } else if (exRate > 0) {
+      costPerCt = Math.round((Number(p.costPerCarat || 0) / exRate) * 100) / 100;
+    } else {
+      costPerCt = Number(p.costPerCarat || 0);
+    }
+  }
+
+  // Total Cost is strictly calculated from the exported Cost/ct * Carats to maintain mathematical consistency
+  let totalCost = 0;
+  if (costPerCt > 0 && carats > 0) {
+    totalCost = Math.round(costPerCt * carats * 100) / 100;
+  } else if (currency === 'INR') {
+    totalCost = Number(p.totalCostInr || p.totalCost || 0);
+  } else {
+    totalCost = Number(p.totalCost || 0);
+  }
+
+  // Target Sale Rate (Asking Price)
+  let targetRate: number | null = null;
+  if (p.targetSaleRate != null && (p.targetSaleRate as unknown) !== '') {
+    const rawTarget = Number(p.targetSaleRate);
+    if (!isNaN(rawTarget) && rawTarget > 0) {
+      const isTargetUsd = p.targetSaleRateCurrency === 'USD' || (!p.targetSaleRateCurrency && isUsd);
+      if (currency === 'INR') {
+        targetRate = isTargetUsd ? Math.round(rawTarget * exRate * 100) / 100 : rawTarget;
+      } else {
+        targetRate = isTargetUsd ? rawTarget : (exRate > 0 ? Math.round((rawTarget / exRate) * 100) / 100 : rawTarget);
+      }
+    }
+  }
+
+  // Total selling price is also computed directly from Target Rate * Carats
+  const totalPrice = targetRate && carats > 0 ? Math.round(targetRate * carats * 100) / 100 : (totalCost || '');
+
+  return { costPerCt, totalCost, targetRate, totalPrice };
+}
+
+// ── DIAMO STANDARD HEADERS & MAPPINGS ─────────────────────────────
+function getDiamoHeaders(currency: ExportCurrency): string[] {
+  const sym = currency === 'INR' ? '₹' : '$';
+  return [
+    'Stock ID', 'Quality', 'Category', 'Shape', 'Carat Weight', 'Piece Count', 'Color', 'Clarity',
+    'Cut', 'Polish', 'Symmetry', `Cost (${sym}/ct)`, `Total Cost (${sym})`, `Target Sale Rate (${sym}/ct)`,
+    'Measurements', 'Length (mm)', 'Width (mm)', 'Depth (mm)', 'Total Depth %', 'Table %',
+    'Fluorescence Intensity', 'Fluorescence Color', 'Rap Price ($/ct)', 'Rap Discount %',
+    'Crown Angle', 'Crown Height', 'Pavilion Angle', 'Pavilion Depth', 'Girdle %',
+    'Girdle Thin', 'Girdle Thick', 'Girdle Condition', 'Culet Size', 'Culet Condition',
+    'Hearts & Arrows', 'Eye Clean', 'Shade', 'Milky', 'Treatment', 'Tinge', 'Lustre',
+    'Table Inclusion', 'Side Inclusion', 'Black Inclusion', 'White Inclusion', 'Open Inclusion',
+    'Table Open', 'Crown Open', 'Girdle Open', 'BGM', 'Growth Type', 'Type', 'Star Length',
+    'Origin', 'Availability', 'City', 'State', 'Trade Show', 'Brand', 'Seller Spec',
+    'Pair Stock #', 'Pair Separable', 'Parcel Stones', 'Report Filename', 'Report Issue Date',
+    'Report Type', 'Lab Location', 'Allow RapLink Feed', 'Sarine Loupe',
+    'Cert Type', 'Cert Number', 'Certificate URL', 'Web URL', 'Image Link', 'Video Link',
+    'Laser Inscription', 'Key to Symbols', 'Cert Comment', 'Member Comment', 'Comment',
+    'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone', 'Current Status', 'Registration Date'
+  ];
+}
+
+function mapDiamoRow(p: IStockPacket, currency: ExportCurrency, fallbackRate: number): Record<string, unknown> {
+  const sym = currency === 'INR' ? '₹' : '$';
+  const prices = getExportPrices(p, currency, fallbackRate);
+
   return {
     'Stock ID': fmtStr(p.stockIdNumber),
     'Quality': fmtStr(p.quality?.qualityName),
@@ -59,9 +127,9 @@ function mapDiamoRow(p: IStockPacket): Record<string, unknown> {
     'Cut': fmtStr(p.cut),
     'Polish': fmtStr(p.polish),
     'Symmetry': fmtStr(p.symmetry),
-    'Cost (₹/ct)': fmtNum(p.costPerCarat, 2),
-    'Total Cost (₹)': fmtNum(p.totalCost, 2),
-    'Target Sale Rate ($/ct)': fmtNum(p.targetSaleRate, 2),
+    [`Cost (${sym}/ct)`]: fmtNum(prices.costPerCt, 2),
+    [`Total Cost (${sym})`]: fmtNum(prices.totalCost, 2),
+    [`Target Sale Rate (${sym}/ct)`]: fmtNum(prices.targetRate, 2),
     'Measurements': fmtStr(p.measurements),
     'Length (mm)': fmtNum(p.lengthMm, 2),
     'Width (mm)': fmtNum(p.widthMm, 2),
@@ -137,20 +205,26 @@ function mapDiamoRow(p: IStockPacket): Record<string, unknown> {
 }
 
 // ── RAPNET HEADERS & MAPPINGS ─────────────────────────────────────
-const RAPNET_HEADERS = [
-  'Stock #', 'Availability', 'Shape', 'Weight', 'Color', 'Clarity', 'Price/ct $', 'Total $',
-  'Cut Grade', 'Polish', 'Symmetry', 'Fluorescence Intensity', 'Fluorescence Color', 'Measurements',
-  'Lab', 'Certificate #', 'Treatment', 'Depth %', 'Table %', 'Girdle Thin', 'Girdle Thick',
-  'Girdle %', 'Girdle Condition', 'Culet Size', 'Culet Condition', 'Crown Height', 'Crown Angle',
-  'Pavilion Depth', 'Pavilion Angle', 'Laser Inscription', 'Cert comment', 'Key to symbols',
-  'Member Comment', 'Star Length', 'Shade', 'White Inclusion', 'Black Inclusion', 'Open Inclusion',
-  'Milky', 'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone', 'Country', 'State', 'City',
-  'Brand', 'Seller Spec', 'Report Filename', 'Diamond Image', 'Video Link', 'Sarine Loupe',
-  'Trade Show', 'Report Issue Date', 'Report Type', 'Lab Location', 'Pair Stock #',
-  'Is Matched Pair Separable', 'Allow RapLink Feed', 'Parcel Stones', 'BGM', 'Type'
-];
+function getRapnetHeaders(currency: ExportCurrency): string[] {
+  const sym = currency === 'INR' ? '₹' : '$';
+  return [
+    'Stock #', 'Availability', 'Shape', 'Weight', 'Color', 'Clarity', `Price/ct ${sym}`, `Total ${sym}`,
+    'Cut Grade', 'Polish', 'Symmetry', 'Fluorescence Intensity', 'Fluorescence Color', 'Measurements',
+    'Lab', 'Certificate #', 'Treatment', 'Depth %', 'Table %', 'Girdle Thin', 'Girdle Thick',
+    'Girdle %', 'Girdle Condition', 'Culet Size', 'Culet Condition', 'Crown Height', 'Crown Angle',
+    'Pavilion Depth', 'Pavilion Angle', 'Laser Inscription', 'Cert comment', 'Key to symbols',
+    'Member Comment', 'Star Length', 'Shade', 'White Inclusion', 'Black Inclusion', 'Open Inclusion',
+    'Milky', 'Fancy Color', 'Fancy Color Intensity', 'Fancy Color Overtone', 'Country', 'State', 'City',
+    'Brand', 'Seller Spec', 'Report Filename', 'Diamond Image', 'Video Link', 'Sarine Loupe',
+    'Trade Show', 'Report Issue Date', 'Report Type', 'Lab Location', 'Pair Stock #',
+    'Is Matched Pair Separable', 'Allow RapLink Feed', 'Parcel Stones', 'BGM', 'Type'
+  ];
+}
 
-function mapRapnetRow(p: IStockPacket): Record<string, unknown> {
+function mapRapnetRow(p: IStockPacket, currency: ExportCurrency, fallbackRate: number): Record<string, unknown> {
+  const sym = currency === 'INR' ? '₹' : '$';
+  const prices = getExportPrices(p, currency, fallbackRate);
+
   return {
     'Stock #': fmtStr(p.stockIdNumber),
     'Availability': fmtStr(p.availability || (p.currentStatus === 'HOLD' ? 'HOLD' : 'AVAILABLE')),
@@ -158,8 +232,8 @@ function mapRapnetRow(p: IStockPacket): Record<string, unknown> {
     'Weight': fmtNum(p.caratWeight, 3),
     'Color': fmtStr(p.color),
     'Clarity': fmtStr(p.clarity),
-    'Price/ct $': fmtNum(p.targetSaleRate, 2),
-    'Total $': p.targetSaleRate && p.caratWeight ? fmtNum(Number(p.targetSaleRate) * Number(p.caratWeight), 2) : '',
+    [`Price/ct ${sym}`]: fmtNum(prices.targetRate || prices.costPerCt, 2),
+    [`Total ${sym}`]: fmtNum(prices.totalPrice || prices.totalCost, 2),
     'Cut Grade': fmtStr(p.cut),
     'Polish': fmtStr(p.polish),
     'Symmetry': fmtStr(p.symmetry),
@@ -217,18 +291,24 @@ function mapRapnetRow(p: IStockPacket): Record<string, unknown> {
 }
 
 // ── VDB HEADERS & MAPPINGS ────────────────────────────────────────
-const VDB_HEADERS = [
-  'Stock Id', 'Availability', 'Shape', 'Carat', 'Color', 'Clarity', '$/ct', 'Total price',
-  'Cut', 'Pol', 'Sym', 'Certificate #', 'Measurements Length', 'Measurements Width',
-  'Measurements Depth', 'Depth%', 'Table%', 'Girdle%', 'Culet Size', 'Girdle Condition',
-  'Pavilion Depth', 'Crown Height', 'Crown Angle', 'Pavilion Angle', 'Certificate Url',
-  'Image Link', 'Video Link', 'Fluorescence Intensity', 'Fluorescence Color', 'Milky',
-  'BGM', 'Lab', 'Cert Comment', 'Laser Inscription', 'Member Comments', 'H&A', 'Country',
-  'Eye Clean', 'Table Open', 'Crown Open', 'Girdle Open', 'Type', 'Tinge', 'Luster',
-  'Black Inclusion', 'Table Inclusion', 'Growth Type', 'Treatment'
-];
+function getVdbHeaders(currency: ExportCurrency): string[] {
+  const rateHeader = currency === 'INR' ? '₹/ct' : '$/ct';
+  return [
+    'Stock Id', 'Availability', 'Shape', 'Carat', 'Color', 'Clarity', rateHeader, 'Total price',
+    'Cut', 'Pol', 'Sym', 'Certificate #', 'Measurements Length', 'Measurements Width',
+    'Measurements Depth', 'Depth%', 'Table%', 'Girdle%', 'Culet Size', 'Girdle Condition',
+    'Pavilion Depth', 'Crown Height', 'Crown Angle', 'Pavilion Angle', 'Certificate Url',
+    'Image Link', 'Video Link', 'Fluorescence Intensity', 'Fluorescence Color', 'Milky',
+    'BGM', 'Lab', 'Cert Comment', 'Laser Inscription', 'Member Comments', 'H&A', 'Country',
+    'Eye Clean', 'Table Open', 'Crown Open', 'Girdle Open', 'Type', 'Tinge', 'Luster',
+    'Black Inclusion', 'Table Inclusion', 'Growth Type', 'Treatment'
+  ];
+}
 
-function mapVdbRow(p: IStockPacket): Record<string, unknown> {
+function mapVdbRow(p: IStockPacket, currency: ExportCurrency, fallbackRate: number): Record<string, unknown> {
+  const rateHeader = currency === 'INR' ? '₹/ct' : '$/ct';
+  const prices = getExportPrices(p, currency, fallbackRate);
+
   return {
     'Stock Id': fmtStr(p.stockIdNumber),
     'Availability': fmtStr(p.availability || (p.currentStatus === 'HOLD' ? 'HOLD' : 'AVAILABLE')),
@@ -236,8 +316,8 @@ function mapVdbRow(p: IStockPacket): Record<string, unknown> {
     'Carat': fmtNum(p.caratWeight, 3),
     'Color': fmtStr(p.color),
     'Clarity': fmtStr(p.clarity),
-    '$/ct': fmtNum(p.targetSaleRate, 2),
-    'Total price': p.targetSaleRate && p.caratWeight ? fmtNum(Number(p.targetSaleRate) * Number(p.caratWeight), 2) : '',
+    [rateHeader]: fmtNum(prices.targetRate || prices.costPerCt, 2),
+    'Total price': fmtNum(prices.totalPrice || prices.totalCost, 2),
     'Cut': fmtStr(p.cut),
     'Pol': fmtStr(p.polish),
     'Sym': fmtStr(p.symmetry),
@@ -282,17 +362,23 @@ function mapVdbRow(p: IStockPacket): Record<string, unknown> {
 }
 
 // ── NIVODA HEADERS & MAPPINGS ─────────────────────────────────────
-const NIVODA_HEADERS = [
-  'Stock Id', 'Availability', 'Shape', 'Carat', 'Color', 'Clarity', '$/ct', 'Total price',
-  'Cut', 'Pol', 'Sym', 'Certificate #', 'Measurements Length', 'Measurements Width',
-  'Measurements Depth', 'Depth%', 'Table%', 'Girdle%', 'Culet Size', 'Girdle Condition',
-  'Pavilion Depth', 'Crown Height', 'Crown Angle', 'Pavilion Angle', 'Certificate Url',
-  'Image', 'Weburl', 'VIDEO', 'Fluorescence Intensity', 'Fluorescence Color', 'Type',
-  'Milky', 'Eye Clean', 'Inscription', 'Lab', 'Treatment', 'Location', 'State', 'City',
-  'Cert comment', 'COP'
-];
+function getNivodaHeaders(currency: ExportCurrency): string[] {
+  const rateHeader = currency === 'INR' ? '₹/ct' : '$/ct';
+  return [
+    'Stock Id', 'Availability', 'Shape', 'Carat', 'Color', 'Clarity', rateHeader, 'Total price',
+    'Cut', 'Pol', 'Sym', 'Certificate #', 'Measurements Length', 'Measurements Width',
+    'Measurements Depth', 'Depth%', 'Table%', 'Girdle%', 'Culet Size', 'Girdle Condition',
+    'Pavilion Depth', 'Crown Height', 'Crown Angle', 'Pavilion Angle', 'Certificate Url',
+    'Image', 'Weburl', 'VIDEO', 'Fluorescence Intensity', 'Fluorescence Color', 'Type',
+    'Milky', 'Eye Clean', 'Inscription', 'Lab', 'Treatment', 'Location', 'State', 'City',
+    'Cert comment', 'COP'
+  ];
+}
 
-function mapNivodaRow(p: IStockPacket): Record<string, unknown> {
+function mapNivodaRow(p: IStockPacket, currency: ExportCurrency, fallbackRate: number): Record<string, unknown> {
+  const rateHeader = currency === 'INR' ? '₹/ct' : '$/ct';
+  const prices = getExportPrices(p, currency, fallbackRate);
+
   return {
     'Stock Id': fmtStr(p.stockIdNumber),
     'Availability': fmtStr(p.availability || (p.currentStatus === 'HOLD' ? 'HOLD' : 'AVAILABLE')),
@@ -300,8 +386,8 @@ function mapNivodaRow(p: IStockPacket): Record<string, unknown> {
     'Carat': fmtNum(p.caratWeight, 3),
     'Color': fmtStr(p.color),
     'Clarity': fmtStr(p.clarity),
-    '$/ct': fmtNum(p.targetSaleRate, 2),
-    'Total price': p.targetSaleRate && p.caratWeight ? fmtNum(Number(p.targetSaleRate) * Number(p.caratWeight), 2) : '',
+    [rateHeader]: fmtNum(prices.targetRate || prices.costPerCt, 2),
+    'Total price': fmtNum(prices.totalPrice || prices.totalCost, 2),
     'Cut': fmtStr(p.cut),
     'Pol': fmtStr(p.polish),
     'Sym': fmtStr(p.symmetry),
@@ -345,6 +431,8 @@ export function exportStockPackets(
   packets: IStockPacket[],
   preset: ExportPreset,
   fileType: FileType,
+  currency: ExportCurrency = 'USD',
+  fallbackRate: number = 90,
   companyName?: string
 ): void {
   let headers: string[] = [];
@@ -353,30 +441,30 @@ export function exportStockPackets(
 
   switch (preset) {
     case 'RAPNET':
-      headers = RAPNET_HEADERS;
-      rowMapper = mapRapnetRow;
+      headers = getRapnetHeaders(currency);
+      rowMapper = (p) => mapRapnetRow(p, currency, fallbackRate);
       presetName = 'RapNet';
       break;
     case 'VDB':
-      headers = VDB_HEADERS;
-      rowMapper = mapVdbRow;
+      headers = getVdbHeaders(currency);
+      rowMapper = (p) => mapVdbRow(p, currency, fallbackRate);
       presetName = 'VDB';
       break;
     case 'NIVODA':
-      headers = NIVODA_HEADERS;
-      rowMapper = mapNivodaRow;
+      headers = getNivodaHeaders(currency);
+      rowMapper = (p) => mapNivodaRow(p, currency, fallbackRate);
       presetName = 'Nivoda';
       break;
     case 'DIAMO':
     default:
-      headers = DIAMO_HEADERS;
-      rowMapper = mapDiamoRow;
+      headers = getDiamoHeaders(currency);
+      rowMapper = (p) => mapDiamoRow(p, currency, fallbackRate);
       presetName = 'DIAMO_Standard';
       break;
   }
 
   const mappedRows = packets.map(rowMapper);
-  const fileName = `${companyName ? companyName.replace(/[^a-zA-Z0-9]/g, '_') + '_' : ''}Stock_${presetName}_${new Date().toISOString().slice(0, 10)}`;
+  const fileName = `${companyName ? companyName.replace(/[^a-zA-Z0-9]/g, '_') + '_' : ''}Stock_${presetName}_${currency}_${new Date().toISOString().slice(0, 10)}`;
 
   if (fileType === 'XLSX') {
     const worksheet = XLSX.utils.json_to_sheet(mappedRows, { header: headers });

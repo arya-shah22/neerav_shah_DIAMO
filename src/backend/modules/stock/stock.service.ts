@@ -10,6 +10,7 @@ import {
   StockStatus,
   VoucherType,
   ChallanPurpose,
+  CurrencyCode,
 } from '@prisma/client';
 import { PrismaService } from '../../database/prisma.service';
 import { generateStockIdNumber, previewNextStockIdNumber } from '../../utils/stock-id-generator';
@@ -75,7 +76,7 @@ export class StockService {
     });
 
     const packetIds = packets.map((p) => p.id);
-    if (packetIds.length === 0) return packets;
+    if (packetIds.length === 0) return packets.map((p) => mapPacketWithMediaLinks(p));
 
     const purchaseItems = await this.prisma.purchaseInvoiceItem.findMany({
       where: { stockPacketId: { in: packetIds } },
@@ -103,7 +104,8 @@ export class StockService {
       const currency = ((pkt as any).costCurrency as 'USD' | 'INR')
         || originCurrencyMap.get(pkt.id)
         || 'INR';
-      return { ...pkt, originalCurrency: currency, transactionCurrency: currency };
+      const withMedia = mapPacketWithMediaLinks(pkt);
+      return { ...withMedia, originalCurrency: currency, transactionCurrency: currency };
     });
   }
 
@@ -1013,9 +1015,20 @@ export class StockService {
     companyId: number,
     qualityId: number,
     rows: any[],
+    exchangeRate?: number,
     userId?: number,
   ) {
     await this.validateQuality(companyId, qualityId);
+
+    // Use user-specified exchange rate from the import modal, or fallback to company's latest USD rate
+    let defaultExchangeRate = Number(exchangeRate) > 0 ? Number(exchangeRate) : 0;
+    if (!defaultExchangeRate) {
+      const latestRateRecord = await this.prisma.exchangeRateLog.findFirst({
+        where: { companyId, fromCurrency: 'USD', toCurrency: 'INR' },
+        orderBy: { rateDate: 'desc' },
+      });
+      defaultExchangeRate = Number(latestRateRecord?.exchangeRate) > 0 ? Number(latestRateRecord!.exchangeRate) : 85.0;
+    }
 
     const imported: string[] = [];
     const skipped: Array<{ row: number; stockId: string; reason: string }> = [];
@@ -1084,6 +1097,13 @@ export class StockService {
         const pieceCount = Number(row.pieceCount) || 1;
         const costPerCarat = Number(row.costPerCarat) || 0;
         const totalCost = row.totalCost != null && row.totalCost !== '' ? Number(row.totalCost) : caratWeight * costPerCarat;
+        const targetSaleRate = row.targetSaleRate != null && !isNaN(Number(row.targetSaleRate)) ? Number(row.targetSaleRate) : null;
+
+        // CSV stock packets are priced in USD ($). Compute base INR equivalents for valuation.
+        const rowExRate = Number(row.costExchangeRate || row.exchangeRate);
+        const costExchangeRate = rowExRate > 0 ? rowExRate : defaultExchangeRate;
+        const costPerCaratInr = Math.round(costPerCarat * costExchangeRate * 100) / 100;
+        const totalCostInr = Math.round(totalCost * costExchangeRate * 100) / 100;
 
         const measurementsData = syncStockMeasurements(row);
 
@@ -1187,6 +1207,11 @@ export class StockService {
                   certificateNumber: emptyToNull(row.certificateNumber),
                   costPerCarat,
                   totalCost,
+                  costCurrency: CurrencyCode.USD,
+                  costExchangeRate,
+                  costPerCaratInr,
+                  totalCostInr,
+                  targetSaleRate,
                   currentStatus: initialStatus,
                   currentOwnership: 'COMPANY',
                   createdBy: userId ?? null,
@@ -1231,6 +1256,21 @@ export class StockService {
           reason,
         });
       }
+    }
+
+    if (Number(exchangeRate) > 0 && imported.length > 0) {
+      await this.prisma.exchangeRateLog.create({
+        data: {
+          companyId,
+          rateDate: new Date(),
+          exchangeRate: Number(exchangeRate),
+          fromCurrency: 'USD',
+          toCurrency: 'INR',
+          source: 'CSV_IMPORT',
+          remarks: `Exchange rate applied during CSV Stock Import (${imported.length} packets)`,
+          createdBy: userId,
+        },
+      }).catch(() => {});
     }
 
     return {

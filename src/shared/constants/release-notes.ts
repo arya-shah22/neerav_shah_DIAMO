@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.4',
+    date: '2026-08-26',
+    description:
+      'Multi-Currency Valuation & Invoice GST Suite: Added native USD/INR purchase currency tracking with automated rate conversions; fixed Stock Detail valuation preview for native INR diamonds; introduced real-time Manual Exchange Rate simulation in Inventory without altering database values; added multi-currency mathematical precision to CSV stock exports and image/video media links; unified invoice calculation engine across frontend and backend; added line-level discount percentage persistence; integrated full GST rate percentage tags (CGST, SGST, IGST), taxable value, and discount breakdowns across Invoice Forms, Detail Views, and A4/A5 Print Templates; safe auto-migration for client databases.',
+  },
+  {
     version: 'v1.0.3',
     date: '2026-08-19',
     description:

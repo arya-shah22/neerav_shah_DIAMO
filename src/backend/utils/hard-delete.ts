@@ -135,7 +135,7 @@ export async function hardDeleteCompanyMasters(prisma: PrismaClient, companyId: 
     await prisma.stockPacket.deleteMany({ where: { companyId } });
   }
 
-  // 3. Masters (Accounts, Qualities, Groups, FY, etc.)
+  // 3. Masters & Configuration (Accounts, Qualities, Groups, Settings, FY, etc.)
   const accounts = await prisma.account.findMany({
     where: { companyId },
     select: { id: true },
@@ -151,8 +151,11 @@ export async function hardDeleteCompanyMasters(prisma: PrismaClient, companyId: 
     select: { id: true },
   });
   if (qualities.length > 0) {
+    const qIds = qualities.map((q) => q.id);
+    await prisma.stockConversionOutput.deleteMany({ where: { outputQualityId: { in: qIds } } });
+    await prisma.stockConversion.deleteMany({ where: { sourceQualityId: { in: qIds } } });
     await prisma.qualityGstHistory.deleteMany({
-      where: { qualityId: { in: qualities.map((q) => q.id) } },
+      where: { qualityId: { in: qIds } },
     });
     await prisma.quality.deleteMany({ where: { companyId } });
   }
@@ -163,13 +166,16 @@ export async function hardDeleteCompanyMasters(prisma: PrismaClient, companyId: 
   });
   await prisma.accountGroup.deleteMany({ where: { companyId } });
 
+  // Delete records dependent on FinancialYear before deleting FinancialYear
+  await prisma.loan.deleteMany({ where: { companyId } });
+  await prisma.voucherNumberSequence.deleteMany({ where: { companyId } });
+  await prisma.voucherNumberConfig.deleteMany({ where: { companyId } });
   await prisma.financialYear.deleteMany({ where: { companyId } });
 
   await prisma.userCompanyAccess.deleteMany({ where: { companyId } });
   await prisma.systemSetting.deleteMany({ where: { companyId } });
   await prisma.printTemplate.deleteMany({ where: { companyId } });
-  await prisma.voucherNumberConfig.deleteMany({ where: { companyId } });
-  await prisma.voucherNumberSequence.deleteMany({ where: { companyId } });
   await prisma.notificationRecord.deleteMany({ where: { companyId } });
-  await prisma.loan.deleteMany({ where: { companyId } });
+  await prisma.exchangeRateLog.deleteMany({ where: { companyId } });
+  await prisma.auditLog.deleteMany({ where: { companyId } });
 }

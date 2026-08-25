@@ -101,6 +101,61 @@ export const StockDetailPage: React.FC = () => {
     padding: '24px',
   };
 
+  // Currency & Valuation calculation helper
+  const isBoughtInUsd = (packet.costCurrency || (packet as any).originalCurrency) === 'USD';
+  const exRate = exchangeRate > 0 ? exchangeRate : 90;
+  const carats = Number(packet.caratWeight || 0);
+
+  // 1. Cost per carat & Total cost in requested viewCurrency
+  let costPerCaratDisp = 0;
+  let totalCostDisp = 0;
+
+  if (viewCurrency === 'INR') {
+    if (!isBoughtInUsd) {
+      // Native INR purchase
+      costPerCaratDisp = Number(packet.costPerCaratInr || packet.costPerCarat || 0);
+      totalCostDisp = Number(packet.totalCostInr || packet.totalCost || (costPerCaratDisp * carats));
+    } else {
+      // USD purchase converted to INR
+      costPerCaratDisp = Math.round(Number(packet.costPerCarat || 0) * exRate * 100) / 100;
+      totalCostDisp = Math.round(costPerCaratDisp * carats * 100) / 100;
+    }
+  } else {
+    // viewCurrency === 'USD'
+    if (isBoughtInUsd) {
+      // Native USD purchase
+      costPerCaratDisp = Number(packet.costPerCarat || 0);
+      totalCostDisp = Number(packet.totalCost || (costPerCaratDisp * carats));
+    } else {
+      // INR purchase converted to USD
+      const inrRate = Number(packet.costPerCaratInr || packet.costPerCarat || 0);
+      costPerCaratDisp = exRate > 0 ? Math.round((inrRate / exRate) * 100) / 100 : inrRate;
+      totalCostDisp = Math.round(costPerCaratDisp * carats * 100) / 100;
+    }
+  }
+
+  // 2. Target Sale Rate (Asking Price) in requested viewCurrency
+  let targetRateDisp: number | null = null;
+  let targetValDisp: number | null = null;
+  let profitDisp: number | null = null;
+
+  if (packet.targetSaleRate != null && (packet.targetSaleRate as unknown) !== '') {
+    const rawTarget = Number(packet.targetSaleRate);
+    if (!isNaN(rawTarget) && rawTarget > 0) {
+      const isTargetUsd = packet.targetSaleRateCurrency === 'USD' || (!packet.targetSaleRateCurrency && isBoughtInUsd);
+      if (viewCurrency === 'INR') {
+        targetRateDisp = isTargetUsd ? Math.round(rawTarget * exRate * 100) / 100 : rawTarget;
+      } else {
+        targetRateDisp = isTargetUsd ? rawTarget : (exRate > 0 ? Math.round((rawTarget / exRate) * 100) / 100 : rawTarget);
+      }
+      targetValDisp = carats > 0 ? Math.round(targetRateDisp * carats * 100) / 100 : targetRateDisp;
+      profitDisp = Math.round((targetRateDisp - costPerCaratDisp) * 100) / 100;
+    }
+  }
+
+  const sym = viewCurrency === 'INR' ? '₹' : '$';
+  const loc = viewCurrency === 'INR' ? 'en-IN' : 'en-US';
+
   // Extract all fields for search & pinning
   const allFields: Array<{ label: string; value: React.ReactNode; category: string }> = packet ? [
     // Overview
@@ -108,22 +163,13 @@ export const StockDetailPage: React.FC = () => {
     { label: 'Category', value: packet.category === 'CERTIFIED' ? 'Certified' : 'Non-Certified', category: 'Overview' },
     { label: 'Registration', value: new Date(packet.registrationDate).toLocaleDateString('en-IN'), category: 'Overview' },
     { label: 'Carat Weight', value: packet.caratWeight != null ? `${Number(packet.caratWeight).toFixed(3)} ct` : '—', category: 'Overview' },
+    { label: 'Pieces', value: (packet as any).piecesNotCounted || packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount, category: 'Overview' },
     { label: 'Shape', value: packet.shape, category: 'Overview' },
     { label: 'Color', value: packet.color, category: 'Overview' },
     { label: 'Clarity', value: packet.clarity, category: 'Overview' },
     { label: 'Cut', value: packet.cut, category: 'Overview' },
     { label: 'Polish', value: packet.polish, category: 'Overview' },
     { label: 'Symmetry', value: packet.symmetry, category: 'Overview' },
-    { 
-      label: 'Pieces', 
-      value: (packet as any).piecesNotCounted || packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount, 
-      category: 'Overview' 
-    },
-    ...((packet as any).piecesNotCounted || packet.pieceCount <= 1 || !Number(packet.caratWeight) ? [] : [{
-      label: 'Average Weight',
-      value: `${(Number(packet.caratWeight) / packet.pieceCount).toFixed(3)} ct/pc`,
-      category: 'Overview'
-    }]),
     { label: 'Remarks', value: packet.currentLocation, category: 'Overview' },
 
     // Measurements & Certification
@@ -147,8 +193,6 @@ export const StockDetailPage: React.FC = () => {
     { label: 'Milky', value: packet.milky, category: 'Fluorescence & Optical' },
     { label: 'Tinge', value: packet.tinge, category: 'Fluorescence & Optical' },
     { label: 'Lustre', value: packet.lustre, category: 'Fluorescence & Optical' },
-    { label: 'Rap Price', value: packet.rapPricePerCarat != null ? `$ ${Number(packet.rapPricePerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null, category: 'Fluorescence & Optical' },
-    { label: 'Rap Discount', value: packet.rapDiscountPct != null ? `${Number(packet.rapDiscountPct).toFixed(2)}%` : null, category: 'Fluorescence & Optical' },
 
     // Girdle, Crown & Pavilion
     { label: 'Crown Angle', value: packet.crownAngle != null ? `${Number(packet.crownAngle).toFixed(2)}°` : null, category: 'Girdle, Crown & Pavilion' },
@@ -202,10 +246,10 @@ export const StockDetailPage: React.FC = () => {
     { label: 'Comment', value: packet.diamondComment, category: 'Inclusions & Specialty' },
 
     // Valuation & Target Rate
-    { label: 'Cost / Carat', value: `$ ${Number(packet.costPerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, category: 'Valuation & Target Rate' },
-    { label: 'Total Cost', value: `$ ${Number(packet.totalCost).toLocaleString('en-US', { minimumFractionDigits: 2 })}`, category: 'Valuation & Target Rate' },
-    { label: 'Target Rate / Carat', value: packet.targetSaleRate != null ? `$ ${Number(packet.targetSaleRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null, category: 'Valuation & Target Rate' },
-    { label: 'Target Valuation', value: packet.targetSaleRate != null ? `$ ${(Number(packet.caratWeight) * Number(packet.targetSaleRate)).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null, category: 'Valuation & Target Rate' },
+    { label: 'Cost / Carat', value: `${sym} ${costPerCaratDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}`, category: 'Valuation & Target Rate' },
+    { label: 'Total Cost', value: `${sym} ${totalCostDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}`, category: 'Valuation & Target Rate' },
+    { label: 'Target Rate / Carat', value: targetRateDisp != null ? `${sym} ${targetRateDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}` : null, category: 'Valuation & Target Rate' },
+    { label: 'Target Valuation', value: targetValDisp != null ? `${sym} ${targetValDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}` : null, category: 'Valuation & Target Rate' },
 
     // Media
     { label: 'Image Link', value: packet.imageLink ? <a href={packet.imageLink} target="_blank" rel="noreferrer" style={{ color: 'var(--color-accent)' }}>{packet.imageLink}</a> : null, category: 'Media' },
@@ -244,25 +288,23 @@ export const StockDetailPage: React.FC = () => {
               onChange={(e) => setViewCurrency((e.target.value as 'USD' | 'INR') || 'USD')}
               style={{ padding: '4px 8px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 700, background: 'var(--color-surface)', cursor: 'pointer' }}
             >
-              <option value="USD">USD ($)</option>
               <option value="INR">INR (₹)</option>
+              <option value="USD">USD ($)</option>
             </select>
-            {viewCurrency === 'INR' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Rate ($1=₹):</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={exchangeRateInput}
-                  onChange={(e) => setExchangeRateInput(e.target.value)}
-                  onWheel={(e) => {
-                    (e.currentTarget as HTMLElement).blur();
-                    e.preventDefault();
-                  }}
-                  style={{ width: '75px', padding: '3px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 600 }}
-                />
-              </div>
-            ) : null}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--color-text-secondary)' }}>Rate ($1=₹):</span>
+              <input
+                type="number"
+                step="0.01"
+                value={exchangeRateInput}
+                onChange={(e) => setExchangeRateInput(e.target.value)}
+                onWheel={(e) => {
+                  (e.currentTarget as HTMLElement).blur();
+                  e.preventDefault();
+                }}
+                style={{ width: '75px', padding: '3px 6px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--color-border)', fontSize: '13px', fontWeight: 600 }}
+              />
+            </div>
           </div>
 
           {/* Column/Field Search Box */}
@@ -363,17 +405,6 @@ export const StockDetailPage: React.FC = () => {
                 value={(packet as any).piecesNotCounted || packet.pieceCount === 0 ? 'Not Counted' : packet.pieceCount} 
                 searchQuery={searchQuery} 
               />
-              {!(packet as any).piecesNotCounted && packet.pieceCount > 1 && Number(packet.caratWeight) > 0 && (
-                <DetailRow 
-                  label="Average Weight" 
-                  value={
-                    <span style={{ color: 'var(--color-accent)', fontWeight: 700 }}>
-                      {(Number(packet.caratWeight) / packet.pieceCount).toFixed(3)} ct/pc
-                    </span>
-                  } 
-                  searchQuery={searchQuery} 
-                />
-              )}
               <DetailRow label="Remarks" value={packet.currentLocation} searchQuery={searchQuery} />
             </div>
           </div>
@@ -445,8 +476,6 @@ export const StockDetailPage: React.FC = () => {
               <DetailRow label="Milky" value={packet.milky} searchQuery={searchQuery} />
               <DetailRow label="Tinge" value={packet.tinge} searchQuery={searchQuery} />
               <DetailRow label="Lustre" value={packet.lustre} searchQuery={searchQuery} />
-              <DetailRow label="Rap Price" value={packet.rapPricePerCarat != null ? `$ ${Number(packet.rapPricePerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}` : null} searchQuery={searchQuery} />
-              <DetailRow label="Rap Discount" value={packet.rapDiscountPct != null ? `${Number(packet.rapDiscountPct).toFixed(2)}%` : null} searchQuery={searchQuery} />
             </div>
           </div>
 
@@ -557,57 +586,43 @@ export const StockDetailPage: React.FC = () => {
 
           <div style={cardStyle}>
             <h2 style={{ fontSize: 'var(--text-heading)', fontWeight: 600, marginBottom: '16px' }}>Valuation & Target Rate</h2>
-            {(() => {
-              const costPerCaratDisp = viewCurrency === 'INR' ? Number(packet.costPerCarat) * exchangeRate : Number(packet.costPerCarat);
-              const totalCostDisp = viewCurrency === 'INR' ? Number(packet.totalCost) * exchangeRate : Number(packet.totalCost);
-              const sym = viewCurrency === 'INR' ? '₹' : '$';
-              const loc = viewCurrency === 'INR' ? 'en-IN' : 'en-US';
-
-              const targetRateUsd = packet.targetSaleRate != null ? Number(packet.targetSaleRate) : null;
-              const targetRateDisp = targetRateUsd != null ? (viewCurrency === 'INR' ? targetRateUsd * exchangeRate : targetRateUsd) : null;
-              const targetValDisp = targetRateUsd != null ? (viewCurrency === 'INR' ? (Number(packet.caratWeight) * targetRateUsd) * exchangeRate : Number(packet.caratWeight) * targetRateUsd) : null;
-              const profitDisp = targetRateUsd != null ? (viewCurrency === 'INR' ? (targetRateUsd - Number(packet.costPerCarat)) * exchangeRate : targetRateUsd - Number(packet.costPerCarat)) : null;
-
-              return (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  <DetailRow label="Cost / Carat" value={`${sym} ${costPerCaratDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}`} searchQuery={searchQuery} />
-                  <DetailRow label="Total Cost" value={`${sym} ${totalCostDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}`} searchQuery={searchQuery} />
-                  {targetRateUsd != null && targetRateDisp != null && targetValDisp != null && profitDisp != null ? (
-                    <>
-                      <DetailRow
-                        label="Target Rate / Carat"
-                        value={
-                          <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-                            {sym} {targetRateDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}
-                          </span>
-                        }
-                        searchQuery={searchQuery}
-                      />
-                      <DetailRow
-                        label="Target Valuation"
-                        value={
-                          <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>
-                            {sym} {targetValDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}
-                          </span>
-                        }
-                        searchQuery={searchQuery}
-                      />
-                      <DetailRow
-                        label="Est. Profit / Carat"
-                        value={
-                          <span style={{ color: profitDisp >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
-                            {sym} {profitDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}
-                          </span>
-                        }
-                        searchQuery={searchQuery}
-                      />
-                    </>
-                  ) : (
-                    <DetailRow label="Target Rate" value={<span style={{ opacity: 0.5 }}>Not set</span>} searchQuery={searchQuery} />
-                  )}
-                </div>
-              );
-            })()}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <DetailRow label="Cost / Carat" value={`${sym} ${costPerCaratDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}`} searchQuery={searchQuery} />
+              <DetailRow label="Total Cost" value={`${sym} ${totalCostDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}`} searchQuery={searchQuery} />
+              {targetRateDisp != null && targetValDisp != null && profitDisp != null ? (
+                <>
+                  <DetailRow
+                    label="Target Rate / Carat"
+                    value={
+                      <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+                        {sym} {targetRateDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}
+                      </span>
+                    }
+                    searchQuery={searchQuery}
+                  />
+                  <DetailRow
+                    label="Target Valuation"
+                    value={
+                      <span style={{ color: 'var(--color-success)', fontWeight: 700 }}>
+                        {sym} {targetValDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}
+                      </span>
+                    }
+                    searchQuery={searchQuery}
+                  />
+                  <DetailRow
+                    label="Est. Profit / Carat"
+                    value={
+                      <span style={{ color: profitDisp >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 }}>
+                        {sym} {profitDisp.toLocaleString(loc, { minimumFractionDigits: 2 })}
+                      </span>
+                    }
+                    searchQuery={searchQuery}
+                  />
+                </>
+              ) : (
+                <DetailRow label="Target Rate" value={<span style={{ opacity: 0.5 }}>Not set</span>} searchQuery={searchQuery} />
+              )}
+            </div>
           </div>
 
           <div style={cardStyle}>

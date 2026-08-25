@@ -42,18 +42,22 @@ export function startHostDiscoveryBeacon(dbPort: number = 3306): void {
 
     const sendBeacon = () => {
       if (!socket) return;
+      const localIp = getLocalIpAddress();
+      // If offline / loopback only, skip global broadcast
+      if (localIp === '127.0.0.1') return;
+
       const payload: ILanHostInfo = {
         role: 'DIAMO_HOST',
         hostname,
-        // Recompute each tick so the beacon reflects the host's CURRENT IP after a
-        // DHCP change / network restart, instead of a stale one-time snapshot.
-        ip: getLocalIpAddress(),
+        ip: localIp,
         port: dbPort,
         timestamp: Date.now(),
       };
       const message = Buffer.from(JSON.stringify(payload));
       socket.send(message, 0, message.length, UDP_PORT, '255.255.255.255', (err) => {
-        if (err) console.error('[LAN Discovery] Beacon send error:', err);
+        if (err && (err as any)?.code !== 'ENETUNREACH') {
+          console.error('[LAN Discovery] Beacon send error:', err);
+        }
       });
     };
 
@@ -87,7 +91,7 @@ export function discoverHostsOnLan(timeoutMs: number = 3000): Promise<ILanHostIn
               console.log(`[LAN Discovery] Discovered Host PC: ${data.hostname} at ${data.ip}:${data.port}`);
             }
           }
-        } catch {}
+        } catch { }
       });
 
       const cleanup = () => {
@@ -95,7 +99,7 @@ export function discoverHostsOnLan(timeoutMs: number = 3000): Promise<ILanHostIn
         if (clientSocket) {
           try {
             clientSocket.close();
-          } catch {}
+          } catch { }
           clientSocket = null;
         }
       };
@@ -121,7 +125,7 @@ export function stopLanDiscovery(): void {
   if (socket) {
     try {
       socket.close();
-    } catch {}
+    } catch { }
     socket = null;
   }
 }

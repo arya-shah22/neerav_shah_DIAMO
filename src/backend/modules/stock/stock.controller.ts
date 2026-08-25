@@ -160,6 +160,7 @@ export class StockController {
   async handleImportCsv(payload: {
     companyId: number;
     qualityId: number;
+    exchangeRate?: number;
     rows: any[];
     userId?: number;
   }): Promise<IApiResponse> {
@@ -168,6 +169,7 @@ export class StockController {
         payload.companyId,
         payload.qualityId,
         payload.rows,
+        payload.exchangeRate,
         payload.userId,
       );
       return { success: true, data: result };

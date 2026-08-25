@@ -201,6 +201,21 @@ export function computeInvoiceTotals(
 }
 
 /**
+ * Determine whether a transaction is intra-state (CGST+SGST) or inter-state (IGST).
+ * If state codes cannot be resolved, falls back to intra-state (true).
+ */
+export function resolveIsSameState(
+  companyStateCode: string | null | undefined,
+  partyStateCode: string | null | undefined,
+  placeOfSupply?: string | null,
+): boolean {
+  if (!companyStateCode) return true;
+  const supplyState = partyStateCode || placeOfSupply;
+  if (!supplyState) return true;
+  return companyStateCode === supplyState;
+}
+
+/**
  * Pick the GST rate in force on `onDate` from a quality's rate history.
  * Falls back to the earliest record so a back-dated invoice still gets a rate.
  */

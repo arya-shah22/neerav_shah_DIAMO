@@ -12,7 +12,7 @@ import { useIpc } from '../../hooks/useIpc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
 import { DataGrid, Column } from '../../components/ui/DataGrid';
 import { Button, Badge, Input, Select, Modal, useToast } from '../../components/ui';
-import { exportStockPackets, ExportPreset, FileType } from './stock-export-helper';
+import { exportStockPackets, ExportPreset, FileType, ExportCurrency } from './stock-export-helper';
 import { useCompanyStore } from '../../state/company-store';
 import { IQuality } from '../quality/quality.types';
 import {
@@ -69,20 +69,57 @@ export const StockListPage: React.FC = () => {
   }, [qualityQueryParam]);
   const [isFilterExpanded, setIsFilterExpanded] = useState<boolean>(false);
 
-  // Temporary ephemeral INR preview state. The rate here is only a what-if
-  // for packets whose cost is in dollars; a packet that stores its own INR
-  // cost is shown as stored rather than multiplied by this.
-  const [showInrPreview, setShowInrPreview] = useState<boolean>(false);
-  const [inrRate, setInrRate] = useState<number>(83.25);
+  // Currency View Mode: INR (₹), USD ($), or Both (Dual View)
+  type DisplayCurrency = 'INR' | 'USD' | 'DUAL';
+  const [displayCurrency, setDisplayCurrency] = useState<DisplayCurrency>('INR');
+  const [latestExchangeRate, setLatestExchangeRate] = useState<number>(90.0);
+  const [useManualRate, setUseManualRate] = useState<boolean>(false);
+  const [manualRateInput, setManualRateInput] = useState<string>('90.00');
 
-  // Every cost figure below used to be printed with a $ sign no matter what
-  // currency it was entered in, so an INR-purchased packet read as dollars.
-  const costSymbol = (row: any) => ((row?.costCurrency || row?.originalCurrency) === 'INR' ? '₹' : '$');
-  const targetSymbol = (row: any) => (row?.targetSaleRateCurrency === 'INR' ? '₹' : '$');
-  const costPerCaratInrOf = (row: any) =>
-    row?.costPerCaratInr != null
-      ? Number(row.costPerCaratInr)
-      : Number(row?.costPerCarat || 0) * ((row?.costCurrency || row?.originalCurrency) === 'INR' ? 1 : inrRate);
+  // Calculates exact cost per carat in INR and USD for any packet
+  const getPacketCostPerCarat = useCallback((row: IStockPacket) => {
+    const isUsd = (row.costCurrency || (row as any).originalCurrency) === 'USD';
+    const exRate = useManualRate && Number(manualRateInput) > 0
+      ? Number(manualRateInput)
+      : (Number(row.costExchangeRate) > 0 ? Number(row.costExchangeRate) : latestExchangeRate);
+
+    let inr = 0;
+    let usd = 0;
+    if (row.costPerCaratInr != null && Number(row.costPerCaratInr) > 0 && !useManualRate) {
+      inr = Number(row.costPerCaratInr);
+      usd = isUsd ? Number(row.costPerCarat || 0) : (exRate > 0 ? inr / exRate : inr);
+    } else if (isUsd) {
+      usd = Number(row.costPerCarat || 0);
+      inr = Math.round(usd * exRate * 100) / 100;
+    } else {
+      inr = Number(row.costPerCarat || 0);
+      usd = exRate > 0 ? Math.round((inr / exRate) * 100) / 100 : inr;
+    }
+    return { inr, usd, exRate };
+  }, [useManualRate, manualRateInput, latestExchangeRate]);
+
+  // Calculates exact target sale rate (asking price) in INR and USD for any packet
+  const getPacketTargetRate = useCallback((row: IStockPacket) => {
+    if (row.targetSaleRate == null || (row.targetSaleRate as unknown) === '') return null;
+    const rawRate = Number(row.targetSaleRate);
+    if (isNaN(rawRate) || rawRate <= 0) return null;
+
+    const isUsd = row.targetSaleRateCurrency === 'USD' || (!row.targetSaleRateCurrency && (row.costCurrency || (row as any).originalCurrency) === 'USD');
+    const exRate = useManualRate && Number(manualRateInput) > 0
+      ? Number(manualRateInput)
+      : (Number(row.costExchangeRate) > 0 ? Number(row.costExchangeRate) : latestExchangeRate);
+
+    let inr = 0;
+    let usd = 0;
+    if (isUsd) {
+      usd = rawRate;
+      inr = Math.round(usd * exRate * 100) / 100;
+    } else {
+      inr = rawRate;
+      usd = exRate > 0 ? Math.round((inr / exRate) * 100) / 100 : inr;
+    }
+    return { inr, usd };
+  }, [useManualRate, manualRateInput, latestExchangeRate]);
 
   const activeFinancialYear = useCompanyStore((s) => s.activeFinancialYear);
   const { invoke: getAllConfigs } = useIpc<any>('stock:get-all-configs');
@@ -114,11 +151,14 @@ export const StockListPage: React.FC = () => {
   const { invoke: deleteStock } = useIpc('stock:delete');
   const { invoke: updateStock, loading: updatingStatus } = useIpc('stock:update');
   const { invoke: fetchQualities } = useIpc<IQuality[]>('quality:list');
+  const { invoke: fetchLatestRate } = useIpc<any>('exchange-rate:latest');
   const [qualities, setQualities] = useState<IQuality[]>([]);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importExchangeRate, setImportExchangeRate] = useState<number | string>('87.00');
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [exportPreset, setExportPreset] = useState<ExportPreset>('DIAMO');
   const [exportFileType, setExportFileType] = useState<FileType>('CSV');
+  const [exportCurrency, setExportCurrency] = useState<ExportCurrency>('USD');
   const [selectedQualityId, setSelectedQualityId] = useState<string>('');
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [importing, setImporting] = useState(false);
@@ -145,6 +185,20 @@ export const StockListPage: React.FC = () => {
       }
     });
   }, [companyId, fetchQualities]);
+
+  useEffect(() => {
+    if (!companyId) return;
+    fetchLatestRate({ companyId }).then((res) => {
+      if (res?.success && res.data?.exchangeRate) {
+        const rate = Number(res.data.exchangeRate);
+        if (rate > 0) {
+          setLatestExchangeRate(rate);
+          setManualRateInput(rate.toFixed(2));
+          setImportExchangeRate(rate.toFixed(2));
+        }
+      }
+    });
+  }, [companyId, fetchLatestRate]);
 
   const refresh = useCallback(async () => {
     if (!companyId) return;
@@ -262,6 +316,11 @@ export const StockListPage: React.FC = () => {
       showToast('Please select a quality master', 'error');
       return;
     }
+    const rateNum = Number(importExchangeRate);
+    if (!rateNum || isNaN(rateNum) || rateNum <= 0) {
+      showToast('Please enter a valid exchange rate (e.g. 87.00)', 'error');
+      return;
+    }
     if (parsedRows.length === 0) {
       showToast('Please select a valid CSV file with data rows', 'error');
       return;
@@ -271,6 +330,7 @@ export const StockListPage: React.FC = () => {
     const res = await importCsv({
       companyId,
       qualityId: Number(selectedQualityId),
+      exchangeRate: rateNum,
       rows: parsedRows,
     });
     setImporting(false);
@@ -308,9 +368,17 @@ export const StockListPage: React.FC = () => {
       showToast('No matching stock packets to download', 'info');
       return;
     }
-    exportStockPackets(processedStock, exportPreset, exportFileType, activeCompany?.companyName);
+    const activeExRate = useManualRate && Number(manualRateInput) > 0 ? Number(manualRateInput) : latestExchangeRate;
+    exportStockPackets(
+      processedStock,
+      exportPreset,
+      exportFileType,
+      exportCurrency,
+      activeExRate,
+      activeCompany?.companyName
+    );
     setIsExportModalOpen(false);
-    showToast(`Stock exported successfully (${exportPreset} format as ${exportFileType})`, 'success');
+    showToast(`Stock exported successfully (${exportPreset} in ${exportCurrency} as ${exportFileType})`, 'success');
   };
 
   const closeStatusModal = () => {
@@ -509,15 +577,15 @@ export const StockListPage: React.FC = () => {
       });
     }
 
-    // Apply Cost / Rate sorting
+    // Apply Cost / Rate sorting (normalized by base INR value for consistent multi-currency comparison)
     if (costSort === 'low-to-high') {
-      result.sort((a, b) => Number(a.costPerCarat) - Number(b.costPerCarat));
+      result.sort((a, b) => getPacketCostPerCarat(a).inr - getPacketCostPerCarat(b).inr);
     } else if (costSort === 'high-to-low') {
-      result.sort((a, b) => Number(b.costPerCarat) - Number(a.costPerCarat));
+      result.sort((a, b) => getPacketCostPerCarat(b).inr - getPacketCostPerCarat(a).inr);
     } else if (rateSort === 'low-to-high') {
-      result.sort((a, b) => Number(a.targetSaleRate || 0) - Number(b.targetSaleRate || 0));
+      result.sort((a, b) => (getPacketTargetRate(a)?.inr || 0) - (getPacketTargetRate(b)?.inr || 0));
     } else if (rateSort === 'high-to-low') {
-      result.sort((a, b) => Number(b.targetSaleRate || 0) - Number(a.targetSaleRate || 0));
+      result.sort((a, b) => (getPacketTargetRate(b)?.inr || 0) - (getPacketTargetRate(a)?.inr || 0));
     }
 
     // 16. Aging Bucket filter (Drill-down from Analytics)
@@ -558,6 +626,49 @@ export const StockListPage: React.FC = () => {
     selectedMonth,
     ageParam,
   ]);
+
+  // Dynamic total metrics
+  const totalStockCarats = useMemo(() => {
+    return processedStock.reduce((sum, s) => sum + Number(s.caratWeight || 0), 0);
+  }, [processedStock]);
+
+  const totalStockValueInr = useMemo(() => {
+    return processedStock.reduce((sum, s) => {
+      const exRate = useManualRate && Number(manualRateInput) > 0
+        ? Number(manualRateInput)
+        : (Number(s.costExchangeRate) > 0 ? Number(s.costExchangeRate) : latestExchangeRate);
+      const isUsd = (s.costCurrency || (s as any).originalCurrency) === 'USD';
+      let inr = 0;
+      if (s.totalCostInr != null && Number(s.totalCostInr) > 0 && !useManualRate) {
+        inr = Number(s.totalCostInr);
+      } else if (isUsd) {
+        inr = Math.round(Number(s.totalCost || 0) * exRate * 100) / 100;
+      } else {
+        inr = Number(s.totalCost || 0);
+      }
+      return sum + inr;
+    }, 0);
+  }, [processedStock, useManualRate, manualRateInput, latestExchangeRate]);
+
+  const totalStockValueUsd = useMemo(() => {
+    return processedStock.reduce((sum, s) => {
+      const exRate = useManualRate && Number(manualRateInput) > 0
+        ? Number(manualRateInput)
+        : (Number(s.costExchangeRate) > 0 ? Number(s.costExchangeRate) : latestExchangeRate);
+      const isUsd = (s.costCurrency || (s as any).originalCurrency) === 'USD';
+      let usd = 0;
+      if (isUsd && !useManualRate && s.totalCost != null && Number(s.totalCost) > 0) {
+        usd = Number(s.totalCost);
+      } else if (s.totalCostInr != null && Number(s.totalCostInr) > 0 && exRate > 0) {
+        usd = Math.round((Number(s.totalCostInr) / exRate) * 100) / 100;
+      } else if (exRate > 0) {
+        usd = Math.round((Number(s.totalCost || 0) / exRate) * 100) / 100;
+      } else {
+        usd = Number(s.totalCost || 0);
+      }
+      return sum + usd;
+    }, 0);
+  }, [processedStock, useManualRate, manualRateInput, latestExchangeRate]);
 
   const columns: Column<IStockPacket>[] = [
     {
@@ -610,41 +721,69 @@ export const StockListPage: React.FC = () => {
     },
     {
       key: 'costPerCarat',
-      header: 'COST /CT',
-      render: (row) =>
-        `${costSymbol(row)}${Number(row.costPerCarat).toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+      header: displayCurrency === 'INR' ? 'COST (₹/CT)' : displayCurrency === 'USD' ? 'COST ($/CT)' : 'COST /CT',
+      render: (row) => {
+        const { inr, usd } = getPacketCostPerCarat(row);
+        if (displayCurrency === 'INR') {
+          return (
+            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              ₹{inr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          );
+        }
+        if (displayCurrency === 'USD') {
+          return (
+            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              ${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontWeight: 600, color: 'var(--color-text-primary)' }}>
+              ₹{inr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+              ${usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        );
+      },
     },
-    ...(showInrPreview ? [{
-      key: 'costPerCaratInr',
-      header: `COST (₹/CT @ ${inrRate})`,
-      render: (row: IStockPacket) => (
-        <span style={{ color: '#b45309', fontWeight: 600, background: '#fef3c7', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-          ₹{costPerCaratInrOf(row).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      ),
-    }] : []),
     {
       key: 'targetSaleRate',
-      header: 'TARGET RATE /CT',
-      render: (row) => row.targetSaleRate != null ? (
-        <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
-          {targetSymbol(row)}{Number(row.targetSaleRate).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-        </span>
-      ) : (
-        <span style={{ opacity: 0.5 }}>—</span>
-      ),
+      header: displayCurrency === 'INR' ? 'TARGET (₹/CT)' : displayCurrency === 'USD' ? 'TARGET ($/CT)' : 'TARGET /CT',
+      render: (row) => {
+        const target = getPacketTargetRate(row);
+        if (!target) {
+          return <span style={{ opacity: 0.5 }}>—</span>;
+        }
+        if (displayCurrency === 'INR') {
+          return (
+            <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+              ₹{target.inr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          );
+        }
+        if (displayCurrency === 'USD') {
+          return (
+            <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+              ${target.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          );
+        }
+        return (
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ color: 'var(--color-success)', fontWeight: 600 }}>
+              ₹{target.inr.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-muted)', fontWeight: 500 }}>
+              ${target.usd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+            </span>
+          </div>
+        );
+      },
     },
-    ...(showInrPreview ? [{
-      key: 'targetSaleRateInr',
-      header: `TARGET (₹/CT @ ${inrRate})`,
-      render: (row: IStockPacket) => row.targetSaleRate != null ? (
-        <span style={{ color: '#047857', fontWeight: 600, background: '#d1fae5', padding: '2px 6px', borderRadius: '4px', whiteSpace: 'nowrap' }}>
-          ₹{(Number(row.targetSaleRate) * (row.targetSaleRateCurrency === 'INR' ? 1 : inrRate)).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-        </span>
-      ) : (
-        <span style={{ opacity: 0.5 }}>—</span>
-      ),
-    }] : []),
     {
       key: 'currentStatus',
       header: 'STATUS',
@@ -706,24 +845,6 @@ export const StockListPage: React.FC = () => {
     { value: 'CERTIFIED', label: 'Certified' },
     { value: 'NON_CERTIFIED', label: 'Non-Certified' },
   ];
-
-  if (!isReady) {
-    return <p style={{ color: 'var(--color-text-secondary)' }}>Select a company to manage inventory.</p>;
-  }
-
-  if (qualities.length === 0) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-md)' }}>
-        <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Diamond Inventory</h1>
-        <p style={{ color: 'var(--color-text-secondary)' }}>
-          Create at least one quality master before registering stock packets.
-        </p>
-        <Button variant="primary" onClick={() => navigate('/masters/diamond/qualities/new')}>
-          Add Quality
-        </Button>
-      </div>
-    );
-  }
 
   // Helper component for checkable badge filters
   const renderBadgeFilter = (
@@ -884,10 +1005,10 @@ export const StockListPage: React.FC = () => {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--spacing-lg)' }}>
       {/* Header Panel */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px' }}>
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)' }}>Diamond Inventory</h1>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
+            <h1 style={{ fontSize: 'var(--text-title)', fontWeight: 700, color: 'var(--color-primary)', margin: 0 }}>Diamond Inventory</h1>
             <Badge variant="primary" style={{ fontSize: '13px', padding: '3px 10px', fontWeight: 600 }}>
               {stock ? (
                 processedStock.length === stock.length ? (
@@ -897,32 +1018,160 @@ export const StockListPage: React.FC = () => {
                 )
               ) : '0 Packets'}
             </Badge>
+            {processedStock.length > 0 && (
+              <Badge variant="default" style={{ fontSize: '13px', padding: '3px 10px', fontWeight: 600 }}>
+                {totalStockCarats.toFixed(3)} Cts
+              </Badge>
+            )}
+            {processedStock.length > 0 && (
+              <Badge variant="success" style={{ fontSize: '13px', padding: '3px 10px', fontWeight: 600, border: '1px solid #a7f3d0' }}>
+                Valuation:{' '}
+                {displayCurrency === 'INR'
+                  ? `₹${totalStockValueInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`
+                  : displayCurrency === 'USD'
+                  ? `$${totalStockValueUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+                  : `₹${totalStockValueInr.toLocaleString('en-IN', { maximumFractionDigits: 0 })} / $${totalStockValueUsd.toLocaleString('en-US', { maximumFractionDigits: 0 })}`}
+              </Badge>
+            )}
           </div>
-          <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px' }}>
+          <p style={{ color: 'var(--color-text-secondary)', marginTop: '4px', marginBottom: 0 }}>
             Stock packets for {activeCompany?.companyName}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', background: showInrPreview ? '#fef3c7' : 'var(--color-surface)', border: `1px solid ${showInrPreview ? '#f59e0b' : 'var(--color-border)'}`, padding: '4px 8px', borderRadius: 'var(--radius-md)' }}>
-            <label style={{ fontSize: '12px', fontWeight: 600, color: showInrPreview ? '#92400e' : 'var(--color-text-secondary)', display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+          {/* Currency Toggle Pill Group */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: 'var(--color-surface)',
+              border: '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '3px',
+              gap: '2px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+            }}
+          >
+            <button
+              type="button"
+              onClick={() => setDisplayCurrency('INR')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                cursor: 'pointer',
+                background: displayCurrency === 'INR' ? 'var(--color-primary)' : 'transparent',
+                color: displayCurrency === 'INR' ? '#ffffff' : 'var(--color-text-secondary)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Show prices in Indian Rupees (₹)"
+            >
+              ₹ INR
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayCurrency('USD')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                cursor: 'pointer',
+                background: displayCurrency === 'USD' ? 'var(--color-primary)' : 'transparent',
+                color: displayCurrency === 'USD' ? '#ffffff' : 'var(--color-text-secondary)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Show prices in US Dollars ($)"
+            >
+              $ USD
+            </button>
+            <button
+              type="button"
+              onClick={() => setDisplayCurrency('DUAL')}
+              style={{
+                padding: '5px 12px',
+                fontSize: '12px',
+                fontWeight: 600,
+                borderRadius: 'var(--radius-sm)',
+                border: 'none',
+                cursor: 'pointer',
+                background: displayCurrency === 'DUAL' ? 'var(--color-primary)' : 'transparent',
+                color: displayCurrency === 'DUAL' ? '#ffffff' : 'var(--color-text-secondary)',
+                transition: 'all 0.15s ease',
+              }}
+              title="Show both Rupee and Dollar prices"
+            >
+              Both (₹ & $)
+            </button>
+          </div>
+
+          {/* Live Manual Exchange Rate Simulation Toggle & Input */}
+          <div
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              background: useManualRate ? 'var(--color-accent-light)' : 'var(--color-surface)',
+              border: useManualRate ? '1px solid var(--color-accent)' : '1px solid var(--color-border)',
+              borderRadius: 'var(--radius-md)',
+              padding: '4px 10px',
+              gap: '8px',
+              boxShadow: '0 1px 2px rgba(0,0,0,0.04)',
+              transition: 'all 0.2s ease',
+            }}
+          >
+            <label
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: useManualRate ? 'var(--color-accent-hover)' : 'var(--color-text-secondary)',
+                userSelect: 'none',
+              }}
+              title="Tick to simulate inventory valuations with a temporary custom exchange rate"
+            >
               <input
                 type="checkbox"
-                checked={showInrPreview}
-                onChange={(e) => setShowInrPreview(e.target.checked)}
+                checked={useManualRate}
+                onChange={(e) => setUseManualRate(e.target.checked)}
+                style={{ cursor: 'pointer', accentColor: 'var(--color-accent)' }}
               />
-              Preview ₹ Rate
+              <span>Manual Rate ($1=₹){useManualRate ? ':' : ''}</span>
             </label>
-            {showInrPreview && (
+            {useManualRate && (
               <input
                 type="number"
-                step="0.1"
-                value={inrRate}
-                onChange={(e) => setInrRate(Number(e.target.value) || 1)}
-                style={{ width: '70px', padding: '2px 4px', fontSize: '12px', border: '1px solid #f59e0b', borderRadius: '4px' }}
-                title="Temporary conversion rate for view only"
+                step="0.01"
+                min="0.01"
+                value={manualRateInput}
+                onChange={(e) => setManualRateInput(e.target.value)}
+                onWheel={(e) => {
+                  (e.currentTarget as HTMLElement).blur();
+                  e.preventDefault();
+                }}
+                placeholder="90.00"
+                style={{
+                  width: '72px',
+                  padding: '3px 6px',
+                  borderRadius: 'var(--radius-sm)',
+                  border: '1px solid var(--color-accent)',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  color: 'var(--color-primary)',
+                  background: '#ffffff',
+                }}
+                title="Type custom rate to live-preview valuations on screen"
+                autoFocus
               />
             )}
           </div>
+
           <Button variant="secondary" onClick={openExportModal} style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             Download Stock
           </Button>
@@ -1386,6 +1635,17 @@ export const StockListPage: React.FC = () => {
             clearable={false}
           />
 
+          <Input
+            label="Exchange Rate (1 USD = ₹) *"
+            type="number"
+            step="0.01"
+            min="1"
+            placeholder="e.g. 87.00"
+            value={importExchangeRate}
+            onChange={(e) => setImportExchangeRate(e.target.value)}
+            hint="All CSV diamond costs are saved in USD ($) and converted to base INR using this rate."
+          />
+
           <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
             <label style={{ fontSize: 'var(--text-small)', fontWeight: 600, color: 'var(--color-text-primary)' }}>
               Select CSV File *
@@ -1560,6 +1820,44 @@ export const StockListPage: React.FC = () => {
                     }}
                   >
                     {opt.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div>
+            <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--color-text-primary)', marginBottom: '8px', display: 'block' }}>
+              Select Price Currency:
+            </label>
+            <div style={{ display: 'flex', gap: '12px' }}>
+              {[
+                { id: 'USD', label: '$ USD (Dollars)', desc: 'Export all rates & costs in USD' },
+                { id: 'INR', label: '₹ INR (Rupees)', desc: 'Export all rates & costs in INR' },
+              ].map((opt) => {
+                const isSelected = exportCurrency === opt.id;
+                return (
+                  <button
+                    key={opt.id}
+                    type="button"
+                    onClick={() => setExportCurrency(opt.id as ExportCurrency)}
+                    style={{
+                      flex: 1,
+                      padding: '10px 14px',
+                      borderRadius: 'var(--radius-md)',
+                      border: isSelected ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                      background: isSelected ? 'var(--color-accent-light)' : 'var(--color-bg-card)',
+                      color: isSelected ? 'var(--color-accent-hover)' : 'var(--color-text-primary)',
+                      cursor: 'pointer',
+                      textAlign: 'left',
+                      transition: 'all 0.2s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '2px',
+                    }}
+                  >
+                    <span style={{ fontSize: '13px', fontWeight: 700 }}>{opt.label}</span>
+                    <span style={{ fontSize: '11px', color: isSelected ? 'var(--color-accent-hover)' : 'var(--color-text-muted)' }}>{opt.desc}</span>
                   </button>
                 );
               })}

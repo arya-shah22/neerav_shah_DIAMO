@@ -12,6 +12,8 @@ import { useIpc } from '../../hooks/useIpc';
 import {
   computeInvoiceTotals,
   round2,
+  resolveGstPct,
+  resolveIsSameState,
   type CalcCurrency,
 } from '../../../shared/utils/invoice-calc';
 import { useActiveCompany } from '../../hooks/useActiveCompany';
@@ -36,6 +38,7 @@ interface QualityObj {
   qualityName: string;
   isService?: boolean;
   gstPct?: number;
+  gstHistory?: Array<{ applyDate: Date | string; gstPct: number }>;
 }
 
 interface ExtraChargeItem {
@@ -275,9 +278,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   const watchedIsManual = watch('isManualBillNumber');
   const watchedAddPct = watch('addPct') || 0;
   const watchedLessPct = watch('lessPct') || 0;
-  const watchedCgst = watch('totalCgst') || 0;
-  const watchedSgst = watch('totalSgst') || 0;
-  const watchedIgst = watch('totalIgst') || 0;
+
   const watchedCurrency = watch('transactionCurrency');
   const watchedExchangeRate = watch('exchangeRate') || 1;
 
@@ -317,6 +318,9 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       const currentRate = Number(it.rate) || 0;
       if (currentRate <= 0) return;
 
+      const pkt = availablePackets.find((p) => p.id === Number(it.stockPacketId));
+      const pktCurrency = pkt?.originalCurrency || pkt?.transactionCurrency || 'INR';
+
       if (currencyChanged) {
         if (prevCurrency === 'USD' && watchedCurrency === 'INR') {
           setValue(`items.${idx}.rate`, round2(currentRate * exRate));
@@ -329,9 +333,6 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
       // Rate-only change: re-price just the rows whose underlying price is
       // denominated in the other currency. A manually typed rate in the
       // invoice's own currency is left alone.
-      const pkt = availablePackets.find((p) => p.id === Number(it.stockPacketId));
-      if (!pkt) return;
-      const pktCurrency = pkt.originalCurrency || pkt.transactionCurrency || 'INR';
       if (pktCurrency === watchedCurrency) return;
       const scaled = watchedCurrency === 'INR'
         ? currentRate * (exRate / prevRate)
@@ -627,18 +628,28 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
   // Totals come from the SAME module the backend uses, so the figures on screen
   // are exactly the ones that get saved. The two used to be hand-duplicated and
   // had drifted: the form ignored per-line discount and rounded tax differently.
-  const isSameStateCalc =
-    !!activeCompany && !!selectedPartyObj && activeCompany.stateCode === selectedPartyObj.stateCode;
+  const isSameStateCalc = resolveIsSameState(
+    activeCompany?.stateCode,
+    selectedPartyObj?.stateCode,
+  );
+
+  const invoiceDateObj = watchedInvoiceDate ? new Date(watchedInvoiceDate) : new Date();
 
   const calcTotals = computeInvoiceTotals(
-    (watchedItems || []).map((it) => ({
-      carats: it?.carats,
-      pieces: (it as any)?.pieces,
-      isPiecesUncounted: (it as any)?.isPiecesUncounted,
-      rate: it?.rate,
-      discountPct: (it as any)?.discountPct,
-      gstPct: qualities.find((q) => q.id === Number(it?.qualityId))?.gstPct || 0,
-    })),
+    (watchedItems || []).map((it) => {
+      const qObj = qualities.find((q) => q.id === Number(it?.qualityId));
+      const resolvedGst = qObj?.gstHistory && qObj.gstHistory.length > 0
+        ? resolveGstPct(qObj.gstHistory, invoiceDateObj)
+        : (qObj?.gstPct || 0);
+      return {
+        carats: it?.carats,
+        pieces: (it as any)?.pieces,
+        isPiecesUncounted: (it as any)?.isPiecesUncounted,
+        rate: it?.rate,
+        discountPct: (it as any)?.discountPct,
+        gstPct: resolvedGst,
+      };
+    }),
     {
       addPct: watchedAddPct,
       lessPct: watchedLessPct,
@@ -941,7 +952,7 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                     </td>
                   </tr>
 
-                  {!isServiceQuality && watchedQualityId && (
+                  {!isServiceQuality && !!watchedQualityId && (
                     <tr style={{ borderBottom: '1px solid var(--color-border)', background: 'var(--color-row-alt)' }}>
                       <td colSpan={7} style={{ padding: '8px 16px 12px 16px' }}>
                         {isSale ? (
@@ -992,11 +1003,15 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
 
                                         // Auto-switch invoice currency to packet's origin currency if this is the first packet being added
                                         const existingPktIds = (watch('items') || []).map((it) => Number(it.stockPacketId)).filter((id) => id > 0);
+                                        let activeCurrency = (watch('transactionCurrency') as 'USD' | 'INR') || 'USD';
                                         if (isSale && pktCurrency && existingPktIds.length <= 1) {
-                                          setValue('transactionCurrency', pktCurrency as any);
+                                          if (activeCurrency !== pktCurrency) {
+                                            activeCurrency = pktCurrency;
+                                            setPrevCurrency(pktCurrency);
+                                            setValue('transactionCurrency', pktCurrency as any);
+                                          }
                                         }
 
-                                        const invCurrency = watch('transactionCurrency') || pktCurrency || 'USD';
                                         const exRate = Number(watch('exchangeRate')) || 1;
 
                                         let baseRate = 0;
@@ -1007,9 +1022,9 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                                         }
 
                                         let finalRate = baseRate;
-                                        if (pktCurrency === 'USD' && invCurrency === 'INR') {
+                                        if (pktCurrency === 'USD' && activeCurrency === 'INR') {
                                           finalRate = Math.round((baseRate * exRate) * 100) / 100;
-                                        } else if (pktCurrency === 'INR' && invCurrency === 'USD') {
+                                        } else if (pktCurrency === 'INR' && activeCurrency === 'USD') {
                                           finalRate = Math.round((baseRate / (exRate > 0 ? exRate : 1)) * 100) / 100;
                                         }
 
@@ -1566,44 +1581,43 @@ export const InvoiceFormPage: React.FC<FormPageProps> = ({ type }) => {
                     <span>{currSymbol}{taxableTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
                   </div>
 
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '13px' }}>CGST</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        {...register('totalCgst', { valueAsNumber: true })}
-                        style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-                      />
-                    </div>
-                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{watchedCgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </div>
+                  {(() => {
+                    // Collect unique GST rates from line items to display in labels
+                    const lineGstRates = calcTotals.lines
+                      .filter(l => l.taxable > 0)
+                      .map(l => {
+                        // Reverse-derive the gstPct from the tax amounts
+                        if (isSameStateCalc) {
+                          return l.taxable > 0 ? round2(((l.cgst + l.sgst) / l.taxable) * 100) : 0;
+                        }
+                        return l.taxable > 0 ? round2((l.igst / l.taxable) * 100) : 0;
+                      });
+                    const uniqueRates = [...new Set(lineGstRates.filter(r => r > 0))];
+                    const gstLabel = uniqueRates.length === 0 ? '0' : uniqueRates.length === 1 ? `${uniqueRates[0]}` : 'Mixed';
+                    const halfLabel = uniqueRates.length === 1 ? `${round2(uniqueRates[0] / 2)}` : gstLabel;
 
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '13px' }}>SGST</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        {...register('totalSgst', { valueAsNumber: true })}
-                        style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-                      />
-                    </div>
-                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{watchedSgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </div>
-
-                  <div style={{ display: 'flex', gap: '12px', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      <span style={{ fontSize: '13px' }}>IGST</span>
-                      <input
-                        type="number"
-                        step="0.01"
-                        {...register('totalIgst', { valueAsNumber: true })}
-                        style={{ width: '90px', height: '24px', fontSize: '12px', padding: '0 4px', border: '1px solid var(--color-border)', borderRadius: '4px' }}
-                      />
-                    </div>
-                    <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{watchedIgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-                  </div>
+                    return (
+                      <>
+                        {isSameStateCalc ? (
+                          <>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: '13px' }}>CGST ({halfLabel}%)</span>
+                              <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{cgstTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                              <span style={{ fontSize: '13px' }}>SGST ({halfLabel}%)</span>
+                              <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{sgstTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                            </div>
+                          </>
+                        ) : (
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                            <span style={{ fontSize: '13px' }}>IGST ({gstLabel}%)</span>
+                            <span style={{ fontWeight: 500, fontSize: '13px' }}>{currSymbol}{igstTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
 
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
                     <span>Round Off:</span>

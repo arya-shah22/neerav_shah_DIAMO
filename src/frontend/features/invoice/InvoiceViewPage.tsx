@@ -175,51 +175,91 @@ export const InvoiceViewPage: React.FC<ViewPageProps> = ({ type }) => {
           </p>
         </div>
 
-        <div style={{ background: 'var(--color-row-alt)', borderRadius: 'var(--radius-lg)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-            <span>Total Carats:</span>
-            <span style={{ fontWeight: 600 }}>{Number(invoice.totalCarats).toFixed(3)}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-            <span>Total Pieces:</span>
-            <span style={{ fontWeight: 600 }}>{invoice.totalPieces}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-            <span>Gross Amount:</span>
-            <span style={{ fontWeight: 600 }}>{invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.totalGrossAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-            <span>Discount:</span>
-            <span style={{ color: 'var(--color-danger)' }}>-{invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.totalDiscount).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-            <span>CGST:</span>
-            <span>₹{Number(invoice.totalCgst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
-            <span>SGST:</span>
-            <span>₹{Number(invoice.totalSgst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
-            <span>IGST:</span>
-            <span>₹{Number(invoice.totalIgst).toLocaleString('en-IN', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
-            <span>Round Off:</span>
-            <span>{Number(invoice.roundOff) >= 0 ? '+' : ''}{invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.roundOff).toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
-          </div>
-          <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', borderTop: '2px solid var(--color-accent)', paddingTop: '10px' }}>
-            <span>Net Total:</span>
-            <span>
-              {invoice.transactionCurrency === 'USD' ? '$' : '₹'}{Number(invoice.netAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-              {invoice.netAmountAlt && Number(invoice.netAmountAlt) > 0 && (
-                <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-secondary)', marginLeft: '6px' }}>
-                  ({invoice.transactionCurrency === 'USD' ? '₹' : '$'}{Number(invoice.netAmountAlt).toLocaleString('en-US', { minimumFractionDigits: 2 })})
-                </span>
+        {(() => {
+          const currSymbol = invoice.transactionCurrency === 'USD' ? '$' : '₹';
+          const gross = Number(invoice.totalGrossAmount || 0);
+          const disc = Number(invoice.totalDiscount || 0);
+          const taxable = Math.round((gross - disc) * 100) / 100;
+          const cgst = Number(invoice.totalCgst || 0);
+          const sgst = Number(invoice.totalSgst || 0);
+          const igst = Number(invoice.totalIgst || 0);
+          const roundOffVal = Number(invoice.roundOff || 0);
+
+          // Collect unique GST rates
+          const uniqueGstRates = Array.from(
+            new Set(
+              (invoice.items || [])
+                .map((it: any) => Number(it.gstPct || 0))
+                .filter((r: number) => r > 0)
+            )
+          );
+          const gstLabel = uniqueGstRates.length === 1 ? `${uniqueGstRates[0]}%` : uniqueGstRates.length > 1 ? 'Mixed' : '';
+          const halfGstLabel = uniqueGstRates.length === 1 ? `${Math.round((uniqueGstRates[0] / 2) * 100) / 100}%` : uniqueGstRates.length > 1 ? 'Mixed' : '';
+
+          return (
+            <div style={{ background: 'var(--color-row-alt)', borderRadius: 'var(--radius-lg)', padding: '20px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                <span>Total Carats:</span>
+                <span style={{ fontWeight: 600 }}>{Number(invoice.totalCarats).toFixed(3)} ct</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                <span>Total Pieces:</span>
+                <span style={{ fontWeight: 600 }}>{invoice.totalPieces}</span>
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                <span>Gross Amount:</span>
+                <span style={{ fontWeight: 600 }}>{currSymbol}{gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+              </div>
+              {disc > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span>Discount / Less:</span>
+                  <span style={{ color: 'var(--color-danger)', fontWeight: 600 }}>-{currSymbol}{disc.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
               )}
-            </span>
-          </div>
-        </div>
+              {(disc > 0 || cgst > 0 || sgst > 0 || igst > 0) && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', fontWeight: 600, borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                  <span>Taxable Value:</span>
+                  <span>{currSymbol}{taxable.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {cgst > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span>CGST {halfGstLabel ? `(${halfGstLabel})` : ''}:</span>
+                  <span>+{currSymbol}{cgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {sgst > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                  <span>SGST {halfGstLabel ? `(${halfGstLabel})` : ''}:</span>
+                  <span>+{currSymbol}{sgst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {igst > 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', borderBottom: '1px solid var(--color-border)', paddingBottom: '8px' }}>
+                  <span>IGST {gstLabel ? `(${gstLabel})` : ''}:</span>
+                  <span>+{currSymbol}{igst.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              {roundOffVal !== 0 && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px', color: 'var(--color-text-secondary)' }}>
+                  <span>Round Off:</span>
+                  <span>{roundOffVal >= 0 ? '+' : ''}{currSymbol}{roundOffVal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>
+                </div>
+              )}
+              <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '18px', fontWeight: 700, color: 'var(--color-accent)', borderTop: '2px solid var(--color-accent)', paddingTop: '10px' }}>
+                <span>Net Total:</span>
+                <span>
+                  {currSymbol}{Number(invoice.netAmount).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                  {invoice.netAmountAlt && Number(invoice.netAmountAlt) > 0 && (
+                    <span style={{ fontSize: '13px', fontWeight: 500, color: 'var(--color-text-secondary)', marginLeft: '6px' }}>
+                      ({invoice.transactionCurrency === 'USD' ? '₹' : '$'}{Number(invoice.netAmountAlt).toLocaleString('en-US', { minimumFractionDigits: 2 })})
+                    </span>
+                  )}
+                </span>
+              </div>
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

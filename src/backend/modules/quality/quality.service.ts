@@ -13,17 +13,33 @@ export class QualityService {
   private readonly prisma!: PrismaService;
 
   async list(companyId: number, search?: string) {
-    const defaultServices = [
-      { name: 'Rough to 4P', hsn: '9986' },
-      { name: 'Rough to Polish', hsn: '9986' },
-      { name: 'Makeable to Polish', hsn: '9986' }
-    ];
-    for (const s of defaultServices) {
-      const existing = await this.prisma.quality.findFirst({
-        where: { companyId, qualityName: s.name, isDeleted: false }
-      });
-      if (!existing) {
+    // Only auto-seed default service qualities if the company has zero
+    // non-deleted qualities AND no existing rows with the same names.
+    const activeCount = await this.prisma.quality.count({
+      where: { companyId, isDeleted: false },
+    });
+    if (activeCount === 0) {
+      const defaultServices = [
+        { name: 'Rough to 4P', hsn: '9986' },
+        { name: 'Rough to Polish', hsn: '9986' },
+        { name: 'Makeable to Polish', hsn: '9986' }
+      ];
+      for (const s of defaultServices) {
         try {
+          // Check if a row with this name already exists (including soft-deleted)
+          const existing = await this.prisma.quality.findFirst({
+            where: { companyId, qualityName: s.name },
+          });
+          if (existing) {
+            // If it was soft-deleted, restore it
+            if (existing.isDeleted) {
+              await this.prisma.quality.update({
+                where: { id: existing.id },
+                data: { isDeleted: false, status: AccountStatus.ACTIVE },
+              });
+            }
+            continue;
+          }
           await this.prisma.$transaction(async (tx) => {
             const q = await tx.quality.create({
               data: {
@@ -44,8 +60,8 @@ export class QualityService {
               }
             });
           });
-        } catch (e) {
-          // Ignore unique constraint issues if another thread creates it concurrently
+        } catch {
+          // Ignore any remaining edge cases
         }
       }
     }
@@ -247,14 +263,23 @@ export class QualityService {
         await tx.stockPacket.deleteMany({ where: { id: { in: packetIds } } });
       }
 
-      // 2. Delete quality conversions
+      // Ensure all packets of this quality are removed
+      await tx.stockPacket.deleteMany({ where: { qualityId: id } });
+
+      // 2. Remove transaction line items directly referencing this quality
+      await tx.saleInvoiceItem.deleteMany({ where: { qualityId: id } });
+      await tx.purchaseInvoiceItem.deleteMany({ where: { qualityId: id } });
+      await tx.challanItem.deleteMany({ where: { qualityId: id } });
+      await tx.jobVoucherItem.deleteMany({ where: { qualityId: id } });
+
+      // 3. Delete quality conversions
       await tx.stockConversionOutput.deleteMany({ where: { outputQualityId: id } });
       await tx.stockConversion.deleteMany({ where: { sourceQualityId: id } });
 
-      // 3. Delete quality GST history
+      // 4. Delete quality GST history
       await tx.qualityGstHistory.deleteMany({ where: { qualityId: id } });
 
-      // 4. Delete the quality record
+      // 5. Delete the quality record
       return tx.quality.delete({ where: { id } });
     });
   }
