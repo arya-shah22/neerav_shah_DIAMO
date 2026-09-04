@@ -1207,7 +1207,7 @@ export const AdminConsolePage: React.FC = () => {
                       {[
                         { code: 'sales', name: 'Sale Book (Invoices & Notes)', uris: ['/transactions/sales', '/transactions/sale-returns', '/transactions/sale-debit-notes'] },
                         { code: 'purchases', name: 'Purchase Book (Invoices & Notes)', uris: ['/transactions/purchases', '/transactions/purchase-returns', '/transactions/purchase-credit-notes'] },
-                        { code: 'inventory', name: 'Stock & Packet Inventory', uris: ['/inventory/stock', '/transactions/challans/job-work', '/transactions/orders/sales', '/transactions/orders/purchases', '/transactions/challans/trading', '/transactions/jobs/income', '/transactions/jobs/expense'] },
+                        { code: 'inventory', name: 'Stock & Packet Inventory', uris: ['/inventory/stock', '/inventory/stock-conversion', '/transactions/challans/job-work', '/transactions/jobs/billing', '/transactions/orders/sales', '/transactions/orders/purchases', '/transactions/challans/trading', '/transactions/jobs/income', '/transactions/jobs/expense'] },
                         { code: 'challans', name: 'Challan & Memo Book', uris: ['/transactions/challans/trading', '/transactions/challans/job-work'] },
                         { code: 'vouchers', name: 'Cash, Bank & Journal Vouchers', uris: ['/vouchers/journal', '/vouchers/cash-bank', '/vouchers/loan'] },
                         { code: 'accounts', name: 'Accounts & Party Masters', uris: ['/masters/accounting/accounts', '/masters/accounting/account-groups', '/masters/business/brokers', '/masters/business/companies', '/masters/business/financial-years', '/masters/diamond/qualities'] },

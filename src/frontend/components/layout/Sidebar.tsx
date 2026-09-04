@@ -190,7 +190,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ collapsed }) => {
       icon: <Briefcase size={18} />,
       subItems: [
         { path: '/transactions/challans/job-work', label: 'Job Work Issue', icon: <FileText size={16} /> },
-        { path: '/transactions/jobs/billing', label: 'Job Work Billing & Margin', icon: <Briefcase size={16} /> },
+        { path: '/transactions/jobs/billing', label: 'Job Work Billing & Subcontracting', icon: <Briefcase size={16} /> },
       ],
     },
     {

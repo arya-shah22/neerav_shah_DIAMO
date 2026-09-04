@@ -23,6 +23,7 @@ export const PAGE_REGISTRY: PageEntry[] = [
 
   // Transactions
   { uri: '/inventory/stock', label: 'Stock Inventory', category: 'Transactions' },
+  { uri: '/inventory/stock-conversion', label: 'Stock Conversion', category: 'Transactions' },
   { uri: '/transactions/sales', label: 'Sale Invoice', category: 'Transactions' },
   { uri: '/transactions/sale-returns', label: 'Sale Return / CN', category: 'Transactions' },
   { uri: '/transactions/sale-debit-notes', label: 'Sale Debit Note', category: 'Transactions' },
@@ -31,6 +32,7 @@ export const PAGE_REGISTRY: PageEntry[] = [
   { uri: '/transactions/purchase-credit-notes', label: 'Purchase Credit Note', category: 'Transactions' },
   { uri: '/transactions/challans/trading', label: 'Jhanghad (Trading)', category: 'Transactions' },
   { uri: '/transactions/challans/job-work', label: 'Job Work Issue', category: 'Transactions' },
+  { uri: '/transactions/jobs/billing', label: 'Job Work Billing & Subcontracting Register', category: 'Transactions' },
   { uri: '/transactions/orders/sales', label: 'Sales Order', category: 'Transactions' },
   { uri: '/transactions/orders/purchases', label: 'Purchase Order', category: 'Transactions' },
 
