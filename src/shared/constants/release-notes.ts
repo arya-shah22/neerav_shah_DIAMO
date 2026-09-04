@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.6',
+    date: '2026-09-04',
+    description:
+      'Job Work Permission & Route Access Fix: Resolved access denied issue when issuing new job work tickets from the Job Work Billing & Subcontracting Register; mapped sub-route permissions (/transactions/jobs/new) directly to the registered Job Work access permissions and cleaned duplicate route entries.',
+  },
+  {
     version: 'v1.0.5',
     date: '2026-09-04',
     description:
