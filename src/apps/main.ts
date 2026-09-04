@@ -476,12 +476,6 @@ app.on('window-all-closed', () => {
 
 // Hook app exit to run quick database snapshot and stop embedded DB/LAN services before quitting
 app.on('before-quit', async () => {
-  try {
-    stopLanDiscovery();
-    stopLanUpdateServer();
-    stopEmbeddedMySQL();
-  } catch (_e) {}
-
   if (nestApp) {
     try {
       const backupService = nestApp.get(BackupService);
@@ -500,9 +494,19 @@ app.on('before-quit', async () => {
         }
       }
     } catch (err) {
-      console.error(`[Backup] Exit backup failed: ${(err as Error).message}`);
+      // Ignore database connection disconnect during shutdown
+      const msg = (err as Error).message || '';
+      if (!msg.includes('shutdown') && !msg.includes('Can\'t reach database server')) {
+        console.error(`[Backup] Exit backup failed: ${msg}`);
+      }
     }
   }
+
+  try {
+    stopLanDiscovery();
+    stopLanUpdateServer();
+    stopEmbeddedMySQL();
+  } catch (_e) {}
 });
 
 // Prevent multiple instances
