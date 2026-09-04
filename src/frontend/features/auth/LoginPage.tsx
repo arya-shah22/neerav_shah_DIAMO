@@ -537,8 +537,8 @@ export const LoginPage: React.FC = () => {
                   dbConfig.role === 'HOST'
                     ? 'rgba(184, 144, 48, 0.18)'
                     : connectionStatus === 'CONNECTED'
-                    ? 'rgba(34, 197, 94, 0.18)'
-                    : 'rgba(239, 68, 68, 0.18)',
+                      ? 'rgba(34, 197, 94, 0.18)'
+                      : 'rgba(239, 68, 68, 0.18)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -546,8 +546,8 @@ export const LoginPage: React.FC = () => {
                   dbConfig.role === 'HOST'
                     ? '#eab308'
                     : connectionStatus === 'CONNECTED'
-                    ? '#22c55e'
-                    : '#ef4444',
+                      ? '#22c55e'
+                      : '#ef4444',
                 flexShrink: 0,
               }}
             >
@@ -583,14 +583,14 @@ export const LoginPage: React.FC = () => {
                       connectionStatus === 'CHECKING'
                         ? '#eab308'
                         : connectionStatus === 'CONNECTED'
-                        ? '#22c55e'
-                        : '#ef4444',
+                          ? '#22c55e'
+                          : '#ef4444',
                     boxShadow:
                       connectionStatus === 'CONNECTED'
                         ? '0 0 6px #22c55e'
                         : connectionStatus === 'DISCONNECTED'
-                        ? '0 0 6px #ef4444'
-                        : 'none',
+                          ? '0 0 6px #ef4444'
+                          : 'none',
                   }}
                 />
               </div>
@@ -608,10 +608,10 @@ export const LoginPage: React.FC = () => {
                 {testingConnection
                   ? 'Checking connectivity...'
                   : dbConfig.role === 'HOST'
-                  ? '🟢 Local Database Online'
-                  : connectionStatus === 'CONNECTED'
-                  ? `🟢 Online (${dbConfig.hostIp || '127.0.0.1'})`
-                  : `🔴 Disconnected (${dbConfig.hostIp || 'No IP'})`}
+                    ? '🟢 Local Database Online'
+                    : connectionStatus === 'CONNECTED'
+                      ? `🟢 Online (${dbConfig.hostIp || '127.0.0.1'})`
+                      : `🔴 Disconnected (${dbConfig.hostIp || 'No IP'})`}
               </span>
             </div>
           </div>

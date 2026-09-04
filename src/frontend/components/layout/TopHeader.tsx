@@ -330,8 +330,8 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
             lanState.role === 'HOST'
               ? `Host Master Server — Port ${lanState.hostPort} (Local Database Active)`
               : lanState.isConnected
-              ? `LAN Client connected to Host (${lanState.hostIp}:${lanState.hostPort}) — Latency: ${lanState.pingMs || 1}ms`
-              : `LAN Client Disconnected from Host (${lanState.hostIp})`
+                ? `LAN Client connected to Host (${lanState.hostIp}:${lanState.hostPort}) — Latency: ${lanState.pingMs || 1}ms`
+                : `LAN Client Disconnected from Host (${lanState.hostIp})`
           }
           style={{
             display: 'flex',
@@ -345,20 +345,20 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
               lanState.role === 'HOST'
                 ? 'rgba(184, 144, 48, 0.12)'
                 : lanState.isConnected
-                ? 'rgba(34, 197, 94, 0.12)'
-                : 'rgba(239, 68, 68, 0.12)',
+                  ? 'rgba(34, 197, 94, 0.12)'
+                  : 'rgba(239, 68, 68, 0.12)',
             color:
               lanState.role === 'HOST'
                 ? '#b89030'
                 : lanState.isConnected
-                ? '#16a34a'
-                : '#dc2626',
+                  ? '#16a34a'
+                  : '#dc2626',
             border:
               lanState.role === 'HOST'
                 ? '1px solid rgba(184, 144, 48, 0.25)'
                 : lanState.isConnected
-                ? '1px solid rgba(34, 197, 94, 0.25)'
-                : '1px solid rgba(239, 68, 68, 0.3)',
+                  ? '1px solid rgba(34, 197, 94, 0.25)'
+                  : '1px solid rgba(239, 68, 68, 0.3)',
             cursor: 'default',
             userSelect: 'none',
             transition: 'all var(--transition-fast)',
@@ -499,10 +499,10 @@ export const TopHeader: React.FC<TopHeaderProps> = ({
                       n.priority === 'CRITICAL'
                         ? '#ef4444'
                         : n.priority === 'HIGH'
-                        ? '#f97316'
-                        : n.priority === 'MEDIUM'
-                        ? '#eab308'
-                        : '#3b82f6';
+                          ? '#f97316'
+                          : n.priority === 'MEDIUM'
+                            ? '#eab308'
+                            : '#3b82f6';
 
                     return (
                       <div

@@ -79,10 +79,17 @@ const PermissionGuardOutlet: React.FC = () => {
   const { pathname } = useLocation();
 
   // Extract base page path from current URL (remove /new, /edit/:id, /:id suffixes)
-  const basePath = pathname
+  let basePath = pathname
     .replace(/\/(new|edit)(\/\d+)?$/, '')
     .replace(/\/\d+(\/edit)?$/, '')
     .replace(/\/view\/\d+$/, '');
+
+  // Alias Job Work form routes to Job Work Billing or Job Work Issue registered pages
+  if (basePath === '/transactions/jobs' || basePath === '/transactions/jobwork') {
+    if (canAccess('/transactions/jobs/billing') || canAccess('/transactions/challans/job-work')) {
+      return <Outlet />;
+    }
+  }
 
   if (!canAccess(basePath)) {
     return <AccessDeniedPage />;
@@ -108,7 +115,7 @@ const App: React.FC = () => {
             setShowWizard(true);
           }
         }
-      } catch {}
+      } catch { }
     }
     checkSetup();
   }, []);
@@ -125,143 +132,142 @@ const App: React.FC = () => {
 
             <Route element={<ProtectedRoutes />}>
               <Route element={<AppShell />}>
-               <Route element={<PermissionGuardOutlet />}>
-                <Route path="/" element={<Navigate to={localStorage.getItem('diamo_landing_page') || '/dashboard'} replace />} />
-                <Route path="/dashboard" element={<DashboardPage />} />
-                <Route path="/dashboard/analytics" element={<AnalyticsDashboardPage />} />
+                <Route element={<PermissionGuardOutlet />}>
+                  <Route path="/" element={<Navigate to={localStorage.getItem('diamo_landing_page') || '/dashboard'} replace />} />
+                  <Route path="/dashboard" element={<DashboardPage />} />
+                  <Route path="/dashboard/analytics" element={<AnalyticsDashboardPage />} />
 
-                {/* Stage 1: Company Master */}
-                <Route path="/masters/business/companies" element={<CompanyListPage />} />
-                <Route path="/masters/business/companies/new" element={<CompanyFormPage />} />
-                <Route path="/masters/business/companies/edit/:id" element={<CompanyFormPage />} />
+                  {/* Stage 1: Company Master */}
+                  <Route path="/masters/business/companies" element={<CompanyListPage />} />
+                  <Route path="/masters/business/companies/new" element={<CompanyFormPage />} />
+                  <Route path="/masters/business/companies/edit/:id" element={<CompanyFormPage />} />
 
-                {/* Legacy redirects */}
-                <Route path="/companies" element={<Navigate to="/masters/business/companies" replace />} />
-                <Route path="/companies/new" element={<Navigate to="/masters/business/companies/new" replace />} />
-                <Route path="/companies/edit/:id" element={<Navigate to="/masters/business/companies/edit/:id" replace />} />
+                  {/* Legacy redirects */}
+                  <Route path="/companies" element={<Navigate to="/masters/business/companies" replace />} />
+                  <Route path="/companies/new" element={<Navigate to="/masters/business/companies/new" replace />} />
+                  <Route path="/companies/edit/:id" element={<Navigate to="/masters/business/companies/edit/:id" replace />} />
 
-                {/* Stage 1: Financial Year Master */}
-                <Route path="/masters/business/financial-years" element={<FinancialYearPage />} />
+                  {/* Stage 1: Financial Year Master */}
+                  <Route path="/masters/business/financial-years" element={<FinancialYearPage />} />
 
-                {/* Stage 2: Account Group Master */}
-                <Route path="/masters/accounting/account-groups" element={<AccountGroupPage />} />
+                  {/* Stage 2: Account Group Master */}
+                  <Route path="/masters/accounting/account-groups" element={<AccountGroupPage />} />
 
-                {/* Stage 2: Account Master */}
-                <Route path="/masters/accounting/accounts" element={<AccountListPage />} />
-                <Route path="/masters/accounting/accounts/new" element={<AccountFormPage />} />
-                <Route path="/masters/accounting/accounts/edit/:id" element={<AccountFormPage />} />
+                  {/* Stage 2: Account Master */}
+                  <Route path="/masters/accounting/accounts" element={<AccountListPage />} />
+                  <Route path="/masters/accounting/accounts/new" element={<AccountFormPage />} />
+                  <Route path="/masters/accounting/accounts/edit/:id" element={<AccountFormPage />} />
 
-                {/* Stage 2: Broker Master */}
-                <Route path="/masters/business/brokers" element={<BrokerListPage />} />
-                <Route path="/masters/business/brokers/new" element={<BrokerFormPage />} />
-                <Route path="/masters/business/brokers/edit/:id" element={<BrokerFormPage />} />
+                  {/* Stage 2: Broker Master */}
+                  <Route path="/masters/business/brokers" element={<BrokerListPage />} />
+                  <Route path="/masters/business/brokers/new" element={<BrokerFormPage />} />
+                  <Route path="/masters/business/brokers/edit/:id" element={<BrokerFormPage />} />
 
-                {/* Stage 2: Quality Master */}
-                <Route path="/masters/diamond/qualities" element={<QualityListPage />} />
-                <Route path="/masters/diamond/qualities/new" element={<QualityFormPage />} />
-                <Route path="/masters/diamond/qualities/edit/:id" element={<QualityFormPage />} />
+                  {/* Stage 2: Quality Master */}
+                  <Route path="/masters/diamond/qualities" element={<QualityListPage />} />
+                  <Route path="/masters/diamond/qualities/new" element={<QualityFormPage />} />
+                  <Route path="/masters/diamond/qualities/edit/:id" element={<QualityFormPage />} />
 
-                {/* Stage 3: Inventory / Stock */}
-                <Route path="/inventory/stock" element={<StockListPage />} />
-                <Route path="/inventory/stock/new" element={<StockFormPage />} />
-                <Route path="/inventory/stock/edit/:id" element={<StockFormPage />} />
-                <Route path="/inventory/stock/:id" element={<StockDetailPage />} />
-                <Route path="/inventory/stock-conversion" element={<StockConversionListPage />} />
-                <Route path="/inventory/stock-conversion/new" element={<StockConversionFormPage />} />
-                <Route path="/inventory/stock-conversion/edit/:id" element={<StockConversionFormPage editMode />} />
-                <Route path="/inventory/stock-conversion/:id" element={<StockConversionFormPage viewMode />} />
+                  {/* Stage 3: Inventory / Stock */}
+                  <Route path="/inventory/stock" element={<StockListPage />} />
+                  <Route path="/inventory/stock/new" element={<StockFormPage />} />
+                  <Route path="/inventory/stock/edit/:id" element={<StockFormPage />} />
+                  <Route path="/inventory/stock/:id" element={<StockDetailPage />} />
+                  <Route path="/inventory/stock-conversion" element={<StockConversionListPage />} />
+                  <Route path="/inventory/stock-conversion/new" element={<StockConversionFormPage />} />
+                  <Route path="/inventory/stock-conversion/edit/:id" element={<StockConversionFormPage editMode />} />
+                  <Route path="/inventory/stock-conversion/:id" element={<StockConversionFormPage viewMode />} />
 
-                {/* Stage 4: Invoices (Sale & Purchase Books) */}
-                <Route path="/transactions/sales" element={<InvoiceListPage type="SALE_INVOICE" />} />
-                <Route path="/transactions/sales/new" element={<InvoiceFormPage type="SALE_INVOICE" />} />
-                <Route path="/transactions/sales/:id" element={<InvoiceViewPage type="SALE_INVOICE" />} />
-                <Route path="/transactions/sales/:id/edit" element={<InvoiceFormPage type="SALE_INVOICE" />} />
+                  {/* Stage 4: Invoices (Sale & Purchase Books) */}
+                  <Route path="/transactions/sales" element={<InvoiceListPage type="SALE_INVOICE" />} />
+                  <Route path="/transactions/sales/new" element={<InvoiceFormPage type="SALE_INVOICE" />} />
+                  <Route path="/transactions/sales/:id" element={<InvoiceViewPage type="SALE_INVOICE" />} />
+                  <Route path="/transactions/sales/:id/edit" element={<InvoiceFormPage type="SALE_INVOICE" />} />
 
-                <Route path="/transactions/sale-returns" element={<InvoiceListPage type="SALE_RETURN" />} />
-                <Route path="/transactions/sale-returns/new" element={<InvoiceFormPage type="SALE_RETURN" />} />
-                <Route path="/transactions/sale-returns/:id" element={<InvoiceViewPage type="SALE_RETURN" />} />
-                <Route path="/transactions/sale-returns/:id/edit" element={<InvoiceFormPage type="SALE_RETURN" />} />
+                  <Route path="/transactions/sale-returns" element={<InvoiceListPage type="SALE_RETURN" />} />
+                  <Route path="/transactions/sale-returns/new" element={<InvoiceFormPage type="SALE_RETURN" />} />
+                  <Route path="/transactions/sale-returns/:id" element={<InvoiceViewPage type="SALE_RETURN" />} />
+                  <Route path="/transactions/sale-returns/:id/edit" element={<InvoiceFormPage type="SALE_RETURN" />} />
 
-                <Route path="/transactions/sale-debit-notes" element={<InvoiceListPage type="SALE_DEBIT_NOTE" />} />
-                <Route path="/transactions/sale-debit-notes/new" element={<InvoiceFormPage type="SALE_DEBIT_NOTE" />} />
-                <Route path="/transactions/sale-debit-notes/:id" element={<InvoiceViewPage type="SALE_DEBIT_NOTE" />} />
-                <Route path="/transactions/sale-debit-notes/:id/edit" element={<InvoiceFormPage type="SALE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/sale-debit-notes" element={<InvoiceListPage type="SALE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/sale-debit-notes/new" element={<InvoiceFormPage type="SALE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/sale-debit-notes/:id" element={<InvoiceViewPage type="SALE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/sale-debit-notes/:id/edit" element={<InvoiceFormPage type="SALE_DEBIT_NOTE" />} />
 
-                <Route path="/transactions/purchases" element={<InvoiceListPage type="PURCHASE_INVOICE" />} />
-                <Route path="/transactions/purchases/new" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
-                <Route path="/transactions/purchases/:id" element={<InvoiceViewPage type="PURCHASE_INVOICE" />} />
-                <Route path="/transactions/purchases/:id/edit" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
+                  <Route path="/transactions/purchases" element={<InvoiceListPage type="PURCHASE_INVOICE" />} />
+                  <Route path="/transactions/purchases/new" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
+                  <Route path="/transactions/purchases/:id" element={<InvoiceViewPage type="PURCHASE_INVOICE" />} />
+                  <Route path="/transactions/purchases/:id/edit" element={<InvoiceFormPage type="PURCHASE_INVOICE" />} />
 
-                <Route path="/transactions/purchase-returns" element={<InvoiceListPage type="PURCHASE_RETURN" />} />
-                <Route path="/transactions/purchase-returns/new" element={<InvoiceFormPage type="PURCHASE_RETURN" />} />
-                <Route path="/transactions/purchase-returns/:id" element={<InvoiceViewPage type="PURCHASE_RETURN" />} />
-                <Route path="/transactions/purchase-returns/:id/edit" element={<InvoiceFormPage type="PURCHASE_RETURN" />} />
+                  <Route path="/transactions/purchase-returns" element={<InvoiceListPage type="PURCHASE_RETURN" />} />
+                  <Route path="/transactions/purchase-returns/new" element={<InvoiceFormPage type="PURCHASE_RETURN" />} />
+                  <Route path="/transactions/purchase-returns/:id" element={<InvoiceViewPage type="PURCHASE_RETURN" />} />
+                  <Route path="/transactions/purchase-returns/:id/edit" element={<InvoiceFormPage type="PURCHASE_RETURN" />} />
 
-                <Route path="/transactions/purchase-credit-notes" element={<InvoiceListPage type="PURCHASE_DEBIT_NOTE" />} />
-                <Route path="/transactions/purchase-credit-notes/new" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
-                <Route path="/transactions/purchase-credit-notes/:id" element={<InvoiceViewPage type="PURCHASE_DEBIT_NOTE" />} />
-                <Route path="/transactions/purchase-credit-notes/:id/edit" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/purchase-credit-notes" element={<InvoiceListPage type="PURCHASE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/purchase-credit-notes/new" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/purchase-credit-notes/:id" element={<InvoiceViewPage type="PURCHASE_DEBIT_NOTE" />} />
+                  <Route path="/transactions/purchase-credit-notes/:id/edit" element={<InvoiceFormPage type="PURCHASE_DEBIT_NOTE" />} />
 
-                {/* Stage 6: Challan and Order Books */}
-                <Route path="/transactions/challans/trading" element={<ChallanListPage purpose="TRADING_JHANGHAD" />} />
-                <Route path="/transactions/challans/trading/new" element={<ChallanFormPage purpose="TRADING_JHANGHAD" />} />
-                <Route path="/transactions/challans/trading/:id" element={<ChallanFormPage purpose="TRADING_JHANGHAD" viewMode />} />
-                <Route path="/transactions/challans/trading/:id/edit" element={<ChallanFormPage purpose="TRADING_JHANGHAD" />} />
+                  {/* Stage 6: Challan and Order Books */}
+                  <Route path="/transactions/challans/trading" element={<ChallanListPage purpose="TRADING_JHANGHAD" />} />
+                  <Route path="/transactions/challans/trading/new" element={<ChallanFormPage purpose="TRADING_JHANGHAD" />} />
+                  <Route path="/transactions/challans/trading/:id" element={<ChallanFormPage purpose="TRADING_JHANGHAD" viewMode />} />
+                  <Route path="/transactions/challans/trading/:id/edit" element={<ChallanFormPage purpose="TRADING_JHANGHAD" />} />
 
-                <Route path="/transactions/challans/job-work" element={<ChallanListPage purpose="JOB_WORK" />} />
-                <Route path="/transactions/challans/job-work/new" element={<ChallanFormPage purpose="JOB_WORK" />} />
-                <Route path="/transactions/challans/job-work/:id" element={<ChallanFormPage purpose="JOB_WORK" viewMode />} />
-                <Route path="/transactions/challans/job-work/:id/edit" element={<ChallanFormPage purpose="JOB_WORK" />} />
+                  <Route path="/transactions/challans/job-work" element={<ChallanListPage purpose="JOB_WORK" />} />
+                  <Route path="/transactions/challans/job-work/new" element={<ChallanFormPage purpose="JOB_WORK" />} />
+                  <Route path="/transactions/challans/job-work/:id" element={<ChallanFormPage purpose="JOB_WORK" viewMode />} />
+                  <Route path="/transactions/challans/job-work/:id/edit" element={<ChallanFormPage purpose="JOB_WORK" />} />
 
-                <Route path="/transactions/orders/sales" element={<ChallanListPage purpose="SALE_ORDER" />} />
-                <Route path="/transactions/orders/sales/new" element={<ChallanFormPage purpose="SALE_ORDER" />} />
-                <Route path="/transactions/orders/sales/:id" element={<ChallanFormPage purpose="SALE_ORDER" viewMode />} />
-                <Route path="/transactions/orders/sales/:id/edit" element={<ChallanFormPage purpose="SALE_ORDER" />} />
+                  <Route path="/transactions/orders/sales" element={<ChallanListPage purpose="SALE_ORDER" />} />
+                  <Route path="/transactions/orders/sales/new" element={<ChallanFormPage purpose="SALE_ORDER" />} />
+                  <Route path="/transactions/orders/sales/:id" element={<ChallanFormPage purpose="SALE_ORDER" viewMode />} />
+                  <Route path="/transactions/orders/sales/:id/edit" element={<ChallanFormPage purpose="SALE_ORDER" />} />
 
-                <Route path="/transactions/orders/purchases" element={<ChallanListPage purpose="PURCHASE_ORDER" />} />
-                <Route path="/transactions/orders/purchases/new" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
-                <Route path="/transactions/orders/purchases/:id" element={<ChallanFormPage purpose="PURCHASE_ORDER" viewMode />} />
-                <Route path="/transactions/orders/purchases/:id/edit" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
+                  <Route path="/transactions/orders/purchases" element={<ChallanListPage purpose="PURCHASE_ORDER" />} />
+                  <Route path="/transactions/orders/purchases/new" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
+                  <Route path="/transactions/orders/purchases/:id" element={<ChallanFormPage purpose="PURCHASE_ORDER" viewMode />} />
+                  <Route path="/transactions/orders/purchases/:id/edit" element={<ChallanFormPage purpose="PURCHASE_ORDER" />} />
 
-                {/* Unified Job Work Billing & Margin Engine */}
-                <Route path="/transactions/jobs/billing" element={<JobWorkBillingPage />} />
-                <Route path="/transactions/jobs/new" element={<JobWorkFormPage />} />
-                <Route path="/transactions/jobwork/new" element={<JobWorkFormPage />} />
-                <Route path="/transactions/challans/job-work" element={<JobWorkFormPage />} />
+                  {/* Unified Job Work Billing & Margin Engine */}
+                  <Route path="/transactions/jobs/billing" element={<JobWorkBillingPage />} />
+                  <Route path="/transactions/jobs/new" element={<JobWorkFormPage />} />
+                  <Route path="/transactions/jobwork/new" element={<JobWorkFormPage />} />
 
-                {/* Phase 8: Accounting (JV Book) */}
-                <Route path="/vouchers/journal" element={<JVBookPage />} />
+                  {/* Phase 8: Accounting (JV Book) */}
+                  <Route path="/vouchers/journal" element={<JVBookPage />} />
 
-                {/* Phase 9: Cash & Bank Book */}
-                <Route path="/vouchers/cash-bank" element={<CashBankPage />} />
+                  {/* Phase 9: Cash & Bank Book */}
+                  <Route path="/vouchers/cash-bank" element={<CashBankPage />} />
 
-                {/* Loan Book */}
-                <Route path="/vouchers/loan" element={<LoanPage />} />
+                  {/* Loan Book */}
+                  <Route path="/vouchers/loan" element={<LoanPage />} />
 
-                {/* Phase 11: Enterprise Financial Reports */}
-                <Route path="/reports/ledger" element={<LedgerBookPage />} />
-                <Route path="/reports/trial-balance" element={<TrialBalancePage />} />
-                <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
-                <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
-                <Route path="/reports/cash-flow" element={<CashFlowPage />} />
-                <Route path="/reports/fund-flow" element={<FundFlowPage />} />
-                <Route path="/reports/outstanding" element={<OutstandingReportPage />} />
-                <Route path="/reports/stock" element={<StockReportPage />} />
-                <Route path="/reports/gst" element={<GstDashboardPage />} />
-                <Route path="/reports/gstr1" element={<Gstr1ReportPage />} />
-                <Route path="/reports/gstr2" element={<Gstr2ReconciliationPage />} />
-                <Route path="/reports/gstr3b" element={<Gstr3bReportPage />} />
-                <Route path="/reports/gst-analytics" element={<GstAnalyticsPage />} />
-                <Route path="/reports/tds-tcs" element={<TdsTcsDashboardPage />} />
-                <Route path="/reports/mis" element={<MisDashboardPage />} />
-                <Route path="/reports/intelligence" element={<ReportIntelligencePage />} />
-                <Route path="/reports/day-book" element={<DayBookPage />} />
-                <Route path="/settings" element={<SettingsPage />} />
-                <Route path="/admin" element={<AdminConsolePage />} />
+                  {/* Phase 11: Enterprise Financial Reports */}
+                  <Route path="/reports/ledger" element={<LedgerBookPage />} />
+                  <Route path="/reports/trial-balance" element={<TrialBalancePage />} />
+                  <Route path="/reports/profit-loss" element={<ProfitLossPage />} />
+                  <Route path="/reports/balance-sheet" element={<BalanceSheetPage />} />
+                  <Route path="/reports/cash-flow" element={<CashFlowPage />} />
+                  <Route path="/reports/fund-flow" element={<FundFlowPage />} />
+                  <Route path="/reports/outstanding" element={<OutstandingReportPage />} />
+                  <Route path="/reports/stock" element={<StockReportPage />} />
+                  <Route path="/reports/gst" element={<GstDashboardPage />} />
+                  <Route path="/reports/gstr1" element={<Gstr1ReportPage />} />
+                  <Route path="/reports/gstr2" element={<Gstr2ReconciliationPage />} />
+                  <Route path="/reports/gstr3b" element={<Gstr3bReportPage />} />
+                  <Route path="/reports/gst-analytics" element={<GstAnalyticsPage />} />
+                  <Route path="/reports/tds-tcs" element={<TdsTcsDashboardPage />} />
+                  <Route path="/reports/mis" element={<MisDashboardPage />} />
+                  <Route path="/reports/intelligence" element={<ReportIntelligencePage />} />
+                  <Route path="/reports/day-book" element={<DayBookPage />} />
+                  <Route path="/settings" element={<SettingsPage />} />
+                  <Route path="/admin" element={<AdminConsolePage />} />
 
-                {/* Legacy redirects */}
-                <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />
-               </Route>
+                  {/* Legacy redirects */}
+                  <Route path="/masters/accounts" element={<Navigate to="/masters/accounting/accounts" replace />} />
+                </Route>
               </Route>
             </Route>
 
