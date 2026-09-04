@@ -16,6 +16,12 @@ export interface IReleaseNote {
 
 export const RELEASE_NOTES: IReleaseNote[] = [
   {
+    version: 'v1.0.5',
+    date: '2026-09-04',
+    description:
+      'Staff Permissions & Page Access Control Suite: Added Job Work Billing & Subcontracting Register and Stock Conversion wizard to the centralized access control page registry, enabling granular staff authorization; mapped Job Work Billing and Stock Conversion to the Action-Level Security Matrix (Create/Edit/Delete/Export/Print); synchronized sidebar navigation labels.',
+  },
+  {
     version: 'v1.0.4',
     date: '2026-08-26',
     description:
